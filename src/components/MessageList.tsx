@@ -5,7 +5,9 @@ import { GROUPING_WINDOW_SECONDS, formatDay, formatFull, formatTime, sameDay } f
 import type { Message, Role, User } from "@/lib/protocol";
 import { colorRoleOf } from "@/store/selectors";
 import { Avatar } from "./Avatar";
-import { HashIcon, PencilIcon, TrashIcon } from "./Icons";
+import { ContextMenu, type MenuEntry } from "./ContextMenu";
+import { DeleteMessageDialog } from "./dialogs/DeleteMessageDialog";
+import { CopyIcon, HashIcon, PencilIcon, TrashIcon } from "./Icons";
 
 /**
  * One rendered row. A message either opens a block, carrying its author and
@@ -85,10 +87,24 @@ export function MessageList({
   const anchor = useRef<{ height: number; top: number } | null>(null);
 
   const [editing, setEditing] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Message | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    message: Message;
+  } | null>(null);
 
   const rows = useMemo(() => buildRows(messages), [messages]);
   const newest = messages.at(-1)?.id ?? 0;
   const oldest = messages[0]?.id ?? 0;
+
+  function requestDelete(message: Message, shiftKey = false) {
+    if (shiftKey) {
+      onDelete(message.id);
+    } else {
+      setPendingDelete(message);
+    }
+  }
 
   // Following the conversation means staying pinned to the bottom as messages
   // arrive, but never yanking a reader away from older messages they scrolled
@@ -117,6 +133,54 @@ export function MessageList({
       onLoadOlder();
     }
   }
+
+  const menuEntries: MenuEntry[] = useMemo(() => {
+    if (!contextMenu) return [];
+    const msg = contextMenu.message;
+    const isAuthor = msg.userId !== null && msg.userId === selfId;
+    const canDelete = isAuthor || canManageMessages;
+    const entries: MenuEntry[] = [];
+
+    if (isAuthor) {
+      entries.push({
+        id: "edit",
+        label: "Edit Message",
+        icon: <PencilIcon size={15} />,
+        onClick: () => setEditing(msg.id),
+      });
+    }
+
+    if (canDelete) {
+      entries.push({
+        id: "delete",
+        label: "Delete Message",
+        icon: <TrashIcon size={15} />,
+        danger: true,
+        onClick: () => requestDelete(msg, false),
+      });
+    }
+
+    if (entries.length > 0) {
+      entries.push({ type: "separator" });
+    }
+
+    entries.push(
+      {
+        id: "copy-text",
+        label: "Copy Text",
+        icon: <CopyIcon size={15} />,
+        onClick: () => void navigator.clipboard.writeText(msg.content),
+      },
+      {
+        id: "copy-id",
+        label: "Copy Message ID",
+        icon: <CopyIcon size={15} />,
+        onClick: () => void navigator.clipboard.writeText(String(msg.id)),
+      },
+    );
+
+    return entries;
+  }, [contextMenu, selfId, canManageMessages]);
 
   return (
     <div className="chat" ref={scroller} onScroll={handleScroll}>
@@ -161,12 +225,35 @@ export function MessageList({
               setEditing(null);
               onEdit(message.id, content);
             }}
-            onDelete={() => onDelete(message.id)}
+            onDelete={(e) => requestDelete(message, e.shiftKey)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              setContextMenu({ x: event.clientX, y: event.clientY, message });
+            }}
           />
         </div>
       ))}
 
       <div ref={bottom} />
+
+      {contextMenu ? (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={menuEntries}
+          onClose={() => setContextMenu(null)}
+        />
+      ) : null}
+
+      {pendingDelete ? (
+        <DeleteMessageDialog
+          message={pendingDelete}
+          author={pendingDelete.userId === null ? undefined : users.get(pendingDelete.userId)}
+          roles={roles}
+          onConfirm={() => onDelete(pendingDelete.id)}
+          onClose={() => setPendingDelete(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -183,7 +270,8 @@ interface MessageRowProps {
   onStartEdit(): void;
   onCancelEdit(): void;
   onSubmitEdit(content: string): void;
-  onDelete(): void;
+  onDelete(event: React.MouseEvent): void;
+  onContextMenu?(event: React.MouseEvent): void;
 }
 
 function MessageRow({
@@ -198,6 +286,7 @@ function MessageRow({
   onCancelEdit,
   onSubmitEdit,
   onDelete,
+  onContextMenu,
 }: MessageRowProps) {
   const [draft, setDraft] = useState(message.content);
 
@@ -206,7 +295,10 @@ function MessageRow({
   const color = author ? (colorRoleOf(author, roles)?.color ?? null) : null;
 
   return (
-    <div className={startsBlock ? "msg msg--first" : "msg"}>
+    <div
+      className={startsBlock ? "msg msg--first" : "msg"}
+      onContextMenu={onContextMenu}
+    >
       <div className="msg__gutter">
         {startsBlock ? (
           author ? (

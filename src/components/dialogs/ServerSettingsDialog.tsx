@@ -14,6 +14,7 @@ import { useSession } from "@/store/session";
 import { useMyPermissions, useMyRank } from "@/store/selectors";
 import { Modal } from "../Modal";
 import { PlusIcon, TrashIcon } from "../Icons";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 type Tab = "overview" | "roles";
 
@@ -214,6 +215,7 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
   const [mask, setMask] = useState(() => parse(role.permissions));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Editing a role you do not outrank is refused by the server, so the whole
   // form is inert rather than misleading.
@@ -330,12 +332,26 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
           Save role
         </button>
         {role.managed === "" && editable ? (
-          <button className="btn btn--ghost" onClick={onDelete} disabled={busy}>
+          <button className="btn btn--ghost" onClick={() => setConfirmDelete(true)} disabled={busy}>
             <TrashIcon size={15} />
             Delete
           </button>
         ) : null}
       </div>
+
+      {confirmDelete ? (
+        <ConfirmDialog
+          title="Delete Role"
+          subtitle={`Are you sure you want to delete the "${role.name}" role? This cannot be undone.`}
+          confirmText="Delete Role"
+          danger
+          onConfirm={() => {
+            setConfirmDelete(false);
+            onDelete();
+          }}
+          onClose={() => setConfirmDelete(false)}
+        />
+      ) : null}
     </div>
   );
 }

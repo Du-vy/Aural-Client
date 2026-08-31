@@ -2,13 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ChannelSidebar } from "@/components/ChannelSidebar";
 import { ChatPanel } from "@/components/ChatPanel";
+import { ContextMenu, type MenuEntry } from "@/components/ContextMenu";
 import {
   AuralMark,
+  ChevronIcon,
   CloseIcon,
+  CopyIcon,
+  FolderIcon,
   GearIcon,
+  HangUpIcon,
   HashIcon,
   MenuIcon,
+  PencilIcon,
   PlusIcon,
+  ShieldIcon,
+  TrashIcon,
+  UserIcon,
+  UserXIcon,
   UsersIcon,
   VoiceIcon,
 } from "@/components/Icons";
@@ -16,7 +26,9 @@ import { MemberList } from "@/components/MemberList";
 import { UserPanel } from "@/components/UserPanel";
 import { AccountDialog } from "@/components/dialogs/AccountDialog";
 import { ChannelDialog } from "@/components/dialogs/ChannelDialog";
+import { ConfirmDialog } from "@/components/dialogs/ConfirmDialog";
 import { MemberDialog } from "@/components/dialogs/MemberDialog";
+import { NicknameDialog } from "@/components/dialogs/NicknameDialog";
 import { ServerSettingsDialog } from "@/components/dialogs/ServerSettingsDialog";
 import {
   DEFAULT_SIDEBAR_WIDTH,
@@ -26,15 +38,30 @@ import {
   writeSidebarWidth,
 } from "@/lib/storage";
 import { Perm, has } from "@/lib/permissions";
+import type { Channel, ChannelType, User } from "@/lib/protocol";
 import { useSession } from "@/store/session";
-import { useMyPermissions } from "@/store/selectors";
+import { assignableRoles, outranks, useMyPermissions } from "@/store/selectors";
 
 type Dialog =
   | { kind: "none" }
   | { kind: "account" }
   | { kind: "settings" }
-  | { kind: "channel"; parentId: number | null }
-  | { kind: "member"; userId: number };
+  | {
+      kind: "channel";
+      parentId?: number | null;
+      initialType?: ChannelType;
+      editChannelId?: number;
+    }
+  | { kind: "member"; userId: number }
+  | { kind: "nickname"; userId: number }
+  | { kind: "confirmDeleteChannel"; channel: Channel }
+  | { kind: "confirmKick"; userId: number };
+
+type ContextMenuState =
+  | { kind: "user"; x: number; y: number; user: User }
+  | { kind: "channel"; x: number; y: number; channel: Channel }
+  | { kind: "server"; x: number; y: number }
+  | null;
 
 interface ServerViewProps {
   onAddServer(): void;
@@ -43,14 +70,23 @@ interface ServerViewProps {
 export function ServerView({ onAddServer }: ServerViewProps) {
   const server = useSession((state) => state.server);
   const channels = useSession((state) => state.channels);
+  const roles = useSession((state) => state.roles);
+  const users = useSession((state) => state.users);
+  const self = useSession((state) => state.self);
   const saved = useSession((state) => state.saved);
   const savedId = useSession((state) => state.savedId);
   const notice = useSession((state) => state.notice);
   const dismissNotice = useSession((state) => state.dismissNotice);
   const connect = useSession((state) => state.connect);
+  const address = useSession((state) => state.address);
+  const deleteChannel = useSession((state) => state.deleteChannel);
+  const setRoleMembership = useSession((state) => state.setRoleMembership);
+  const moveUser = useSession((state) => state.moveUser);
+  const kickUser = useSession((state) => state.kickUser);
   const permissions = useMyPermissions();
 
   const [dialog, setDialog] = useState<Dialog>({ kind: "none" });
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [membersOpen, setMembersOpen] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth > 1100 : true,
@@ -61,8 +97,6 @@ export function ServerView({ onAddServer }: ServerViewProps) {
 
   const selected = selectedChannelId === null ? null : (channels.get(selectedChannelId) ?? null);
 
-  // The first text channel is a reasonable landing spot, and a channel that
-  // disappears must not leave the header pointing at nothing.
   useEffect(() => {
     if (selectedChannelId !== null && channels.has(selectedChannelId)) return;
     const firstText = [...channels.values()]
@@ -113,6 +147,208 @@ export function ServerView({ onAddServer }: ServerViewProps) {
     writeSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
   }
 
+  const contextMenuItems: MenuEntry[] = useMemo(() => {
+    if (!contextMenu || !server) return [];
+
+    if (contextMenu.kind === "server") {
+      const entries: MenuEntry[] = [];
+      if (canManageServer) {
+        entries.push({
+          id: "server-settings",
+          label: "Server Settings",
+          icon: <GearIcon size={16} />,
+          onClick: () => setDialog({ kind: "settings" }),
+        });
+      }
+      if (canManageChannels) {
+        entries.push(
+          {
+            id: "create-channel",
+            label: "Create Channel",
+            icon: <PlusIcon size={16} />,
+            onClick: () => setDialog({ kind: "channel", parentId: null }),
+          },
+          {
+            id: "create-category",
+            label: "Create Category",
+            icon: <FolderIcon size={16} />,
+            onClick: () => setDialog({ kind: "channel", parentId: null, initialType: "category" }),
+          },
+        );
+      }
+      if (entries.length > 0) entries.push({ type: "separator" });
+      entries.push(
+        {
+          id: "copy-address",
+          label: "Copy Server Address",
+          icon: <CopyIcon size={16} />,
+          onClick: () => void navigator.clipboard.writeText(address?.label ?? address?.raw ?? ""),
+        },
+        {
+          id: "copy-name",
+          label: "Copy Server Name",
+          icon: <CopyIcon size={16} />,
+          onClick: () => void navigator.clipboard.writeText(server.name),
+        },
+      );
+      return entries;
+    }
+
+    if (contextMenu.kind === "channel") {
+      const ch = contextMenu.channel;
+      const isCat = ch.type === "category";
+      const entries: MenuEntry[] = [];
+
+      if (isCat && canManageChannels) {
+        entries.push({
+          id: "create-in-category",
+          label: "Create Channel",
+          icon: <PlusIcon size={16} />,
+          onClick: () => setDialog({ kind: "channel", parentId: ch.id }),
+        });
+        entries.push({ type: "separator" });
+      }
+
+      if (canManageChannels) {
+        entries.push(
+          {
+            id: "edit-channel",
+            label: isCat ? "Edit Category" : "Edit Channel",
+            icon: <PencilIcon size={16} />,
+            onClick: () => setDialog({ kind: "channel", editChannelId: ch.id }),
+          },
+          {
+            id: "delete-channel",
+            label: isCat ? "Delete Category" : "Delete Channel",
+            icon: <TrashIcon size={16} />,
+            danger: true,
+            onClick: () => setDialog({ kind: "confirmDeleteChannel", channel: ch }),
+          },
+        );
+        entries.push({ type: "separator" });
+      }
+
+      entries.push({
+        id: "copy-id",
+        label: "Copy Channel ID",
+        icon: <CopyIcon size={16} />,
+        onClick: () => void navigator.clipboard.writeText(String(ch.id)),
+      });
+
+      return entries;
+    }
+
+    if (contextMenu.kind === "user") {
+      const u = contextMenu.user;
+      const isSelf = self?.id === u.id;
+      const canChangeNick = isSelf
+        ? has(permissions, Perm.ChangeNickname)
+        : has(permissions, Perm.ManageNicknames) && outranks(self, u, roles);
+      const canManageRoles = has(permissions, Perm.ManageRoles);
+      const assignable = assignableRoles(self, roles);
+      const canKick = !isSelf && has(permissions, Perm.KickUsers) && outranks(self, u, roles);
+      const canMove = has(permissions, Perm.MoveUsers) && u.channelId !== null;
+
+      const entries: MenuEntry[] = [
+        {
+          id: "profile",
+          label: "Profile",
+          icon: <UserIcon size={16} />,
+          onClick: () => setDialog({ kind: "member", userId: u.id }),
+        },
+      ];
+
+      if (canChangeNick) {
+        entries.push({
+          id: "change-nick",
+          label: "Change Nickname",
+          icon: <PencilIcon size={16} />,
+          onClick: () => setDialog({ kind: "nickname", userId: u.id }),
+        });
+      }
+
+      if (canManageRoles && assignable.length > 0) {
+        const userRoleSet = new Set(u.roles ?? []);
+        entries.push({
+          id: "roles-sub",
+          label: "Roles",
+          icon: <ShieldIcon size={16} />,
+          items: assignable.map((r) => ({
+            id: `role-${r.id}`,
+            label: r.name,
+            checked: userRoleSet.has(r.id),
+            keepOpen: true,
+            onClick: () => void setRoleMembership(u.id, r.id, !userRoleSet.has(r.id)),
+          })),
+        });
+      }
+
+      if (canMove) {
+        const voiceChannels = [...channels.values()]
+          .filter((c) => c.type === "voice" && c.id !== u.channelId)
+          .sort((a, b) => a.position - b.position);
+
+        if (voiceChannels.length > 0) {
+          entries.push({
+            id: "move-sub",
+            label: "Move to Channel",
+            icon: <VoiceIcon size={16} />,
+            items: voiceChannels.map((vc) => ({
+              id: `move-${vc.id}`,
+              label: vc.name,
+              icon: <VoiceIcon size={14} />,
+              onClick: () => void moveUser(u.id, vc.id),
+            })),
+          });
+        }
+
+        entries.push({
+          id: "disconnect-voice",
+          label: "Disconnect Voice",
+          icon: <HangUpIcon size={16} />,
+          danger: true,
+          onClick: () => void moveUser(u.id, null),
+        });
+      }
+
+      if (canKick) {
+        entries.push({ type: "separator" });
+        entries.push({
+          id: "kick",
+          label: `Kick ${u.nickname}`,
+          icon: <UserXIcon size={16} />,
+          danger: true,
+          onClick: () => setDialog({ kind: "confirmKick", userId: u.id }),
+        });
+      }
+
+      entries.push({ type: "separator" });
+      entries.push({
+        id: "copy-id",
+        label: "Copy User ID",
+        icon: <CopyIcon size={16} />,
+        onClick: () => void navigator.clipboard.writeText(String(u.id)),
+      });
+
+      return entries;
+    }
+
+    return [];
+  }, [
+    contextMenu,
+    server,
+    canManageServer,
+    canManageChannels,
+    deleteChannel,
+    self,
+    permissions,
+    roles,
+    channels,
+    setRoleMembership,
+    moveUser,
+    kickUser,
+  ]);
+
   if (!server) return null;
 
   const shellClasses = ["app"];
@@ -130,50 +366,42 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           <button
             key={entry.id}
             className={entry.id === savedId ? "rail__item rail__item--active" : "rail__item"}
-            title={`${entry.name} (${entry.id})`}
+            onClick={() => void connect({ address: entry.address, nickname: entry.nickname })}
+            title={entry.name}
             aria-label={entry.name}
-            onClick={() => {
-              if (entry.id === savedId) return;
-              void connect({ address: entry.address }).catch(() => {
-                // The connect screen surfaces the failure.
-              });
-            }}
           >
-            {entry.name.slice(0, 2).toUpperCase()}
+            {entry.name.slice(0, 1).toUpperCase()}
           </button>
         ))}
-        <div className="rail__divider" />
-        <button className="rail__item" onClick={onAddServer} title="Connect to another server" aria-label="Connect to another server">
-          <PlusIcon size={20} />
+
+        <button
+          className="rail__item rail__item--add"
+          onClick={onAddServer}
+          title="Connect to another server"
+          aria-label="Connect to another server"
+        >
+          <PlusIcon size={18} />
         </button>
       </nav>
 
       <aside className="sidebar">
-        <header className="sidebar__header">
+        <header
+          className="sidebar__header"
+          style={{ cursor: "pointer" }}
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setContextMenu({ kind: "server", x: rect.left, y: rect.bottom + 4 });
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
+          }}
+        >
           <span className="sidebar__name" title={server.description || server.name}>
             {server.name}
           </span>
-          <span style={{ display: "flex", gap: 2 }}>
-            {canManageChannels ? (
-              <button
-                className="iconbtn"
-                onClick={() => setDialog({ kind: "channel", parentId: null })}
-                title="Create a channel"
-                aria-label="Create a channel"
-              >
-                <PlusIcon size={17} />
-              </button>
-            ) : null}
-            {canManageServer ? (
-              <button
-                className="iconbtn"
-                onClick={() => setDialog({ kind: "settings" })}
-                title="Server settings"
-                aria-label="Server settings"
-              >
-                <GearIcon size={17} />
-              </button>
-            ) : null}
+          <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <ChevronIcon size={14} />
           </span>
         </header>
 
@@ -185,6 +413,16 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           }}
           onCreateChannel={(parentId) => setDialog({ kind: "channel", parentId })}
           onOpenMember={(userId) => setDialog({ kind: "member", userId })}
+          onDeleteChannel={(channel) => setDialog({ kind: "confirmDeleteChannel", channel })}
+          onContextMenuChannel={(e, channel) => {
+            setContextMenu({ kind: "channel", x: e.clientX, y: e.clientY, channel });
+          }}
+          onContextMenuMember={(e, user) => {
+            setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
+          }}
+          onContextMenuServer={(e) => {
+            setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
+          }}
         />
 
         <UserPanel onOpenAccount={() => setDialog({ kind: "account" })} />
@@ -267,7 +505,12 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         )}
       </main>
 
-      <MemberList onOpenMember={(userId) => setDialog({ kind: "member", userId })} />
+      <MemberList
+        onOpenMember={(userId) => setDialog({ kind: "member", userId })}
+        onContextMenuMember={(e, user) => {
+          setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
+        }}
+      />
 
       {drawerOpen ? (
         <div className="scrim--drawer" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
@@ -276,15 +519,62 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         <div className="scrim--members" onClick={() => setMembersOpen(false)} aria-hidden="true" />
       ) : null}
 
+      {contextMenu ? (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={contextMenuItems}
+          onClose={() => setContextMenu(null)}
+        />
+      ) : null}
+
       {dialog.kind === "account" ? <AccountDialog onClose={() => setDialog({ kind: "none" })} /> : null}
       {dialog.kind === "settings" ? (
         <ServerSettingsDialog onClose={() => setDialog({ kind: "none" })} />
       ) : null}
       {dialog.kind === "channel" ? (
-        <ChannelDialog parentId={dialog.parentId} onClose={() => setDialog({ kind: "none" })} />
+        <ChannelDialog
+          parentId={dialog.parentId}
+          initialType={dialog.initialType}
+          editChannelId={dialog.editChannelId}
+          onClose={() => setDialog({ kind: "none" })}
+        />
       ) : null}
       {dialog.kind === "member" ? (
         <MemberDialog userId={dialog.userId} onClose={() => setDialog({ kind: "none" })} />
+      ) : null}
+      {dialog.kind === "nickname" ? (
+        <NicknameDialog userId={dialog.userId} onClose={() => setDialog({ kind: "none" })} />
+      ) : null}
+      {dialog.kind === "confirmDeleteChannel" ? (
+        <ConfirmDialog
+          title={dialog.channel.type === "category" ? "Delete Category" : "Delete Channel"}
+          subtitle={`Are you sure you want to delete ${dialog.channel.type === "category" ? "the category " : "#"}"${dialog.channel.name}"? This cannot be undone.`}
+          confirmText={dialog.channel.type === "category" ? "Delete Category" : "Delete Channel"}
+          danger
+          onConfirm={() => {
+            void deleteChannel(dialog.channel.id);
+          }}
+          onClose={() => setDialog({ kind: "none" })}
+        />
+      ) : null}
+      {dialog.kind === "confirmKick" ? (
+        (() => {
+          const target = users.get(dialog.userId);
+          const name = target?.nickname ?? "this user";
+          return (
+            <ConfirmDialog
+              title={`Kick ${name}`}
+              subtitle={`Are you sure you want to kick @${name} from the server?`}
+              confirmText="Kick Member"
+              danger
+              onConfirm={() => {
+                void kickUser(dialog.userId);
+              }}
+              onClose={() => setDialog({ kind: "none" })}
+            />
+          );
+        })()
       ) : null}
     </div>
   );

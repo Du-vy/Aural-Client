@@ -892,6 +892,133 @@
   white-space: nowrap;
 }
 
+/* --- context & dropdown menu ---------------------------------------------- */
+
+.menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 190px;
+  max-width: 280px;
+  padding: 5px;
+  border-radius: var(--radius);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-overlay);
+  user-select: none;
+  animation: menu-appear 80ms ease-out;
+}
+
+@keyframes menu-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.menu--submenu {
+  position: absolute;
+  top: -6px;
+  left: 100%;
+  margin-left: 4px;
+}
+
+.menu--submenu-left {
+  left: auto;
+  right: 100%;
+  margin-left: 0;
+  margin-right: 4px;
+}
+
+.menu__item-wrapper {
+  position: relative;
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  text-align: left;
+  transition: background var(--speed) ease, color var(--speed) ease;
+}
+
+.menu__item:hover:not(:disabled),
+.menu__item--active {
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
+.menu__item--danger:hover:not(:disabled) {
+  background: var(--danger);
+  color: #fff;
+}
+
+.menu__item--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.menu__icon {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.menu__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu__arrow {
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0.7;
+  margin-left: 4px;
+}
+
+.menu__checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.menu__checkbox--checked {
+  border-color: currentColor;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.menu__item:hover:not(:disabled) .menu__checkbox--checked {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.menu__divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
+}
+
 /* --- modal ---------------------------------------------------------------- */
 
 .scrim {
@@ -972,6 +1099,51 @@
   padding: 16px 20px;
   background: var(--bg-sidebar);
   border-top: 1px solid var(--border);
+}
+
+/* --- confirmation & previews ---------------------------------------------- */
+
+.msg-preview {
+  margin-top: 10px;
+  background: var(--bg-rail);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  overflow: hidden;
+}
+
+.msg--preview {
+  padding: 0;
+  background: transparent !important;
+}
+
+.confirm-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.confirm-tip__tag {
+  color: #23a55a;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
 }
 
 .tabs {

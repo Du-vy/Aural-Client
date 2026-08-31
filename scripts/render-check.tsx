@@ -21,7 +21,11 @@ const { createRoot } = await import("react-dom/client");
 const { App } = await import("@/App");
 const { AccountDialog } = await import("@/components/dialogs/AccountDialog");
 const { ChannelDialog } = await import("@/components/dialogs/ChannelDialog");
+const { ConfirmDialog } = await import("@/components/dialogs/ConfirmDialog");
+const { DeleteMessageDialog } = await import("@/components/dialogs/DeleteMessageDialog");
 const { MemberDialog } = await import("@/components/dialogs/MemberDialog");
+const { NicknameDialog } = await import("@/components/dialogs/NicknameDialog");
+const { ContextMenu } = await import("@/components/ContextMenu");
 const { EmojiPicker } = await import("@/components/EmojiPicker");
 const { MessageList } = await import("@/components/MessageList");
 const { insertAtCaret } = await import("@/components/MessageComposer");
@@ -231,8 +235,46 @@ seed();
 render("server view", <App />);
 render("account dialog", <AccountDialog onClose={noop} />);
 render("channel dialog", <ChannelDialog parentId={1} onClose={noop} />);
+render("channel dialog in edit mode", <ChannelDialog editChannelId={2} onClose={noop} />, ["Edit Channel", "Save Changes"]);
+render("nickname dialog", <NicknameDialog userId={guest.id} onClose={noop} />, ["Change Nickname"]);
 render("member dialog", <MemberDialog userId={guest.id} onClose={noop} />);
 render("server settings dialog", <ServerSettingsDialog onClose={noop} />);
+render(
+  "delete message dialog",
+  <DeleteMessageDialog
+    message={messages[0]!}
+    author={admin}
+    roles={new Map(roles.map((role) => [role.id, role]))}
+    onConfirm={noop}
+    onClose={noop}
+  />,
+  ["Delete Message", "PROTIP:", "An author this client has never seen"],
+);
+render(
+  "confirm dialog",
+  <ConfirmDialog
+    title="Delete Channel"
+    subtitle="Are you sure you want to delete #general?"
+    confirmText="Delete Channel"
+    onConfirm={noop}
+    onClose={noop}
+  />,
+  ["Delete Channel", "Are you sure you want to delete #general?"],
+);
+render(
+  "context menu",
+  <ContextMenu
+    x={100}
+    y={100}
+    items={[
+      { id: "1", label: "Profile" },
+      { type: "separator" },
+      { id: "2", label: "Roles", items: [{ id: "r1", label: "Member", checked: true }] },
+    ]}
+    onClose={noop}
+  />,
+  ["Profile", "Roles"],
+);
 
 console.log("\nconnected as a plain guest");
 seed({ self: { ...admin, roles: [1] } });

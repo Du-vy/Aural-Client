@@ -6,6 +6,7 @@ import { useSession } from "@/store/session";
 import { assignableRoles, outranks, useMyPermissions } from "@/store/selectors";
 import { Avatar } from "../Avatar";
 import { Modal } from "../Modal";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 interface MemberDialogProps {
   userId: number;
@@ -25,6 +26,7 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmKick, setConfirmKick] = useState(false);
 
   const grantable = useMemo(() => assignableRoles(self, roles), [self, roles]);
   const voiceChannels = useMemo(
@@ -136,15 +138,27 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
         <button
           className="btn btn--danger"
           disabled={busy || !canModerate}
-          onClick={() =>
+          onClick={() => setConfirmKick(true)}
+        >
+          Disconnect {user.nickname}
+        </button>
+      ) : null}
+
+      {confirmKick ? (
+        <ConfirmDialog
+          title={`Kick ${user.nickname}`}
+          subtitle={`Are you sure you want to kick @${user.nickname} from the server?`}
+          confirmText="Kick"
+          danger
+          onConfirm={() =>
             void guard(async () => {
+              setConfirmKick(false);
               await kickUser(user.id);
               onClose();
             })
           }
-        >
-          Disconnect {user.nickname}
-        </button>
+          onClose={() => setConfirmKick(false)}
+        />
       ) : null}
     </Modal>
   );

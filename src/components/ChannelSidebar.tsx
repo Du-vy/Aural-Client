@@ -17,6 +17,10 @@ interface ChannelSidebarProps {
   onSelectChannel(channelId: number): void;
   onCreateChannel(parentId: number | null): void;
   onOpenMember(userId: number): void;
+  onDeleteChannel?(channel: Channel): void;
+  onContextMenuChannel?(event: React.MouseEvent, channel: Channel): void;
+  onContextMenuMember?(event: React.MouseEvent, user: User): void;
+  onContextMenuServer?(event: React.MouseEvent): void;
 }
 
 export function ChannelSidebar({
@@ -24,6 +28,10 @@ export function ChannelSidebar({
   onSelectChannel,
   onCreateChannel,
   onOpenMember,
+  onDeleteChannel,
+  onContextMenuChannel,
+  onContextMenuMember,
+  onContextMenuServer,
 }: ChannelSidebarProps) {
   const channels = useSession((state) => state.channels);
   const roles = useSession((state) => state.roles);
@@ -55,8 +63,24 @@ export function ChannelSidebar({
     });
   }
 
+  function handleDelete(channel: Channel) {
+    if (onDeleteChannel) {
+      onDeleteChannel(channel);
+    } else {
+      void deleteChannel(channel.id);
+    }
+  }
+
   return (
-    <div className="sidebar__tree">
+    <div
+      className="sidebar__tree"
+      onContextMenu={(event) => {
+        if (event.target === event.currentTarget) {
+          event.preventDefault();
+          onContextMenuServer?.(event);
+        }
+      }}
+    >
       {tree.length === 0 ? (
         <p className="connect__empty">No channels you can see.</p>
       ) : (
@@ -69,6 +93,7 @@ export function ChannelSidebar({
               onToggle={() => toggleCategory(node.channel.id)}
               onCreateChannel={onCreateChannel}
               canManage={has(permissionsIn(node.channel.id), Perm.ManageChannels)}
+              onContextMenuChannel={onContextMenuChannel}
               renderChannel={(channel) => (
                 <ChannelRow
                   key={channel.id}
@@ -80,8 +105,10 @@ export function ChannelSidebar({
                   selected={selectedChannelId === channel.id}
                   onSelect={() => onSelectChannel(channel.id)}
                   onJoin={() => void joinChannel(channel.id)}
-                  onDelete={() => void deleteChannel(channel.id)}
+                  onDelete={() => handleDelete(channel)}
                   onOpenMember={onOpenMember}
+                  onContextMenuChannel={onContextMenuChannel}
+                  onContextMenuMember={onContextMenuMember}
                 />
               )}
             />
@@ -96,8 +123,10 @@ export function ChannelSidebar({
               selected={selectedChannelId === node.channel.id}
               onSelect={() => onSelectChannel(node.channel.id)}
               onJoin={() => void joinChannel(node.channel.id)}
-              onDelete={() => void deleteChannel(node.channel.id)}
+              onDelete={() => handleDelete(node.channel)}
               onOpenMember={onOpenMember}
+              onContextMenuChannel={onContextMenuChannel}
+              onContextMenuMember={onContextMenuMember}
             />
           ),
         )
@@ -112,6 +141,7 @@ interface CategoryBlockProps {
   canManage: boolean;
   onToggle(): void;
   onCreateChannel(parentId: number | null): void;
+  onContextMenuChannel?(event: React.MouseEvent, channel: Channel): void;
   renderChannel(channel: Channel): React.ReactNode;
 }
 
@@ -121,10 +151,18 @@ function CategoryBlock({
   canManage,
   onToggle,
   onCreateChannel,
+  onContextMenuChannel,
   renderChannel,
 }: CategoryBlockProps) {
   return (
-    <section className="category">
+    <section
+      className="category"
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onContextMenuChannel?.(event, node.channel);
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center" }}>
         <button
           className="category__header"
@@ -166,6 +204,8 @@ interface ChannelRowProps {
   onJoin(): void;
   onDelete(): void;
   onOpenMember(userId: number): void;
+  onContextMenuChannel?(event: React.MouseEvent, channel: Channel): void;
+  onContextMenuMember?(event: React.MouseEvent, user: User): void;
 }
 
 function ChannelRow({
@@ -179,6 +219,8 @@ function ChannelRow({
   onJoin,
   onDelete,
   onOpenMember,
+  onContextMenuChannel,
+  onContextMenuMember,
 }: ChannelRowProps) {
   const isVoice = channel.type === "voice";
   const occupants = isVoice ? usersInChannel(users, channel.id) : [];
@@ -193,7 +235,14 @@ function ChannelRow({
 
   return (
     <>
-      <div className={classes.join(" ")}>
+      <div
+        className={classes.join(" ")}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onContextMenuChannel?.(event, channel);
+        }}
+      >
         <button
           onClick={isVoice ? onJoin : onSelect}
           disabled={isVoice && (!canConnect || full)}
@@ -246,6 +295,13 @@ function ChannelRow({
               key={user.id}
               className={user.id === self?.id ? "occupant occupant--self" : "occupant"}
               onClick={() => onOpenMember(user.id)}
+              onContextMenu={(event) => {
+                if (onContextMenuMember) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onContextMenuMember(event, user);
+                }
+              }}
             >
               <Avatar user={user} size="sm" />
               <span className="occupant__name" style={{ color: colorOf(user, roles) ?? undefined }}>

@@ -6,18 +6,31 @@ import { Modal } from "../Modal";
 
 interface ChannelDialogProps {
   /** Category the new channel starts in, or null for the tree root. */
-  parentId: number | null;
+  parentId?: number | null;
+  initialType?: ChannelType;
+  /** If provided, edits an existing channel instead of creating a new one. */
+  editChannelId?: number;
   onClose(): void;
 }
 
-export function ChannelDialog({ parentId, onClose }: ChannelDialogProps) {
+export function ChannelDialog({
+  parentId = null,
+  initialType,
+  editChannelId,
+  onClose,
+}: ChannelDialogProps) {
   const channels = useSession((state) => state.channels);
   const createChannel = useSession((state) => state.createChannel);
+  const updateChannel = useSession((state) => state.updateChannel);
 
-  const [name, setName] = useState("");
-  const [type, setType] = useState<ChannelType>("voice");
-  const [parent, setParent] = useState<number | null>(parentId);
-  const [userLimit, setUserLimit] = useState(0);
+  const existing = editChannelId !== undefined ? channels.get(editChannelId) : undefined;
+  const isEditing = existing !== undefined;
+
+  const [name, setName] = useState(existing?.name ?? "");
+  const [topic, setTopic] = useState(existing?.topic ?? "");
+  const [type, setType] = useState<ChannelType>(existing?.type ?? initialType ?? "text");
+  const [parent, setParent] = useState<number | null>(existing?.parentId ?? parentId);
+  const [userLimit, setUserLimit] = useState(existing?.userLimit ?? 0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -34,13 +47,22 @@ export function ChannelDialog({ parentId, onClose }: ChannelDialogProps) {
     setBusy(true);
     setError(null);
     try {
-      await createChannel({
-        name: name.trim(),
-        type,
-        // Categories always live at the root of the tree.
-        parentId: type === "category" ? null : parent,
-        userLimit: type === "voice" ? userLimit : 0,
-      });
+      if (isEditing && editChannelId !== undefined) {
+        await updateChannel({
+          channelId: editChannelId,
+          name: name.trim(),
+          topic: topic.trim(),
+          userLimit: type === "voice" ? userLimit : undefined,
+        });
+      } else {
+        await createChannel({
+          name: name.trim(),
+          type,
+          // Categories always live at the root of the tree.
+          parentId: type === "category" ? null : parent,
+          userLimit: type === "voice" ? userLimit : 0,
+        });
+      }
       onClose();
     } catch (caught) {
       setError(describeError(caught));
@@ -48,10 +70,24 @@ export function ChannelDialog({ parentId, onClose }: ChannelDialogProps) {
     }
   }
 
+  const isCategory = type === "category";
+
   return (
     <Modal
-      title="Create a channel"
-      subtitle="Voice channels carry presence; text channels arrive in v0.2."
+      title={
+        isEditing
+          ? isCategory
+            ? "Edit Category"
+            : "Edit Channel"
+          : isCategory
+            ? "Create a category"
+            : "Create a channel"
+      }
+      subtitle={
+        isEditing
+          ? "Update name and channel settings."
+          : "Voice channels carry audio; text channels store chat history."
+      }
       onClose={onClose}
       footer={
         <>
@@ -61,36 +97,38 @@ export function ChannelDialog({ parentId, onClose }: ChannelDialogProps) {
           <button
             className="btn btn--primary"
             type="submit"
-            form="create-channel"
+            form="channel-form"
             disabled={busy || name.trim() === ""}
           >
-            Create
+            {isEditing ? "Save Changes" : "Create"}
           </button>
         </>
       }
     >
       <form
-        id="create-channel"
+        id="channel-form"
         onSubmit={(event) => void submit(event)}
         style={{ display: "flex", flexDirection: "column", gap: 16 }}
       >
         {error ? <p className="alert">{error}</p> : null}
 
-        <div className="field">
-          <label className="field__label" htmlFor="channel-type">
-            Type
-          </label>
-          <select
-            id="channel-type"
-            className="select"
-            value={type}
-            onChange={(event) => setType(event.target.value as ChannelType)}
-          >
-            <option value="voice">Voice channel</option>
-            <option value="text">Text channel</option>
-            <option value="category">Category</option>
-          </select>
-        </div>
+        {!isEditing ? (
+          <div className="field">
+            <label className="field__label" htmlFor="channel-type">
+              Type
+            </label>
+            <select
+              id="channel-type"
+              className="select"
+              value={type}
+              onChange={(event) => setType(event.target.value as ChannelType)}
+            >
+              <option value="text">Text channel</option>
+              <option value="voice">Voice channel</option>
+              <option value="category">Category</option>
+            </select>
+          </div>
+        ) : null}
 
         <div className="field">
           <label className="field__label" htmlFor="channel-name">
@@ -102,12 +140,29 @@ export function ChannelDialog({ parentId, onClose }: ChannelDialogProps) {
             value={name}
             onChange={(event) => setName(event.target.value)}
             maxLength={64}
-            placeholder={type === "category" ? "General" : type === "voice" ? "Lobby" : "general"}
+            placeholder={isCategory ? "General" : type === "voice" ? "Lobby" : "general"}
             required
+            autoFocus
           />
         </div>
 
-        {type !== "category" ? (
+        {!isCategory ? (
+          <div className="field">
+            <label className="field__label" htmlFor="channel-topic">
+              Topic (optional)
+            </label>
+            <input
+              id="channel-topic"
+              className="input"
+              value={topic}
+              onChange={(event) => setTopic(event.target.value)}
+              maxLength={1024}
+              placeholder="What's this channel about?"
+            />
+          </div>
+        ) : null}
+
+        {!isEditing && !isCategory ? (
           <div className="field">
             <label className="field__label" htmlFor="channel-parent">
               Category
