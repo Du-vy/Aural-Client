@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Aural",
+  "version": "0.1.0",
+  "identifier": "chat.aural.client",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Aural",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 400,
+        "minHeight": 500,
+        "resizable": true,
+        "theme": "Dark",
+        "backgroundColor": "#22242b"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "SocialNetworking",
+    "shortDescription": "Voice and chat for self-hosted servers",
+    "longDescription": "Aural is an open source voice and chat client. Servers are self-hosted and reached by address, so no account with anyone is needed to use it.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png"
+    ]
+  }
+}

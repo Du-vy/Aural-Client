@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the Aural window is allowed to do. The client is a plain web application talking to a server over WebSocket, so it needs nothing beyond the Tauri core defaults.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

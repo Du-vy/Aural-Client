@@ -1,0 +1,161 @@
+/*
+ * Design tokens and the base reset.
+ *
+ * Everything visual is expressed as a variable here so the whole client can be
+ * re-themed from one place. The palette is dark only in v0.1; a light theme
+ * means redefining these tokens under a selector, not touching components.
+ */
+
+:root {
+  /* Surfaces, from the deepest chrome to the most raised panel. */
+  --bg-rail: #15161b;
+  --bg-sidebar: #1b1d23;
+  --bg-main: #22242b;
+  --bg-raised: #292c34;
+  --bg-overlay: #2f323b;
+  --bg-input: #16171c;
+  --bg-scrim: rgba(9, 10, 13, 0.72);
+
+  /* Interaction tints, layered over whatever surface is beneath. */
+  --hover: rgba(255, 255, 255, 0.045);
+  --active: rgba(255, 255, 255, 0.08);
+  --selected: rgba(255, 255, 255, 0.11);
+
+  --text: #e9ecf2;
+  --text-muted: #a4abb9;
+  --text-dim: #737b8b;
+  --text-inverse: #10131a;
+
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.13);
+
+  --accent: #12b8a0;
+  --accent-hover: #15cfb4;
+  --accent-active: #0e9c88;
+  --accent-soft: rgba(18, 184, 160, 0.14);
+
+  --danger: #e5534b;
+  --danger-hover: #f26860;
+  --danger-soft: rgba(229, 83, 75, 0.14);
+
+  --online: #3ba55d;
+  --warning: #e0a030;
+
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-full: 999px;
+
+  --shadow-raised: 0 4px 16px rgba(0, 0, 0, 0.32);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.5);
+
+  --rail-width: 72px;
+  --sidebar-width: 248px;
+  --members-width: 236px;
+
+  --font: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --speed: 120ms;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg-main);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* The app owns its own scroll regions; the page itself never scrolls. */
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Scrollbars, styled to disappear into the panel they belong to. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-full);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
