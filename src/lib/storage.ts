@@ -158,3 +158,39 @@ export function writeLanguage(lang: string): void {
   }
 }
 
+const TRUSTED_DOMAINS_KEY = "aural.trusted_domains.v1";
+
+export function readTrustedDomains(): string[] {
+  try {
+    const raw = localStorage.getItem(TRUSTED_DOMAINS_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    return [];
+  }
+}
+
+export function addTrustedDomain(domain: string): void {
+  try {
+    const normalized = domain.trim().toLowerCase();
+    if (!normalized) return;
+    const current = readTrustedDomains();
+    if (!current.includes(normalized)) {
+      current.push(normalized);
+      localStorage.setItem(TRUSTED_DOMAINS_KEY, JSON.stringify(current));
+    }
+  } catch {
+    // Storage is unavailable
+  }
+}
+
+export function isDomainTrusted(domain: string): boolean {
+  const normalized = domain.trim().toLowerCase();
+  if (!normalized) return false;
+  const list = readTrustedDomains();
+  return list.some((trusted) => normalized === trusted || normalized.endsWith(`.${trusted}`));
+}
+
+

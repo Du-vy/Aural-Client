@@ -9,7 +9,8 @@ export const hi: TranslationSchema = {
     close: "बंद करें",
     loading: "लोड हो रहा है...",
     copy: "कॉपी करें",
-    copied: "कॉपी हो गया!",
+    copied: "कॉपी किया गया!",
+    copyLink: "लिंक कॉपी करें",
     back: "पीछे",
     continue: "जारी रखें",
     language: "भाषा",
@@ -247,6 +248,15 @@ export const hi: TranslationSchema = {
       placeholder: "नया उपनाम दर्ज करें",
       reset: "उपनाम रीसेट करें",
     },
+    externalLink: {
+      title: "बाहरी लिंक",
+      subtitle: "आप एक बाहरी वेबसाइट पर जाने के लिए Aural छोड़ रहे हैं।",
+      warning:
+        "अज्ञात वेबसाइटों पर पासवर्ड या व्यक्तिगत जानकारी दर्ज न करें और संदिग्ध फ़ाइलें डाउनलोड न करें।",
+      destinationLabel: "गंतव्य URL",
+      trustDomain: "{domain} पर भरोसा करें और दोबारा न पूछें",
+      openButton: "साइट पर जाएं",
+    },
     member: {
       title: "सदस्य विवरण",
       account: "खाता",
@@ -342,5 +352,14 @@ export const hi: TranslationSchema = {
     connection_closed: "सर्वर से कनेक्शन बंद हो गया।",
     connection_failed: "सर्वर से कनेक्ट नहीं हो सका।",
     unknown: "एक अप्रत्याशित त्रुटि हुई।",
+  },
+  embeds: {
+    playVideo: "वीडियो चलाएं",
+    youtube: "YouTube",
+    audioAttachment: "ऑडियो",
+    imageAttachment: "छवि",
+    openOriginal: "मूल खोलें",
+    copyUrl: "URL कॉपी करें",
+    failedToLoadImage: "छवि लोड करने में विफल",
   },
 };

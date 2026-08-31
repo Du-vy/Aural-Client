@@ -10,6 +10,7 @@ export const zh: TranslationSchema = {
     loading: "加载中...",
     copy: "复制",
     copied: "已复制！",
+    copyLink: "复制链接",
     back: "返回",
     continue: "继续",
     language: "语言",
@@ -247,6 +248,15 @@ export const zh: TranslationSchema = {
       placeholder: "输入新昵称",
       reset: "重置昵称",
     },
+    externalLink: {
+      title: "外部链接",
+      subtitle: "您正在离开 Aural 并访问外部网站。",
+      warning:
+        "请勿在不受信任的网站上输入密码、个人信息或下载可疑文件。",
+      destinationLabel: "目标 URL",
+      trustDomain: "信任 {domain} 且不再提示",
+      openButton: "访问网站",
+    },
     member: {
       title: "成员详情",
       account: "账号",
@@ -342,5 +352,14 @@ export const zh: TranslationSchema = {
     connection_closed: "与服务器的连接已关闭。",
     connection_failed: "无法连接到服务器。",
     unknown: "发生了未知错误。",
+  },
+  embeds: {
+    playVideo: "播放视频",
+    youtube: "YouTube",
+    audioAttachment: "音频",
+    imageAttachment: "图片",
+    openOriginal: "打开原图/原链接",
+    copyUrl: "复制链接",
+    failedToLoadImage: "图片加载失败",
   },
 };

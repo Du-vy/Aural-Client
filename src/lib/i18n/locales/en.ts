@@ -13,6 +13,7 @@ export const en = {
     loading: "Loading...",
     copy: "Copy",
     copied: "Copied!",
+    copyLink: "Copy Link",
     back: "Back",
     continue: "Continue",
     language: "Language",
@@ -250,6 +251,15 @@ export const en = {
       placeholder: "Enter new nickname",
       reset: "Reset Nickname",
     },
+    externalLink: {
+      title: "External Link",
+      subtitle: "You are leaving Aural to visit an external website.",
+      warning:
+        "Do not enter passwords, personal information, or download unexpected files from untrusted websites.",
+      destinationLabel: "Destination URL",
+      trustDomain: "Trust {domain} and do not ask again",
+      openButton: "Visit Site",
+    },
     member: {
       title: "Member Details",
       account: "Account",
@@ -345,6 +355,15 @@ export const en = {
     connection_closed: "Connection to server closed.",
     connection_failed: "Could not connect to the server.",
     unknown: "An unexpected error occurred.",
+  },
+  embeds: {
+    playVideo: "Play video",
+    youtube: "YouTube",
+    audioAttachment: "Audio",
+    imageAttachment: "Image",
+    openOriginal: "Open original",
+    copyUrl: "Copy URL",
+    failedToLoadImage: "Failed to load image",
   },
 };
 

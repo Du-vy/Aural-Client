@@ -10,6 +10,7 @@ export const de: TranslationSchema = {
     loading: "Wird geladen...",
     copy: "Kopieren",
     copied: "Kopiert!",
+    copyLink: "Link kopieren",
     back: "Zurück",
     continue: "Weiter",
     language: "Sprache",
@@ -247,6 +248,15 @@ export const de: TranslationSchema = {
       placeholder: "Neuen Spitznamen eingeben",
       reset: "Spitznamen zurücksetzen",
     },
+    externalLink: {
+      title: "Externer Link",
+      subtitle: "Du verlässt Aural, um eine externe Website zu besuchen.",
+      warning:
+        "Gib keine Passwörter oder persönlichen Daten ein und lade keine unerwarteten Dateien von unbekannten Websites herunter.",
+      destinationLabel: "Ziel-URL",
+      trustDomain: "{domain} vertrauen und nicht mehr nachfragen",
+      openButton: "Website besuchen",
+    },
     member: {
       title: "Mitgliederdetails",
       account: "Konto",
@@ -341,5 +351,14 @@ export const de: TranslationSchema = {
     connection_closed: "Verbindung zum Server geschlossen.",
     connection_failed: "Verbindung zum Server konnte nicht hergestellt werden.",
     unknown: "Ein unerwarteter Fehler ist aufgetreten.",
+  },
+  embeds: {
+    playVideo: "Video abspielen",
+    youtube: "YouTube",
+    audioAttachment: "Audio",
+    imageAttachment: "Bild",
+    openOriginal: "Original öffnen",
+    copyUrl: "URL kopieren",
+    failedToLoadImage: "Bild konnte nicht geladen werden",
   },
 };

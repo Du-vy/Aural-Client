@@ -1,14 +1,18 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { isEmojiOnly } from "@/lib/emoji";
 import { useTranslation } from "@/lib/i18n";
+import { extractUrls, getDomain } from "@/lib/links";
+import { openExternalUrl } from "@/lib/open";
+import { isDomainTrusted } from "@/lib/storage";
 import { GROUPING_WINDOW_SECONDS, formatDay, formatFull, formatTime, sameDay } from "@/lib/time";
 import type { Message, Role, User } from "@/lib/protocol";
 import { colorRoleOf } from "@/store/selectors";
 import { Avatar } from "./Avatar";
 import { ContextMenu, type MenuEntry } from "./ContextMenu";
 import { DeleteMessageDialog } from "./dialogs/DeleteMessageDialog";
-import { CopyIcon, HashIcon, PencilIcon, TrashIcon } from "./Icons";
+import { ExternalLinkDialog } from "./dialogs/ExternalLinkDialog";
+import { CopyIcon, HashIcon, LinkIcon, PencilIcon, TrashIcon } from "./Icons";
+import { MessageContent } from "./MessageContent";
 
 /**
  * One rendered row. A message either opens a block, carrying its author and
@@ -94,6 +98,7 @@ export function MessageList({
 
   const [editing, setEditing] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Message | null>(null);
+  const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -109,6 +114,15 @@ export function MessageList({
       onDelete(message.id);
     } else {
       setPendingDelete(message);
+    }
+  }
+
+  function handleOpenLink(url: string) {
+    const domain = getDomain(url);
+    if (isDomainTrusted(domain)) {
+      void openExternalUrl(url);
+    } else {
+      setPendingLink(url);
     }
   }
 
@@ -177,6 +191,30 @@ export function MessageList({
         icon: <CopyIcon size={15} />,
         onClick: () => void navigator.clipboard.writeText(msg.content),
       },
+    );
+
+    const urls = extractUrls(msg.content);
+    if (urls.length === 1) {
+      entries.push({
+        id: "copy-link",
+        label: t("common.copyLink"),
+        icon: <LinkIcon size={15} />,
+        onClick: () => void navigator.clipboard.writeText(urls[0]!),
+      });
+    } else if (urls.length > 1) {
+      entries.push({
+        id: "copy-link",
+        label: t("common.copyLink"),
+        icon: <LinkIcon size={15} />,
+        items: urls.map((u, i) => ({
+          id: `copy-link-${i}`,
+          label: u,
+          onClick: () => void navigator.clipboard.writeText(u),
+        })),
+      });
+    }
+
+    entries.push(
       {
         id: "copy-id",
         label: t("server.copyId"),
@@ -235,6 +273,7 @@ export function MessageList({
             onDelete={(e) => requestDelete(message, e.shiftKey)}
             onOpenMember={onOpenMember}
             onContextMenuMember={onContextMenuMember}
+            onOpenLink={handleOpenLink}
             onContextMenu={(event) => {
               event.preventDefault();
               setContextMenu({ x: event.clientX, y: event.clientY, message });
@@ -263,6 +302,14 @@ export function MessageList({
           onClose={() => setPendingDelete(null)}
         />
       ) : null}
+
+      {pendingLink ? (
+        <ExternalLinkDialog
+          url={pendingLink}
+          onConfirm={() => void openExternalUrl(pendingLink)}
+          onClose={() => setPendingLink(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -282,6 +329,7 @@ interface MessageRowProps {
   onDelete(event: React.MouseEvent): void;
   onOpenMember?(userId: number): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
+  onOpenLink(url: string): void;
   onContextMenu?(event: React.MouseEvent): void;
 }
 
@@ -299,6 +347,7 @@ function MessageRow({
   onDelete,
   onOpenMember,
   onContextMenuMember,
+  onOpenLink,
   onContextMenu,
 }: MessageRowProps) {
   const { t } = useTranslation();
@@ -402,17 +451,11 @@ function MessageRow({
             </p>
           </form>
         ) : (
-          // A message that is nothing but a few emoji is rendered large, which
-          // is what makes a reaction-shaped message read as one.
-          <p className={isEmojiOnly(message.content) ? "msg__content msg__content--jumbo" : "msg__content"}>
-            {message.content}
-            {message.editedAt !== null ? (
-              <span className="msg__edited" title={formatFull(message.editedAt)}>
-                {" "}
-                {t("chat.edited")}
-              </span>
-            ) : null}
-          </p>
+          <MessageContent
+            content={message.content}
+            editedAt={message.editedAt}
+            onOpenLink={onOpenLink}
+          />
         )}
       </div>
 

@@ -30,6 +30,10 @@ const { EmojiPicker } = await import("@/components/EmojiPicker");
 const { MessageList } = await import("@/components/MessageList");
 const { insertAtCaret } = await import("@/components/MessageComposer");
 const { ServerSettingsDialog } = await import("@/components/dialogs/ServerSettingsDialog");
+const { ExternalLinkDialog } = await import("@/components/dialogs/ExternalLinkDialog");
+const { MessageContent } = await import("@/components/MessageContent");
+const { extractUrls, classifyUrl, isOnlyMediaUrls, tokenizeMessageText } = await import("@/lib/links");
+const { addTrustedDomain, isDomainTrusted } = await import("@/lib/storage");
 const { Perm, format } = await import("@/lib/permissions");
 const { useSession } = await import("@/store/session");
 const { setLanguage, getLanguage, t, SUPPORTED_LANGUAGES } = await import("@/lib/i18n");
@@ -267,6 +271,15 @@ render(
   ["Delete Channel", "Are you sure you want to delete #general?"],
 );
 render(
+  "external link dialog",
+  <ExternalLinkDialog
+    url="https://example.com/test"
+    onConfirm={noop}
+    onClose={noop}
+  />,
+  ["External Link", "https://example.com/test", "example.com"],
+);
+render(
   "context menu",
   <ContextMenu
     x={100}
@@ -371,6 +384,39 @@ seed({
 });
 render("chat with an emoji-only message", <App />, ["msg__content--jumbo"]);
 
+// A message with an external link is rendered as an interactive link.
+render(
+  "message with web link",
+  <MessageContent
+    content="Check this out: https://github.com/aural-chat/aural"
+    editedAt={null}
+    onOpenLink={noop}
+  />,
+  ["msg__link", "https://github.com/aural-chat/aural"],
+);
+
+// A message with only an image URL renders media-only without plain text link.
+render(
+  "message with direct image URL",
+  <MessageContent
+    content="https://example.com/photo.png"
+    editedAt={null}
+    onOpenLink={noop}
+  />,
+  ["msg-embed--image", "msg__media-only"],
+);
+
+// A message with only a YouTube URL renders YouTube embed.
+render(
+  "message with YouTube URL",
+  <MessageContent
+    content="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    editedAt={null}
+    onOpenLink={noop}
+  />,
+  ["msg-embed--youtube"],
+);
+
 console.log("\nedge cases");
 seed({ channels: new Map(), self: { ...admin, channelId: null } });
 render("server view with no visible channels", <App />);
@@ -436,6 +482,32 @@ function checkThat(name: string, condition: boolean): void {
 
   const empty = insertAtCaret("", 0, 0, "\u{1F389}");
   checkThat("an empty box takes the emoji", empty.value === "\u{1F389} ");
+}
+
+{
+  const urls = extractUrls("Hello https://example.com/test and https://image.png?v=1.");
+  checkThat("extractUrls finds and trims urls correctly", urls.length === 2 && urls[0] === "https://example.com/test" && urls[1] === "https://image.png?v=1");
+
+  const imgClassified = classifyUrl("https://foo.com/pic.jpg");
+  checkThat("classifyUrl identifies images", imgClassified.type === "image");
+
+  const ytClassified = classifyUrl("https://youtu.be/dQw4w9WgXcQ?t=42");
+  checkThat("classifyUrl identifies youtube and params", ytClassified.type === "youtube" && ytClassified.videoId === "dQw4w9WgXcQ" && ytClassified.startTime === 42);
+
+  const videoClassified = classifyUrl("https://foo.com/clip.mp4");
+  checkThat("classifyUrl identifies videos", videoClassified.type === "video");
+
+  const audioClassified = classifyUrl("https://foo.com/track.mp3");
+  checkThat("classifyUrl identifies audio", audioClassified.type === "audio");
+
+  checkThat("isOnlyMediaUrls is true for pure image url", isOnlyMediaUrls(" https://foo.com/pic.png "));
+  checkThat("isOnlyMediaUrls is false when mixed with text", !isOnlyMediaUrls("look at this https://foo.com/pic.png"));
+
+  const tokens = tokenizeMessageText("Look at https://aural.chat right now");
+  checkThat("tokenizeMessageText produces link and text tokens", tokens.length === 3 && tokens[1]?.type === "link" && tokens[1]?.url === "https://aural.chat");
+
+  addTrustedDomain("trusted-site.org");
+  checkThat("trusted domain is recorded and checked", isDomainTrusted("trusted-site.org") && isDomainTrusted("sub.trusted-site.org") && !isDomainTrusted("untrusted.org"));
 }
 
 console.log("\nmulti-language (i18n) verification");
