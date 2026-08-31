@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { ChannelSidebar } from "@/components/ChannelSidebar";
+import { ChatPanel } from "@/components/ChatPanel";
 import {
   AuralMark,
   CloseIcon,
@@ -182,19 +183,10 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           </div>
         ) : null}
 
-        <div className="content">
-          {selected?.type === "text" ? (
-            <div className="placeholder">
-              <span className="placeholder__icon">
-                <HashIcon size={26} />
-              </span>
-              <h2 className="placeholder__title">#{selected.name}</h2>
-              <p className="placeholder__body">
-                Text channels are part of the plan but not of v0.1. This release covers identity,
-                the channel tree, roles and presence; messaging and voice come next.
-              </p>
-            </div>
-          ) : (
+        {selected?.type === "text" ? (
+          <ChatPanel key={selected.id} channel={selected} />
+        ) : (
+          <div className="content">
             <div className="placeholder">
               <span className="placeholder__icon" style={{ color: "var(--accent)" }}>
                 <AuralMark size={30} />
@@ -202,7 +194,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
               <h2 className="placeholder__title">{server.name}</h2>
               <p className="placeholder__body">
                 {server.description ||
-                  "Pick a voice channel on the left to join it. Voice itself lands in v0.2."}
+                  "Pick a text channel to read it, or a voice channel to join it."}
               </p>
               <p className="field__hint">
                 Voice hosting on this server:{" "}
@@ -211,8 +203,8 @@ export function ServerView({ onAddServer }: ServerViewProps) {
                   : "the server relays all audio"}
               </p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </main>
 
       <MemberList onOpenMember={(userId) => setDialog({ kind: "member", userId })} />

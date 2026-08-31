@@ -22,6 +22,10 @@ import {
   type ChannelDeletedEvent,
   type ChannelEvent,
   type ChannelType,
+  type Message,
+  type MessageDeletedEvent,
+  type MessageEvent,
+  type MessageHistoryResult,
   type Overwrite,
   type Ready,
   type Role,
@@ -44,6 +48,27 @@ import {
 } from "@/lib/storage";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting";
+
+/**
+ * What this client holds for one text channel. History is fetched on demand
+ * and paged backwards, so a channel that has never been opened has no entry
+ * at all rather than an empty one.
+ */
+export interface ChannelHistory {
+  messages: Message[];
+  /** Whether older messages remain before the oldest one held. */
+  hasMore: boolean;
+  loading: boolean;
+  /** Set when a history request failed, so the view can offer a retry. */
+  error: string | null;
+}
+
+export const EMPTY_HISTORY: ChannelHistory = {
+  messages: [],
+  hasMore: false,
+  loading: false,
+  error: null,
+};
 
 export interface ConnectOptions {
   address: string;
@@ -70,6 +95,8 @@ interface SessionState {
   users: Map<number, User>;
   channels: Map<number, Channel>;
   roles: Map<number, Role>;
+  /** Per text channel, keyed by channel id. Absent until first opened. */
+  history: Map<number, ChannelHistory>;
 
   /** Saved server bookmarks, mirrored from localStorage. */
   saved: SavedServer[];
@@ -104,6 +131,14 @@ interface SessionState {
     overwrites?: Overwrite[];
   }): Promise<void>;
   deleteChannel(channelId: number): Promise<void>;
+
+  /** Loads the newest page of a channel, or does nothing if already held. */
+  openChannel(channelId: number): Promise<void>;
+  /** Loads the page before the oldest message held. */
+  loadOlder(channelId: number): Promise<void>;
+  sendMessage(channelId: number, content: string): Promise<void>;
+  editMessage(messageId: number, content: string): Promise<void>;
+  deleteMessage(messageId: number): Promise<void>;
 
   createRole(input: { name: string; color?: string; permissions?: string; hoist?: boolean }): Promise<void>;
   updateRole(input: {
@@ -142,16 +177,49 @@ function indexById<T extends { id: number }>(items: T[]): Map<number, T> {
   return new Map(items.map((item) => [item.id, item]));
 }
 
+/**
+ * Combines two runs of messages into one ordered, duplicate-free list.
+ *
+ * A fetched page and the live event stream overlap whenever a message arrives
+ * while a request is in flight, and ids are monotonic, so sorting by id both
+ * orders the result and makes the overlap easy to drop.
+ */
+function mergeMessages(...runs: Message[][]): Message[] {
+  const byId = new Map<number, Message>();
+  for (const run of runs) {
+    for (const message of run) byId.set(message.id, message);
+  }
+  return [...byId.values()].sort((a, b) => a.id - b.id);
+}
+
 export const useSession = create<SessionState>((set, get) => {
   /** Replaces everything the client knows, from a ready snapshot. */
   function applySnapshot(ready: Ready): void {
+    const channels = indexById(ready.channels);
+
+    // A snapshot can arrive mid-session as a resync, which is how the server
+    // reports that what this user may see has changed. History for a channel
+    // that is no longer visible goes with it; the rest is kept, so an ordinary
+    // permission edit elsewhere does not blank the conversation being read.
+    const history = new Map(
+      [...get().history].filter(([channelId]) => channels.has(channelId)),
+    );
+
     set({
       server: ready.server,
       self: ready.user,
       users: indexById(ready.users),
-      channels: indexById(ready.channels),
+      channels,
       roles: indexById(ready.roles),
+      history,
     });
+  }
+
+  /** Applies a patch to one channel's history entry, creating it if needed. */
+  function patchHistory(channelId: number, patch: Partial<ChannelHistory>): void {
+    const history = new Map(get().history);
+    history.set(channelId, { ...(history.get(channelId) ?? EMPTY_HISTORY), ...patch });
+    set({ history });
   }
 
   function applyEvent(op: string, payload: unknown): void {
@@ -208,9 +276,59 @@ export const useSession = create<SessionState>((set, get) => {
       case Ev.ChannelDeleted: {
         const event = payload as ChannelDeletedEvent;
         const channels = new Map(state.channels);
+        const history = new Map(state.history);
         channels.delete(event.channelId);
-        for (const id of event.cascaded) channels.delete(id);
-        set({ channels });
+        history.delete(event.channelId);
+        for (const id of event.cascaded) {
+          channels.delete(id);
+          history.delete(id);
+        }
+        set({ channels, history });
+        return;
+      }
+
+      case Ev.MessageCreated: {
+        const { message } = payload as MessageEvent;
+        // A channel this client has never opened is left alone: it will fetch
+        // the newest page, this message included, when it is first opened.
+        const current = state.history.get(message.channelId);
+        if (!current) return;
+        if (current.messages.some((held) => held.id === message.id)) return;
+
+        const history = new Map(state.history);
+        history.set(message.channelId, {
+          ...current,
+          messages: [...current.messages, message],
+        });
+        set({ history });
+        return;
+      }
+
+      case Ev.MessageUpdated: {
+        const { message } = payload as MessageEvent;
+        const current = state.history.get(message.channelId);
+        if (!current) return;
+
+        const history = new Map(state.history);
+        history.set(message.channelId, {
+          ...current,
+          messages: current.messages.map((held) => (held.id === message.id ? message : held)),
+        });
+        set({ history });
+        return;
+      }
+
+      case Ev.MessageDeleted: {
+        const event = payload as MessageDeletedEvent;
+        const current = state.history.get(event.channelId);
+        if (!current) return;
+
+        const history = new Map(state.history);
+        history.set(event.channelId, {
+          ...current,
+          messages: current.messages.filter((held) => held.id !== event.messageId),
+        });
+        set({ history });
         return;
       }
 
@@ -278,6 +396,7 @@ export const useSession = create<SessionState>((set, get) => {
         users: new Map(),
         channels: new Map(),
         roles: new Map(),
+        history: new Map(),
       });
       cancelReconnect();
       return;
@@ -324,6 +443,7 @@ export const useSession = create<SessionState>((set, get) => {
     users: new Map(),
     channels: new Map(),
     roles: new Map(),
+    history: new Map(),
     saved: listServers(),
 
     async connect(options) {
@@ -455,6 +575,7 @@ export const useSession = create<SessionState>((set, get) => {
         users: new Map(),
         channels: new Map(),
         roles: new Map(),
+        history: new Map(),
       });
     },
 
@@ -523,6 +644,67 @@ export const useSession = create<SessionState>((set, get) => {
       await requireGateway().request(Op.ChannelDelete, { channelId });
     },
 
+    async openChannel(channelId) {
+      // Already held, or already on its way: opening a channel twice is the
+      // normal case, because every render of the view asks.
+      const existing = get().history.get(channelId);
+      if (existing && (existing.loading || existing.error === null)) return;
+
+      patchHistory(channelId, { loading: true, error: null });
+      try {
+        const page = await requireGateway().request<MessageHistoryResult>(Op.MessageHistory, {
+          channelId,
+        });
+        // Events that landed while the page was in flight are already held,
+        // so the two are merged rather than one replacing the other.
+        const held = get().history.get(channelId)?.messages ?? [];
+        patchHistory(channelId, {
+          messages: mergeMessages(page.messages, held),
+          hasMore: page.hasMore,
+          loading: false,
+          error: null,
+        });
+      } catch (error) {
+        patchHistory(channelId, { loading: false, error: describeError(error) });
+      }
+    },
+
+    async loadOlder(channelId) {
+      const current = get().history.get(channelId);
+      if (!current || current.loading || !current.hasMore) return;
+      const oldest = current.messages[0];
+      if (!oldest) return;
+
+      patchHistory(channelId, { loading: true, error: null });
+      try {
+        const page = await requireGateway().request<MessageHistoryResult>(Op.MessageHistory, {
+          channelId,
+          before: oldest.id,
+        });
+        const held = get().history.get(channelId)?.messages ?? [];
+        patchHistory(channelId, {
+          messages: mergeMessages(page.messages, held),
+          hasMore: page.hasMore,
+          loading: false,
+          error: null,
+        });
+      } catch (error) {
+        patchHistory(channelId, { loading: false, error: describeError(error) });
+      }
+    },
+
+    async sendMessage(channelId, content) {
+      await requireGateway().request(Op.MessageSend, { channelId, content });
+    },
+
+    async editMessage(messageId, content) {
+      await requireGateway().request(Op.MessageEdit, { messageId, content });
+    },
+
+    async deleteMessage(messageId) {
+      await requireGateway().request(Op.MessageDelete, { messageId });
+    },
+
     async createRole(input) {
       await requireGateway().request(Op.RoleCreate, input);
     },
@@ -541,4 +723,4 @@ export const useSession = create<SessionState>((set, get) => {
   };
 });
 
-export type { Channel, Role, ServerInfo, User };
+export type { Channel, Message, Role, ServerInfo, User };

@@ -7,9 +7,9 @@ people run their own, and you reach them by address.
 React and TypeScript on Vite, wrapped by Tauri v2 so the same codebase ships as
 a desktop app and an Android app.
 
-> **Status: v0.1.** Connecting, identity, the channel tree, roles, permissions
-> and presence all work against a real server. Voice and text messaging are the
-> next two milestones.
+> **Status: v0.2.** Connecting, identity, the channel tree, roles, permissions,
+> presence and text messaging all work against a real server. Voice is the next
+> milestone.
 
 ## Quick start
 
@@ -43,6 +43,7 @@ on.
 | `npm run render-check` | Mounts every screen and dialog in a DOM against seeded state. |
 | `npm run smoke` | Drives the real client modules against a live server. |
 | `npm run icons` | Redraws the app icon and derives every platform variant. |
+| `npm run emoji` | Regenerates the emoji catalogue from the Unicode list. |
 | `npm run tauri:dev` | Runs the desktop shell. Needs Rust. |
 | `npm run tauri:build` | Builds desktop installers. Needs Rust. |
 | `npm run tauri:android` | Runs the Android app. Needs Rust and the Android SDK/NDK. |
@@ -52,14 +53,19 @@ on.
 Two checks cover the two ways this client can break.
 
 **`npm run render-check`** mounts every screen and dialog in a real DOM against
-seeded state, as an administrator, as a plain guest, and with empty state. A
-type check proves the props line up; this proves the components actually render.
+seeded state, as an administrator, as a plain guest, and with empty state, then
+asserts the rendered HTML actually contains what it should. A type check proves
+the props line up; this proves the components render the state they are given.
 
 **`npm run smoke`** is the one that matters most. It drives the real address
-parser, the real gateway and the real permission resolver against a running
-server, and asserts among other things that **the client resolves the same
-permission mask the server sent**. It is what catches the two repositories
-drifting apart.
+parser, the real gateway, the real permission resolver and the real store
+against a running server, and asserts among other things that **the client
+resolves the same permission mask the server sent**. It is what catches the two
+repositories drifting apart.
+
+Its last section drives the store rather than the gateway, which is the only
+way to catch a wiring mistake between an event arriving and the state a
+component reads.
 
 ```sh
 # in the server repository
@@ -118,6 +124,34 @@ for enforcement.
 Masks are 64-bit and travel as decimal strings, so they are `bigint` here: a
 JavaScript number loses precision above 2^53.
 
+### Emoji
+
+The catalogue in `src/lib/emoji-data.ts` is generated, not written:
+
+```sh
+npm run emoji
+```
+
+[`scripts/make-emoji.mjs`](scripts/make-emoji.mjs) derives it from the official
+Unicode emoji list — 1,894 emoji in nine groups. The alternative was committing
+an opaque blob nobody can audit, or taking a dependency several times the size
+of this whole client. The generated file *is* committed, so this runs only to
+move to a new Unicode release.
+
+Skin tones are not stored. They are applied by inserting the modifier after the
+first codepoint, and the generator marks an emoji as tonable only when that rule
+reproduces all five of Unicode's own toned sequences for it — which is why the
+34 multi-person emoji, where each person takes a tone separately, correctly
+offer none.
+
+The catalogue is 19 KB gzipped, so the picker is loaded on demand and the data
+never reaches a session that does not open it. That is the reason for the split
+between `emoji.ts`, which only decides whether a message is emoji enough to
+render large, and `emoji-catalogue.ts`, which the picker uses.
+
+Emoji render in the system font rather than as images: no sprite sheet to ship,
+and they match the rest of the operating system.
+
 ## Layout
 
 ```
@@ -125,15 +159,19 @@ src/lib/protocol.ts      the wire format, mirroring the Go package
 src/lib/permissions.ts   the bitmask and its resolution rules
 src/lib/gateway.ts       the WebSocket client: promised replies, pushed events
 src/lib/address.ts       parsing what people type into an endpoint
+src/lib/time.ts          message timestamps, day separators and grouping
+src/lib/emoji.ts         whether a message is emoji enough to render large
+src/lib/emoji-catalogue.ts  searching, recents and skin tones for the picker
+src/lib/emoji-data.ts    the catalogue itself, generated from Unicode
 src/lib/storage.ts       saved servers and their session tokens
 src/store/session.ts     one connection and everything known about it
 src/store/selectors.ts   derived views: the channel tree, member groups, access
 src/views/               the two screens: connect, and a connected server
-src/components/          the panels and dialogs
+src/components/          the panels, the chat, and the dialogs
 src/styles/theme.css     design tokens, all of them
 src/styles/app.css       layout and components
 src-tauri/               the desktop and mobile shell
-scripts/                 the two checks and the icon generator
+scripts/                 the two checks, and the icon and emoji generators
 ```
 
 ## The Tauri shell
@@ -177,18 +215,22 @@ to WebSocket endpoints the user types in, which no fixed policy can enumerate.
 
 ## Roadmap
 
-**v0.1 (here)** — connecting by address, identity and registration, the channel
-tree, roles and permissions, presence, responsive layout.
+**v0.1** — connecting by address, identity and registration, the channel tree,
+roles and permissions, presence, responsive layout.
 
-**v0.2** — voice. The server already advertises which of the two hosting models
+**v0.2 (here)** — text channels: reading, posting, paged history, editing and
+deleting, with messages grouped by author and separated by day, and an emoji
+picker with search, categories, recents and skin tones.
+
+**v0.3** — voice. The server already advertises which of the two hosting models
 it runs, and the client shows it on the connect screen:
 
 - `client_host` — the first user to enter a voice channel relays its audio for
   everyone in it, handing off when they leave.
 - `server_host` — the server relays all audio.
 
-**Later** — text channels and history, screen sharing, multiple simultaneous
-server connections, and Aural Hub for finding public servers.
+**Later** — screen sharing, multiple simultaneous server connections, message
+attachments, and Aural Hub for finding public servers.
 
 ## License
 

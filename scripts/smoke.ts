@@ -19,11 +19,15 @@ import {
   type AuthRegisterResult,
   type Channel,
   type ChannelEvent,
+  type MessageDeletedEvent,
+  type MessageEvent,
+  type MessageHistoryResult,
   type Ready,
   type Role,
   type ServerInfo,
   type UserMovedEvent,
 } from "../src/lib/protocol";
+import { useSession } from "../src/store/session";
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -87,6 +91,16 @@ async function open(addressInput: string) {
     onClose: () => onClosed(),
   });
   return { address, gateway, log, closed };
+}
+
+/**
+ * Waits for the events caused by a request to arrive and be applied.
+ *
+ * An action sends its request and ignores the reply, so the state it produces
+ * lands one round trip later, when the broadcast event comes back.
+ */
+function settle(ms = 400): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Resolves true when a connection closes within the timeout. */
@@ -180,6 +194,63 @@ async function main() {
   check(moved.to === voice.id, "the move event names the destination");
   check(moved.from === null, "Bob came from no channel");
 
+  console.log("\ntext channels");
+  const text = ready.channels.find((channel) => channel.type === "text");
+  check(text !== undefined, "the seeded tree has a text channel");
+
+  const before = await bob.gateway.request<MessageHistoryResult>(Op.MessageHistory, {
+    channelId: text!.id,
+  });
+  check(Array.isArray(before.messages), "history reads back as a list");
+
+  const body = `smoke test ${Date.now()}`;
+  const posted = await bob.gateway.request<MessageEvent>(Op.MessageSend, {
+    channelId: text!.id,
+    content: body,
+  });
+  check(posted.message.content === body, "a message posts and comes back");
+  check(posted.message.author === bobReady.user.nickname, "the message names its author");
+  check(posted.message.userId === bobReady.user.id, "the message is attributed to the sender");
+  check(posted.message.editedAt === null, "a new message is not marked edited");
+
+  // The other connection never asked for it: this is the event fan-out.
+  const seen = await other.log.wait<MessageEvent>(Ev.MessageCreated);
+  check(seen.message.id === posted.message.id, "the message is announced to everyone");
+
+  const edited = await bob.gateway.request<MessageEvent>(Op.MessageEdit, {
+    messageId: posted.message.id,
+    content: `${body} (edited)`,
+  });
+  check(edited.message.id === posted.message.id, "editing keeps the same message");
+  check(edited.message.editedAt !== null, "an edited message is stamped");
+
+  const after = await bob.gateway.request<MessageHistoryResult>(Op.MessageHistory, {
+    channelId: text!.id,
+  });
+  check(
+    after.messages.some((message) => message.id === posted.message.id),
+    "the message is in the history",
+  );
+  check(
+    after.messages.every((message, index) =>
+      index === 0 ? true : message.id > after.messages[index - 1]!.id,
+    ),
+    "history comes back oldest first",
+  );
+
+  let emptyRefused = false;
+  try {
+    await bob.gateway.request(Op.MessageSend, { channelId: text!.id, content: "   " });
+  } catch (error) {
+    emptyRefused = (error as { code?: string }).code === "bad_request";
+  }
+  check(emptyRefused, "an empty message is refused");
+
+  await bob.gateway.request(Op.MessageDelete, { messageId: posted.message.id });
+  const removed = await other.log.wait<MessageDeletedEvent>(Ev.MessageDeleted);
+  check(removed.messageId === posted.message.id, "the deletion is announced to everyone");
+  check(removed.channelId === text!.id, "the deletion names its channel");
+
   console.log("\npermission enforcement");
   let refused = false;
   try {
@@ -189,9 +260,41 @@ async function main() {
   }
   check(refused, "a guest is refused channel creation");
 
+  // Editing somebody else's words is refused for everyone, ranks included.
+  const fromOther = await other.gateway.request<MessageEvent>(Op.MessageSend, {
+    channelId: text!.id,
+    content: "written by somebody else",
+  });
+  let editRefused = false;
+  try {
+    await bob.gateway.request(Op.MessageEdit, {
+      messageId: fromOther.message.id,
+      content: "rewritten",
+    });
+  } catch (error) {
+    editRefused = (error as { code?: string }).code === "forbidden";
+  }
+  check(editRefused, "nobody may edit another member's message");
+  await other.gateway.request(Op.MessageDelete, { messageId: fromOther.message.id });
+
+  // The owner token is one-time, so a second run against the same server finds
+  // it spent. That is the server behaving correctly, not a failure worth
+  // aborting the run for.
+  let admin = false;
   if (ownerToken) {
+    try {
+      await other.gateway.request(Op.ServerClaimAdmin, { token: ownerToken });
+      admin = true;
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code !== "forbidden") throw error;
+      console.log("\nownership: skipped, that owner token has already been redeemed");
+      console.log("           run the server with -new-owner-token to get another");
+    }
+  }
+
+  if (admin) {
     console.log("\nownership and administration");
-    await other.gateway.request(Op.ServerClaimAdmin, { token: ownerToken });
     check(true, "the owner token is redeemed");
 
     const created = await other.gateway.request<ChannelEvent>(Op.ChannelCreate, {
@@ -206,12 +309,65 @@ async function main() {
 
     await other.gateway.request(Op.ChannelDelete, { channelId: created.channel.id });
     check(true, "an administrator can delete a channel");
-  } else {
+  } else if (!ownerToken) {
     console.log("\nownership: skipped, pass --owner-token to include it");
   }
 
   bob.gateway.close();
   other.gateway.close();
+
+  // Everything above drives the gateway directly. This drives the store the
+  // interface actually binds to, which is the only way to catch a wiring
+  // mistake between an arriving event and the state a component reads.
+  console.log("\nthe store, end to end");
+  const store = useSession.getState();
+  await store.connect({ address: addressInput, nickname: "Store", asNewGuest: true });
+  check(useSession.getState().status === "connected", "the store connects");
+
+  const live = useSession.getState();
+  check(live.self !== null, "the store knows who it is");
+  check(live.channels.size >= 3, "the store holds the channel tree");
+
+  const storeText = [...live.channels.values()].find((channel) => channel.type === "text")!;
+  await live.openChannel(storeText.id);
+  check(
+    useSession.getState().history.has(storeText.id),
+    "opening a channel fetches its history",
+  );
+
+  const line = `store check ${Date.now()}`;
+  await live.sendMessage(storeText.id, line);
+  // The reply is deliberately ignored by the action: the message reaches state
+  // through the broadcast event, like everybody else's.
+  await settle();
+  const inStore = useSession.getState().history.get(storeText.id);
+  check(
+    inStore?.messages.some((message) => message.content === line),
+    "a sent message reaches the store through its event",
+  );
+
+  // Emoji are plain text on the wire, but the sequences that build a family or
+  // a flag are held together by joiners a careless filter would eat. The
+  // server has its own test for this; here it is checked through real client
+  // modules, which is where a mangling would actually be noticed.
+  const withEmoji = `\u{1F389} \u{1F468}‍\u{1F469}‍\u{1F467} \u{1F44D}\u{1F3FD} \u{1F1E6}\u{1F1F7} ${Date.now()}`;
+  await live.sendMessage(storeText.id, withEmoji);
+  await settle();
+  const emojiHeld = useSession.getState().history.get(storeText.id);
+  check(
+    emojiHeld?.messages.some((message) => message.content === withEmoji),
+    "emoji survive the round trip byte for byte",
+  );
+
+  const mine = inStore!.messages.find((message) => message.content === line)!;
+  await live.deleteMessage(mine.id);
+  await settle();
+  check(
+    !useSession.getState().history.get(storeText.id)?.messages.some((m) => m.id === mine.id),
+    "a deleted message leaves the store through its event",
+  );
+
+  useSession.getState().disconnect();
 
   console.log(`\n${checks} checks passed.\n`);
 }

@@ -30,6 +30,22 @@ function icon(path: React.ReactNode, viewBox = "0 0 24 24") {
   };
 }
 
+export const SearchIcon = icon(
+  <>
+    <circle cx="11" cy="11" r="7" />
+    <line x1="16.5" y1="16.5" x2="21" y2="21" />
+  </>,
+);
+
+export const SmileyIcon = icon(
+  <>
+    <circle cx="12" cy="12" r="9" />
+    <line x1="9" y1="9.5" x2="9.01" y2="9.5" />
+    <line x1="15" y1="9.5" x2="15.01" y2="9.5" />
+    <path d="M8.5 14.5a4.5 4.5 0 0 0 7 0" />
+  </>,
+);
+
 export const HashIcon = icon(
   <>
     <line x1="4" y1="9" x2="20" y2="9" />

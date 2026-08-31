@@ -62,6 +62,11 @@ export const Op = {
   ChannelUpdate: "channel.update",
   ChannelDelete: "channel.delete",
 
+  MessageSend: "message.send",
+  MessageHistory: "message.history",
+  MessageEdit: "message.edit",
+  MessageDelete: "message.delete",
+
   RoleCreate: "role.create",
   RoleUpdate: "role.update",
   RoleDelete: "role.delete",
@@ -82,6 +87,10 @@ export const Ev = {
   ChannelCreated: "channel.created",
   ChannelUpdated: "channel.updated",
   ChannelDeleted: "channel.deleted",
+
+  MessageCreated: "message.created",
+  MessageUpdated: "message.updated",
+  MessageDeleted: "message.deleted",
 
   RoleCreated: "role.created",
   RoleUpdated: "role.updated",
@@ -147,6 +156,26 @@ export interface Role {
   position: number;
   hoist: boolean;
   managed: ManagedRole;
+}
+
+/**
+ * One post in a text channel.
+ *
+ * `author` travels with every message because this client only knows the users
+ * who are connected right now: presence is not persisted, so the author of an
+ * older message is very often somebody it has never seen. The server resolves
+ * it live, so a rename shows up throughout the history.
+ */
+export interface Message {
+  id: number;
+  channelId: number;
+  /** null once the author's account is gone. */
+  userId: number | null;
+  author: string;
+  content: string;
+  /** Unix seconds. */
+  createdAt: number;
+  editedAt: number | null;
 }
 
 export interface Hello {
@@ -243,6 +272,34 @@ export interface ChannelDeleteRequest {
   channelId: number;
 }
 
+export interface MessageSendRequest {
+  channelId: number;
+  content: string;
+}
+
+export interface MessageHistoryRequest {
+  channelId: number;
+  /** Page backwards from this id, exclusive. Omitted starts at the newest. */
+  before?: number;
+  limit?: number;
+}
+
+/** Ordered oldest first, the order it is rendered in. */
+export interface MessageHistoryResult {
+  channelId: number;
+  messages: Message[];
+  hasMore: boolean;
+}
+
+export interface MessageEditRequest {
+  messageId: number;
+  content: string;
+}
+
+export interface MessageDeleteRequest {
+  messageId: number;
+}
+
 export interface RoleCreateRequest {
   name: string;
   color?: string;
@@ -292,6 +349,15 @@ export interface ChannelEvent {
 export interface ChannelDeletedEvent {
   channelId: number;
   cascaded: number[];
+}
+
+export interface MessageEvent {
+  message: Message;
+}
+
+export interface MessageDeletedEvent {
+  messageId: number;
+  channelId: number;
 }
 
 export interface RoleEvent {

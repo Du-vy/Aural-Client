@@ -1,0 +1,310 @@
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+
+import { isEmojiOnly } from "@/lib/emoji";
+import { GROUPING_WINDOW_SECONDS, formatDay, formatFull, formatTime, sameDay } from "@/lib/time";
+import type { Message, Role, User } from "@/lib/protocol";
+import { colorRoleOf } from "@/store/selectors";
+import { Avatar } from "./Avatar";
+import { HashIcon, PencilIcon, TrashIcon } from "./Icons";
+
+/**
+ * One rendered row. A message either opens a block, carrying its author and
+ * timestamp, or continues one, showing neither.
+ */
+interface Row {
+  message: Message;
+  /** The day separator to draw above this message, if any. */
+  daySeparator: string | null;
+  /** Whether this message starts a new block rather than continuing one. */
+  startsBlock: boolean;
+}
+
+/**
+ * Groups a run of messages the way a chat client is expected to: consecutive
+ * messages from one author, close together in time and on the same day, share
+ * a single header.
+ */
+export function buildRows(messages: readonly Message[], now: Date = new Date()): Row[] {
+  const rows: Row[] = [];
+
+  for (const [index, message] of messages.entries()) {
+    const previous = index > 0 ? messages[index - 1] : undefined;
+
+    const newDay = !previous || !sameDay(previous.createdAt, message.createdAt);
+    const sameAuthor =
+      previous !== undefined &&
+      previous.userId === message.userId &&
+      previous.author === message.author;
+    const withinWindow =
+      previous !== undefined &&
+      message.createdAt - previous.createdAt <= GROUPING_WINDOW_SECONDS;
+
+    rows.push({
+      message,
+      daySeparator: newDay ? formatDay(message.createdAt, now) : null,
+      startsBlock: newDay || !sameAuthor || !withinWindow,
+    });
+  }
+  return rows;
+}
+
+interface MessageListProps {
+  channelName: string;
+  messages: readonly Message[];
+  users: ReadonlyMap<number, User>;
+  roles: ReadonlyMap<number, Role>;
+  selfId: number | null;
+  hasMore: boolean;
+  loading: boolean;
+  error: string | null;
+  canManageMessages: boolean;
+  onLoadOlder(): void;
+  onEdit(messageId: number, content: string): void;
+  onDelete(messageId: number): void;
+}
+
+export function MessageList({
+  channelName,
+  messages,
+  users,
+  roles,
+  selfId,
+  hasMore,
+  loading,
+  error,
+  canManageMessages,
+  onLoadOlder,
+  onEdit,
+  onDelete,
+}: MessageListProps) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const bottom = useRef<HTMLDivElement>(null);
+  /** Whether the reader is at the bottom, and so wants to follow along. */
+  const following = useRef(true);
+  /** Scroll height before an older page is prepended, to hold the position. */
+  const anchor = useRef<{ height: number; top: number } | null>(null);
+
+  const [editing, setEditing] = useState<number | null>(null);
+
+  const rows = useMemo(() => buildRows(messages), [messages]);
+  const newest = messages.at(-1)?.id ?? 0;
+  const oldest = messages[0]?.id ?? 0;
+
+  // Following the conversation means staying pinned to the bottom as messages
+  // arrive, but never yanking a reader away from older messages they scrolled
+  // back to.
+  useEffect(() => {
+    if (following.current) bottom.current?.scrollIntoView({ block: "end" });
+  }, [newest]);
+
+  // Prepending a page must not move what the reader is looking at, so the
+  // scroll position is restored by the amount the content grew.
+  useLayoutEffect(() => {
+    const node = scroller.current;
+    const held = anchor.current;
+    if (!node || !held) return;
+    anchor.current = null;
+    node.scrollTop = held.top + (node.scrollHeight - held.height);
+  }, [oldest]);
+
+  function handleScroll() {
+    const node = scroller.current;
+    if (!node) return;
+    following.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
+
+    if (node.scrollTop < 120 && hasMore && !loading) {
+      anchor.current = { height: node.scrollHeight, top: node.scrollTop };
+      onLoadOlder();
+    }
+  }
+
+  return (
+    <div className="chat" ref={scroller} onScroll={handleScroll}>
+      {hasMore ? (
+        <div className="chat__older">
+          <button className="btn btn--ghost" onClick={onLoadOlder} disabled={loading}>
+            {loading ? "Loading…" : "Load older messages"}
+          </button>
+        </div>
+      ) : (
+        <div className="chat__start">
+          <span className="chat__start-icon">
+            <HashIcon size={26} />
+          </span>
+          <h2 className="chat__start-title">Welcome to #{channelName}</h2>
+          <p className="chat__start-body">This is the beginning of the channel.</p>
+        </div>
+      )}
+
+      {error ? <p className="chat__error">{error}</p> : null}
+
+      {rows.map(({ message, daySeparator, startsBlock }) => (
+        <div key={message.id}>
+          {daySeparator ? (
+            <div className="chat__day">
+              <span>{daySeparator}</span>
+            </div>
+          ) : null}
+          <MessageRow
+            message={message}
+            startsBlock={startsBlock}
+            author={message.userId === null ? undefined : users.get(message.userId)}
+            roles={roles}
+            editable={message.userId !== null && message.userId === selfId}
+            deletable={
+              canManageMessages || (message.userId !== null && message.userId === selfId)
+            }
+            editing={editing === message.id}
+            onStartEdit={() => setEditing(message.id)}
+            onCancelEdit={() => setEditing(null)}
+            onSubmitEdit={(content) => {
+              setEditing(null);
+              onEdit(message.id, content);
+            }}
+            onDelete={() => onDelete(message.id)}
+          />
+        </div>
+      ))}
+
+      <div ref={bottom} />
+    </div>
+  );
+}
+
+interface MessageRowProps {
+  message: Message;
+  startsBlock: boolean;
+  /** The live user record, when the author happens to be connected. */
+  author: User | undefined;
+  roles: ReadonlyMap<number, Role>;
+  editable: boolean;
+  deletable: boolean;
+  editing: boolean;
+  onStartEdit(): void;
+  onCancelEdit(): void;
+  onSubmitEdit(content: string): void;
+  onDelete(): void;
+}
+
+function MessageRow({
+  message,
+  startsBlock,
+  author,
+  roles,
+  editable,
+  deletable,
+  editing,
+  onStartEdit,
+  onCancelEdit,
+  onSubmitEdit,
+  onDelete,
+}: MessageRowProps) {
+  const [draft, setDraft] = useState(message.content);
+
+  // The author's colour is only knowable while they are connected, because
+  // roles travel with the live user record and not with the message.
+  const color = author ? (colorRoleOf(author, roles)?.color ?? null) : null;
+
+  return (
+    <div className={startsBlock ? "msg msg--first" : "msg"}>
+      <div className="msg__gutter">
+        {startsBlock ? (
+          author ? (
+            <Avatar user={author} size="md" />
+          ) : (
+            <span className="msg__avatar-offline" aria-hidden="true">
+              {message.author.slice(0, 1).toUpperCase()}
+            </span>
+          )
+        ) : (
+          <time className="msg__inline-time" title={formatFull(message.createdAt)}>
+            {formatTime(message.createdAt)}
+          </time>
+        )}
+      </div>
+
+      <div className="msg__body">
+        {startsBlock ? (
+          <div className="msg__head">
+            <span className="msg__author" style={color ? { color } : undefined}>
+              {message.author}
+            </span>
+            <time className="msg__time" title={formatFull(message.createdAt)}>
+              {formatTime(message.createdAt)}
+            </time>
+          </div>
+        ) : null}
+
+        {editing ? (
+          <form
+            className="msg__edit"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const content = draft.trim();
+              if (content && content !== message.content) onSubmitEdit(content);
+              else onCancelEdit();
+            }}
+          >
+            <textarea
+              className="input msg__edit-input"
+              value={draft}
+              autoFocus
+              rows={Math.min(draft.split("\n").length, 8)}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") onCancelEdit();
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
+            />
+            <p className="field__hint">
+              Enter to save, Escape to cancel, Shift+Enter for a new line.
+            </p>
+          </form>
+        ) : (
+          // A message that is nothing but a few emoji is rendered large, which
+          // is what makes a reaction-shaped message read as one.
+          <p className={isEmojiOnly(message.content) ? "msg__content msg__content--jumbo" : "msg__content"}>
+            {message.content}
+            {message.editedAt !== null ? (
+              <span className="msg__edited" title={formatFull(message.editedAt)}>
+                {" "}
+                (edited)
+              </span>
+            ) : null}
+          </p>
+        )}
+      </div>
+
+      {editing ? null : (
+        <div className="msg__actions">
+          {editable ? (
+            <button
+              className="iconbtn"
+              onClick={() => {
+                setDraft(message.content);
+                onStartEdit();
+              }}
+              title="Edit"
+              aria-label="Edit message"
+            >
+              <PencilIcon size={14} />
+            </button>
+          ) : null}
+          {deletable ? (
+            <button
+              className="iconbtn iconbtn--danger"
+              onClick={onDelete}
+              title="Delete"
+              aria-label="Delete message"
+            >
+              <TrashIcon size={14} />
+            </button>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}

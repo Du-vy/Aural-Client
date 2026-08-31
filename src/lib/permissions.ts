@@ -24,6 +24,8 @@ export const Perm = {
   ManageRoles: 1n << 9n,
   ManageServer: 1n << 10n,
   ManageNicknames: 1n << 11n,
+  /** Other people's messages. Deleting your own needs no permission. */
+  ManageMessages: 1n << 12n,
 
   KickUsers: 1n << 16n,
   MoveUsers: 1n << 17n,
@@ -50,6 +52,7 @@ export const PERMISSION_ORDER: PermissionName[] = [
   "ManageRoles",
   "ManageServer",
   "ManageNicknames",
+  "ManageMessages",
   "KickUsers",
   "MoveUsers",
   "MuteUsers",
@@ -69,6 +72,7 @@ export const PERMISSION_HELP: Record<PermissionName, string> = {
   ManageRoles: "Manage roles and channel permissions",
   ManageServer: "Rename the server",
   ManageNicknames: "Change other members' nicknames",
+  ManageMessages: "Delete other members' messages",
   KickUsers: "Disconnect a member",
   MoveUsers: "Move a member between voice channels",
   MuteUsers: "Mute a member in voice",
