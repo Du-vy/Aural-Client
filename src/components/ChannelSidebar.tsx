@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { useTranslation } from "@/lib/i18n";
 import { Perm, has, resolveChannelPermissions, resolve } from "@/lib/permissions";
 import type { Channel, Role, User } from "@/lib/protocol";
 import { useSession } from "@/store/session";
@@ -33,6 +34,7 @@ export function ChannelSidebar({
   onContextMenuMember,
   onContextMenuServer,
 }: ChannelSidebarProps) {
+  const { t } = useTranslation();
   const channels = useSession((state) => state.channels);
   const roles = useSession((state) => state.roles);
   const users = useSession((state) => state.users);
@@ -82,7 +84,7 @@ export function ChannelSidebar({
       }}
     >
       {tree.length === 0 ? (
-        <p className="connect__empty">No channels you can see.</p>
+        <p className="connect__empty">{t("server.channels")}</p>
       ) : (
         tree.map((node) =>
           node.channel.type === "category" ? (
@@ -154,6 +156,7 @@ function CategoryBlock({
   onContextMenuChannel,
   renderChannel,
 }: CategoryBlockProps) {
+  const { t } = useTranslation();
   return (
     <section
       className="category"
@@ -180,8 +183,8 @@ function CategoryBlock({
           <button
             className="channel__action"
             onClick={() => onCreateChannel(node.channel.id)}
-            title={`Create a channel in ${node.channel.name}`}
-            aria-label={`Create a channel in ${node.channel.name}`}
+            title={t("server.createChannel")}
+            aria-label={t("server.createChannel")}
           >
             <PlusIcon size={15} />
           </button>
@@ -222,6 +225,7 @@ function ChannelRow({
   onContextMenuChannel,
   onContextMenuMember,
 }: ChannelRowProps) {
+  const { t } = useTranslation();
   const isVoice = channel.type === "voice";
   const occupants = isVoice ? usersInChannel(users, channel.id) : [];
   const joined = isVoice && self?.channelId === channel.id;
@@ -248,9 +252,9 @@ function ChannelRow({
           disabled={isVoice && (!canConnect || full)}
           title={
             isVoice && !canConnect
-              ? "You are not allowed into this channel"
+              ? t("errors.forbidden")
               : full
-                ? "This channel is full"
+                ? t("errors.server_full")
                 : channel.name
           }
           style={{
@@ -279,14 +283,15 @@ function ChannelRow({
             <button
               className="channel__action"
               onClick={onDelete}
-              title={`Delete ${channel.name}`}
-              aria-label={`Delete ${channel.name}`}
+              title={`${t("common.delete")} ${channel.name}`}
+              aria-label={`${t("common.delete")} ${channel.name}`}
             >
               <TrashIcon size={14} />
             </button>
           </span>
         ) : null}
       </div>
+
 
       {occupants.length > 0 ? (
         <div className="occupants">

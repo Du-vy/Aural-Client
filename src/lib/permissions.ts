@@ -60,6 +60,8 @@ export const PERMISSION_ORDER: PermissionName[] = [
   "Administrator",
 ];
 
+import { t } from "./i18n";
+
 /** One-line explanations, shown beside each permission in the role editor. */
 export const PERMISSION_HELP: Record<PermissionName, string> = {
   ViewChannel: "See a channel and who is in it",
@@ -79,6 +81,15 @@ export const PERMISSION_HELP: Record<PermissionName, string> = {
   DeafenUsers: "Deafen a member in voice",
   Administrator: "Every permission, unconditionally",
 };
+
+export function getPermissionName(name: PermissionName): string {
+  return t(`permissions.names.${name}` as any);
+}
+
+export function getPermissionHelp(name: PermissionName): string {
+  return t(`permissions.help.${name}` as any);
+}
+
 
 export const ALL: bigint = PERMISSION_ORDER.reduce((mask, name) => mask | Perm[name], NONE);
 

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { useTranslation } from "@/lib/i18n";
 import {
   EMOJI_GROUPS,
   SKIN_TONES,
@@ -39,6 +40,7 @@ interface EmojiPickerProps {
 }
 
 export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [tone, setTone] = useState<SkinToneKey>(() => storedTone());
   const [recent, setRecent] = useState<string[]>(() => recentEmoji());
@@ -50,6 +52,50 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
   const search = useRef<HTMLInputElement>(null);
 
   const modifier = modifierFor(tone);
+
+  const getGroupName = (raw: string) => {
+    switch (raw) {
+      case "Recent":
+        return t("emoji.recent");
+      case "Smileys":
+        return t("emoji.smileys");
+      case "People":
+        return t("emoji.people");
+      case "Nature":
+        return t("emoji.animals");
+      case "Food":
+        return t("emoji.food");
+      case "Travel":
+        return t("emoji.travel");
+      case "Activities":
+        return t("emoji.activities");
+      case "Objects":
+        return t("emoji.objects");
+      case "Symbols":
+        return t("emoji.symbols");
+      case "Flags":
+        return t("emoji.flags");
+      default:
+        return raw;
+    }
+  };
+
+  const getToneLabel = (key: SkinToneKey) => {
+    switch (key) {
+      case "default":
+        return t("emoji.skinToneDefault");
+      case "light":
+        return t("emoji.skinToneLight");
+      case "medium-light":
+        return t("emoji.skinToneMediumLight");
+      case "medium":
+        return t("emoji.skinToneMedium");
+      case "medium-dark":
+        return t("emoji.skinToneMediumDark");
+      case "dark":
+        return t("emoji.skinToneDark");
+    }
+  };
 
   // Opening the picker to type is the common case, so the search box takes the
   // caret immediately.
@@ -90,13 +136,13 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
 
   const sections = useMemo(() => {
     if (searching) {
-      return [{ name: `${results.length} result${results.length === 1 ? "" : "s"}`, entries: results.map((m) => m.entry) }];
+      return [{ id: "search", name: `${results.length}`, entries: results.map((m) => m.entry) }];
     }
-    const groups = EMOJI_GROUPS.map((group) => ({ name: group.name, entries: [...group.emoji] }));
+    const groups = EMOJI_GROUPS.map((group) => ({ id: group.name, name: getGroupName(group.name), entries: [...group.emoji] }));
     return recentEntries.length > 0
-      ? [{ name: RECENT, entries: recentEntries }, ...groups]
+      ? [{ id: RECENT, name: getGroupName(RECENT), entries: recentEntries }, ...groups]
       : groups;
-  }, [searching, results, recentEntries]);
+  }, [searching, results, recentEntries, t]);
 
   const strip = useMemo(
     () => (recentEntries.length > 0 ? [RECENT, ...EMOJI_GROUPS.map((g) => g.name)] : EMOJI_GROUPS.map((g) => g.name)),
@@ -110,14 +156,14 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
     onPick(display(entry, modifier));
   }
 
-  function jumpTo(name: string) {
-    setActive(name);
-    const target = scroller.current?.querySelector<HTMLElement>(`[data-section="${CSS.escape(name)}"]`);
+  function jumpTo(id: string) {
+    setActive(id);
+    const target = scroller.current?.querySelector<HTMLElement>(`[data-section="${CSS.escape(id)}"]`);
     target?.scrollIntoView({ block: "start" });
   }
 
   return (
-    <div className="picker" ref={panel} role="dialog" aria-label="Pick an emoji">
+    <div className="picker" ref={panel} role="dialog" aria-label={t("composer.emoji")}>
       <header className="picker__head">
         <span className="picker__search">
           <SearchIcon size={14} />
@@ -125,8 +171,8 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
             ref={search}
             className="picker__input"
             value={query}
-            placeholder="Search emoji"
-            aria-label="Search emoji"
+            placeholder={t("emoji.searchPlaceholder")}
+            aria-label={t("emoji.searchPlaceholder")}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               // Enter picks the best match, so a search can be finished without
@@ -145,7 +191,7 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
                 setQuery("");
                 search.current?.focus();
               }}
-              aria-label="Clear search"
+              aria-label={t("common.close")}
             >
               <CloseIcon size={13} />
             </button>
@@ -157,8 +203,8 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
             type="button"
             className="picker__tone-button"
             onClick={() => setToneOpen((open) => !open)}
-            title="Skin tone"
-            aria-label="Skin tone"
+            title={t("emoji.skinTone")}
+            aria-label={t("emoji.skinTone")}
             aria-expanded={toneOpen}
           >
             {SKIN_TONES.find((option) => option.key === tone)?.swatch}
@@ -170,8 +216,8 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
                   key={option.key}
                   type="button"
                   className={option.key === tone ? "picker__tone-option picker__tone-option--active" : "picker__tone-option"}
-                  title={option.label}
-                  aria-label={option.label}
+                  title={getToneLabel(option.key)}
+                  aria-label={getToneLabel(option.key)}
                   role="menuitemradio"
                   aria-checked={option.key === tone}
                   onClick={() => {
@@ -188,27 +234,27 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
         </span>
       </header>
 
-      <nav className="picker__strip" aria-label="Emoji categories">
-        {strip.map((name) => (
+      <nav className="picker__strip" aria-label={t("composer.emoji")}>
+        {strip.map((id) => (
           <button
-            key={name}
+            key={id}
             type="button"
-            className={!searching && name === active ? "picker__tab picker__tab--active" : "picker__tab"}
-            title={name}
-            aria-label={name}
-            onClick={() => jumpTo(name)}
+            className={!searching && id === active ? "picker__tab picker__tab--active" : "picker__tab"}
+            title={getGroupName(id)}
+            aria-label={getGroupName(id)}
+            onClick={() => jumpTo(id)}
           >
-            {GROUP_ICONS[name]}
+            {GROUP_ICONS[id]}
           </button>
         ))}
       </nav>
 
       <div className="picker__body" ref={scroller}>
         {sections.map((section) => (
-          <section key={section.name} data-section={section.name}>
+          <section key={section.id} data-section={section.id}>
             <h3 className="picker__label">{section.name}</h3>
             {section.entries.length === 0 ? (
-              <p className="picker__empty">No emoji match that.</p>
+              <p className="picker__empty">{t("emoji.noResults")}</p>
             ) : (
               <div className="picker__grid">
                 {section.entries.map((entry, index) => {
@@ -236,3 +282,4 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
     </div>
   );
 }
+

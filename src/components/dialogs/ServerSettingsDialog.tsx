@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+import { useTranslation } from "@/lib/i18n";
 import {
-  PERMISSION_HELP,
   PERMISSION_ORDER,
   Perm,
   format,
+  getPermissionHelp,
+  getPermissionName,
   has,
   isSet,
   parse,
@@ -19,6 +21,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 type Tab = "overview" | "roles";
 
 export function ServerSettingsDialog({ onClose }: { onClose(): void }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("overview");
   const permissions = useMyPermissions();
 
@@ -26,7 +29,7 @@ export function ServerSettingsDialog({ onClose }: { onClose(): void }) {
 
   return (
     <Modal
-      title="Server settings"
+      title={t("dialogs.settings.title")}
       onClose={onClose}
       wide
       tabs={
@@ -35,14 +38,14 @@ export function ServerSettingsDialog({ onClose }: { onClose(): void }) {
             className={tab === "overview" ? "tab tab--active" : "tab"}
             onClick={() => setTab("overview")}
           >
-            Overview
+            {t("dialogs.settings.overview")}
           </button>
           {canManageRoles ? (
             <button
               className={tab === "roles" ? "tab tab--active" : "tab"}
               onClick={() => setTab("roles")}
             >
-              Roles
+              {t("dialogs.settings.roles")}
             </button>
           ) : null}
         </>
@@ -54,6 +57,7 @@ export function ServerSettingsDialog({ onClose }: { onClose(): void }) {
 }
 
 function OverviewTab() {
+  const { t } = useTranslation();
   const server = useSession((state) => state.server);
   const updateServer = useSession((state) => state.updateServer);
   const permissions = useMyPermissions();
@@ -87,12 +91,12 @@ function OverviewTab() {
       style={{ display: "flex", flexDirection: "column", gap: 16 }}
     >
       {error ? <p className="alert">{error}</p> : null}
-      {saved ? <p className="alert alert--info">Saved to the server configuration file.</p> : null}
-      {!allowed ? <p className="alert">You are not allowed to manage this server.</p> : null}
+      {saved ? <p className="alert alert--info">{t("common.save")}</p> : null}
+      {!allowed ? <p className="alert">{t("errors.forbidden")}</p> : null}
 
       <div className="field">
         <label className="field__label" htmlFor="server-name">
-          Server name
+          {t("dialogs.settings.serverName")}
         </label>
         <input
           id="server-name"
@@ -106,7 +110,7 @@ function OverviewTab() {
 
       <div className="field">
         <label className="field__label" htmlFor="server-description">
-          Description
+          {t("dialogs.settings.serverDescription")}
         </label>
         <input
           id="server-description"
@@ -116,17 +120,19 @@ function OverviewTab() {
           maxLength={512}
           disabled={!allowed}
         />
-        <span className="field__hint">Shown to anyone previewing this server before connecting.</span>
+        <span className="field__hint">{t("dialogs.settings.serverDescriptionHint")}</span>
       </div>
 
+
       <button className="btn btn--primary" type="submit" disabled={busy || !allowed}>
-        Save
+        {t("common.save")}
       </button>
     </form>
   );
 }
 
 function RolesTab() {
+  const { t } = useTranslation();
   const roles = useSession((state) => state.roles);
   const createRole = useSession((state) => state.createRole);
   const deleteRole = useSession((state) => state.deleteRole);
@@ -152,7 +158,7 @@ function RolesTab() {
   async function addRole() {
     setError(null);
     try {
-      await createRole({ name: "New role", color: "#8b93a7" });
+      await createRole({ name: t("dialogs.settings.createRole"), color: "#8b93a7" });
     } catch (caught) {
       setError(describeError(caught));
     }
@@ -166,7 +172,7 @@ function RolesTab() {
         <div className="rolelist">
           <button className="btn btn--ghost" onClick={() => void addRole()} style={{ marginBottom: 4 }}>
             <PlusIcon size={15} />
-            New role
+            {t("dialogs.settings.createRole")}
           </button>
           {ordered.map((role) => (
             <button
@@ -192,7 +198,7 @@ function RolesTab() {
             onDelete={() => void deleteRole(selected.id).catch((caught) => setError(describeError(caught)))}
           />
         ) : (
-          <p className="field__hint">Select a role to edit it.</p>
+          <p className="field__hint">{t("dialogs.settings.roles")}</p>
         )}
       </div>
     </div>
@@ -207,6 +213,7 @@ interface RoleEditorProps {
 }
 
 function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) {
+  const { t } = useTranslation();
   const updateRole = useSession((state) => state.updateRole);
 
   const [name, setName] = useState(role.name);
@@ -249,13 +256,13 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
     <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
       {error ? <p className="alert">{error}</p> : null}
       {!editable ? (
-        <p className="alert">This role ranks at or above your own, so you cannot edit it.</p>
+        <p className="alert">{t("errors.forbidden")}</p>
       ) : null}
 
       <div style={{ display: "flex", gap: 10 }}>
         <div className="field" style={{ flex: 1, minWidth: 0 }}>
           <label className="field__label" htmlFor={`role-name-${role.id}`}>
-            Name
+            {t("dialogs.settings.roleName")}
           </label>
           <input
             id={`role-name-${role.id}`}
@@ -268,7 +275,7 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
         </div>
         <div className="field" style={{ width: 76 }}>
           <label className="field__label" htmlFor={`role-color-${role.id}`}>
-            Colour
+            {t("dialogs.settings.roleColor")}
           </label>
           <input
             id={`role-color-${role.id}`}
@@ -290,13 +297,12 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
           disabled={!editable}
         />
         <span>
-          <span className="perm__name">List members separately</span>
-          <span className="perm__help">Give this role its own heading in the member list</span>
+          <span className="perm__name">{t("dialogs.settings.hoist")}</span>
         </span>
       </label>
 
       <div className="field">
-        <span className="field__label">Permissions</span>
+        <span className="field__label">{t("dialogs.settings.permissions")}</span>
         <div className="permlist">
           {PERMISSION_ORDER.map((permission) => {
             const bit = Perm[permission];
@@ -307,7 +313,7 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
               <label
                 key={permission}
                 className={locked ? "perm perm--locked" : "perm"}
-                title={locked && editable ? "You do not hold this permission" : undefined}
+                title={locked && editable ? t("errors.forbidden") : undefined}
               >
                 <input
                   type="checkbox"
@@ -318,8 +324,8 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
                   }
                 />
                 <span>
-                  <span className="perm__name">{permission}</span>
-                  <span className="perm__help">{PERMISSION_HELP[permission]}</span>
+                  <span className="perm__name">{getPermissionName(permission)}</span>
+                  <span className="perm__help">{getPermissionHelp(permission)}</span>
                 </span>
               </label>
             );
@@ -329,21 +335,21 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
 
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn btn--primary" onClick={() => void save()} disabled={!editable || !dirty || busy}>
-          Save role
+          {t("common.save")}
         </button>
         {role.managed === "" && editable ? (
           <button className="btn btn--ghost" onClick={() => setConfirmDelete(true)} disabled={busy}>
             <TrashIcon size={15} />
-            Delete
+            {t("common.delete")}
           </button>
         ) : null}
       </div>
 
       {confirmDelete ? (
         <ConfirmDialog
-          title="Delete Role"
-          subtitle={`Are you sure you want to delete the "${role.name}" role? This cannot be undone.`}
-          confirmText="Delete Role"
+          title={t("dialogs.settings.deleteRole")}
+          subtitle={`"${role.name}"`}
+          confirmText={t("common.delete")}
           danger
           onConfirm={() => {
             setConfirmDelete(false);
@@ -355,3 +361,5 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
     </div>
   );
 }
+
+

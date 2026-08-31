@@ -32,6 +32,7 @@ const { insertAtCaret } = await import("@/components/MessageComposer");
 const { ServerSettingsDialog } = await import("@/components/dialogs/ServerSettingsDialog");
 const { Perm, format } = await import("@/lib/permissions");
 const { useSession } = await import("@/store/session");
+const { setLanguage, getLanguage, t, SUPPORTED_LANGUAGES } = await import("@/lib/i18n");
 
 type Channel = import("@/lib/protocol").Channel;
 type Message = import("@/lib/protocol").Message;
@@ -41,6 +42,10 @@ type User = import("@/lib/protocol").User;
 
 // React needs to be told this is a test environment before act() is used.
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
+
+// Ensure default English for standard render assertions
+setLanguage("en");
+
 
 let checks = 0;
 let failed = false;
@@ -433,7 +438,21 @@ function checkThat(name: string, condition: boolean): void {
   checkThat("an empty box takes the emoji", empty.value === "\u{1F389} ");
 }
 
+console.log("\nmulti-language (i18n) verification");
+useSession.setState({ status: "idle", server: null, self: null, saved: [] });
+for (const lang of SUPPORTED_LANGUAGES) {
+  setLanguage(lang.code);
+  checkThat(`language can be set to ${lang.name} (${lang.code})`, getLanguage() === lang.code);
+  checkThat(`translation key 'common.cancel' exists in ${lang.code}`, t("common.cancel").length > 0);
+  checkThat(`translation key 'connect.title' exists in ${lang.code}`, t("connect.title").length > 0);
+  render(`connect screen in ${lang.name}`, <App />, [t("connect.connectButton")]);
+}
+// Reset back to English
+setLanguage("en");
+
+
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);
 
 await GlobalRegistrator.unregister();
 process.exit(failed ? 1 : 0);
+

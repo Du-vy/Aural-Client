@@ -63,11 +63,14 @@ type ContextMenuState =
   | { kind: "server"; x: number; y: number }
   | null;
 
+import { useTranslation } from "@/lib/i18n";
+
 interface ServerViewProps {
   onAddServer(): void;
 }
 
 export function ServerView({ onAddServer }: ServerViewProps) {
+  const { t } = useTranslation();
   const server = useSession((state) => state.server);
   const channels = useSession((state) => state.channels);
   const roles = useSession((state) => state.roles);
@@ -155,7 +158,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       if (canManageServer) {
         entries.push({
           id: "server-settings",
-          label: "Server Settings",
+          label: t("server.serverSettings"),
           icon: <GearIcon size={16} />,
           onClick: () => setDialog({ kind: "settings" }),
         });
@@ -164,13 +167,13 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         entries.push(
           {
             id: "create-channel",
-            label: "Create Channel",
+            label: t("server.createChannel"),
             icon: <PlusIcon size={16} />,
             onClick: () => setDialog({ kind: "channel", parentId: null }),
           },
           {
             id: "create-category",
-            label: "Create Category",
+            label: t("dialogs.channel.categoryType"),
             icon: <FolderIcon size={16} />,
             onClick: () => setDialog({ kind: "channel", parentId: null, initialType: "category" }),
           },
@@ -180,13 +183,13 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       entries.push(
         {
           id: "copy-address",
-          label: "Copy Server Address",
+          label: t("server.copyAddress"),
           icon: <CopyIcon size={16} />,
           onClick: () => void navigator.clipboard.writeText(address?.label ?? address?.raw ?? ""),
         },
         {
           id: "copy-name",
-          label: "Copy Server Name",
+          label: t("contextMenu.copyAddress"),
           icon: <CopyIcon size={16} />,
           onClick: () => void navigator.clipboard.writeText(server.name),
         },
@@ -202,7 +205,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       if (isCat && canManageChannels) {
         entries.push({
           id: "create-in-category",
-          label: "Create Channel",
+          label: t("server.createChannel"),
           icon: <PlusIcon size={16} />,
           onClick: () => setDialog({ kind: "channel", parentId: ch.id }),
         });
@@ -213,13 +216,13 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         entries.push(
           {
             id: "edit-channel",
-            label: isCat ? "Edit Category" : "Edit Channel",
+            label: isCat ? t("dialogs.channel.editTitle") : t("contextMenu.editChannel"),
             icon: <PencilIcon size={16} />,
             onClick: () => setDialog({ kind: "channel", editChannelId: ch.id }),
           },
           {
             id: "delete-channel",
-            label: isCat ? "Delete Category" : "Delete Channel",
+            label: isCat ? t("dialogs.confirm.deleteChannelTitle") : t("contextMenu.deleteChannel"),
             icon: <TrashIcon size={16} />,
             danger: true,
             onClick: () => setDialog({ kind: "confirmDeleteChannel", channel: ch }),
@@ -230,7 +233,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
 
       entries.push({
         id: "copy-id",
-        label: "Copy Channel ID",
+        label: t("contextMenu.copyChannelId"),
         icon: <CopyIcon size={16} />,
         onClick: () => void navigator.clipboard.writeText(String(ch.id)),
       });
@@ -252,7 +255,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       const entries: MenuEntry[] = [
         {
           id: "profile",
-          label: "Profile",
+          label: t("contextMenu.profile"),
           icon: <UserIcon size={16} />,
           onClick: () => setDialog({ kind: "member", userId: u.id }),
         },
@@ -261,17 +264,18 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       if (canChangeNick) {
         entries.push({
           id: "change-nick",
-          label: "Change Nickname",
+          label: t("contextMenu.changeNickname"),
           icon: <PencilIcon size={16} />,
           onClick: () => setDialog({ kind: "nickname", userId: u.id }),
         });
       }
 
+
       if (canManageRoles && assignable.length > 0) {
         const userRoleSet = new Set(u.roles ?? []);
         entries.push({
           id: "roles-sub",
-          label: "Roles",
+          label: t("contextMenu.roles"),
           icon: <ShieldIcon size={16} />,
           items: assignable.map((r) => ({
             id: `role-${r.id}`,
@@ -291,7 +295,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         if (voiceChannels.length > 0) {
           entries.push({
             id: "move-sub",
-            label: "Move to Channel",
+            label: t("permissions.names.MoveUsers"),
             icon: <VoiceIcon size={16} />,
             items: voiceChannels.map((vc) => ({
               id: `move-${vc.id}`,
@@ -304,7 +308,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
 
         entries.push({
           id: "disconnect-voice",
-          label: "Disconnect Voice",
+          label: t("userPanel.disconnect"),
           icon: <HangUpIcon size={16} />,
           danger: true,
           onClick: () => void moveUser(u.id, null),
@@ -315,7 +319,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         entries.push({ type: "separator" });
         entries.push({
           id: "kick",
-          label: `Kick ${u.nickname}`,
+          label: t("contextMenu.kickMember", { name: u.nickname }),
           icon: <UserXIcon size={16} />,
           danger: true,
           onClick: () => setDialog({ kind: "confirmKick", userId: u.id }),
@@ -325,7 +329,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       entries.push({ type: "separator" });
       entries.push({
         id: "copy-id",
-        label: "Copy User ID",
+        label: t("contextMenu.copyUserId"),
         icon: <CopyIcon size={16} />,
         onClick: () => void navigator.clipboard.writeText(String(u.id)),
       });
@@ -347,6 +351,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
     setRoleMembership,
     moveUser,
     kickUser,
+    t,
   ]);
 
   if (!server) return null;
@@ -361,7 +366,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       className={shellClasses.join(" ")}
       style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
     >
-      <nav className="rail" aria-label="Servers">
+      <nav className="rail" aria-label={t("server.channels")}>
         {saved.map((entry) => (
           <button
             key={entry.id}
@@ -377,8 +382,8 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         <button
           className="rail__item rail__item--add"
           onClick={onAddServer}
-          title="Connect to another server"
-          aria-label="Connect to another server"
+          title={t("server.addServer")}
+          aria-label={t("server.addServer")}
         >
           <PlusIcon size={18} />
         </button>
@@ -442,7 +447,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           <button
             className="iconbtn drawer-toggle"
             onClick={() => setDrawerOpen((open) => !open)}
-            aria-label="Toggle channel list"
+            aria-label={t("server.channels")}
           >
             <MenuIcon size={18} />
           </button>
@@ -464,8 +469,8 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           <button
             className="iconbtn"
             onClick={() => setMembersOpen((open) => !open)}
-            title="Toggle member list"
-            aria-label="Toggle member list"
+            title={t("server.toggleMembers")}
+            aria-label={t("server.toggleMembers")}
             aria-pressed={membersOpen}
           >
             <UsersIcon size={18} />
@@ -475,7 +480,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         {notice ? (
           <div className="notice">
             <span>{notice}</span>
-            <button className="notice__close" onClick={dismissNotice} aria-label="Dismiss">
+            <button className="notice__close" onClick={dismissNotice} aria-label={t("common.close")}>
               <CloseIcon size={15} />
             </button>
           </div>
@@ -502,10 +507,10 @@ export function ServerView({ onAddServer }: ServerViewProps) {
                   "Pick a text channel to read it, or a voice channel to join it."}
               </p>
               <p className="field__hint">
-                Voice hosting on this server:{" "}
+                {t("connect.voiceModeServer")}:{" "}
                 {server.voiceMode === "client_host"
-                  ? "the first user in a channel relays its audio"
-                  : "the server relays all audio"}
+                  ? t("connect.voiceModeClient")
+                  : t("connect.voiceModeServer")}
               </p>
             </div>
           </div>
@@ -555,9 +560,13 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       ) : null}
       {dialog.kind === "confirmDeleteChannel" ? (
         <ConfirmDialog
-          title={dialog.channel.type === "category" ? "Delete Category" : "Delete Channel"}
-          subtitle={`Are you sure you want to delete ${dialog.channel.type === "category" ? "the category " : "#"}"${dialog.channel.name}"? This cannot be undone.`}
-          confirmText={dialog.channel.type === "category" ? "Delete Category" : "Delete Channel"}
+          title={dialog.channel.type === "category" ? t("dialogs.confirm.deleteChannelTitle") : t("dialogs.confirm.deleteChannelTitle")}
+          subtitle={
+            dialog.channel.type === "category"
+              ? t("dialogs.confirm.deleteCategoryConfirm", { name: dialog.channel.name })
+              : t("dialogs.confirm.deleteChannelConfirm", { name: dialog.channel.name })
+          }
+          confirmText={t("common.delete")}
           danger
           onConfirm={() => {
             void deleteChannel(dialog.channel.id);
@@ -571,9 +580,9 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           const name = target?.nickname ?? "this user";
           return (
             <ConfirmDialog
-              title={`Kick ${name}`}
-              subtitle={`Are you sure you want to kick @${name} from the server?`}
-              confirmText="Kick Member"
+              title={t("dialogs.confirm.kickUserTitle")}
+              subtitle={t("dialogs.confirm.kickUserConfirm", { name })}
+              confirmText={t("members.kick")}
               danger
               onConfirm={() => {
                 void kickUser(dialog.userId);
@@ -586,3 +595,4 @@ export function ServerView({ onAddServer }: ServerViewProps) {
     </div>
   );
 }
+

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
+import { useTranslation } from "@/lib/i18n";
 import { EmojiPicker } from "./EmojiPicker";
 import { SmileyIcon } from "./Icons";
 
@@ -45,6 +46,7 @@ interface MessageComposerProps {
 }
 
 export function MessageComposer({ channelName, disabledReason, onSend }: MessageComposerProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +110,7 @@ export function MessageComposer({ channelName, disabledReason, onSend }: Message
     } catch (failure) {
       // The draft is deliberately left in the box: a rejected message is one
       // the writer still has, and retyping it would be the wrong outcome.
-      setError(failure instanceof Error ? failure.message : "The message was not sent.");
+      setError(failure instanceof Error ? failure.message : t("errors.unknown"));
     } finally {
       setSending(false);
     }
@@ -141,8 +143,8 @@ export function MessageComposer({ channelName, disabledReason, onSend }: Message
           value={draft}
           rows={1}
           maxLength={MAX_MESSAGE_LENGTH}
-          placeholder={`Message #${channelName}`}
-          aria-label={`Message #${channelName}`}
+          placeholder={t("chat.messagePlaceholder", { channel: channelName })}
+          aria-label={t("chat.messagePlaceholder", { channel: channelName })}
           disabled={sending}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={onKeyDown}
@@ -163,8 +165,8 @@ export function MessageComposer({ channelName, disabledReason, onSend }: Message
           <button
             type="button"
             className={pickerOpen ? "composer__button composer__button--on" : "composer__button"}
-            title="Emoji"
-            aria-label="Pick an emoji"
+            title={t("composer.emoji")}
+            aria-label={t("composer.emoji")}
             aria-expanded={pickerOpen}
             onClick={() => {
               rememberCaret();
@@ -178,3 +180,4 @@ export function MessageComposer({ channelName, disabledReason, onSend }: Message
     </form>
   );
 }
+

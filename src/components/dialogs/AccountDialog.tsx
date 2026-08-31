@@ -1,18 +1,21 @@
 import { useState, type FormEvent } from "react";
 
+import { useTranslation } from "@/lib/i18n";
 import { Perm, has } from "@/lib/permissions";
+
 import { describeError } from "@/lib/protocol";
 import { useSession } from "@/store/session";
 import { useMyPermissions } from "@/store/selectors";
 import { Modal } from "../Modal";
 
-type Tab = "identity" | "account" | "ownership";
+type Tab = "identity" | "account" | "ownership" | "preferences";
 
 /**
  * Everything about who you are on this server: the display name, claiming the
- * identity as an account, and redeeming the owner token.
+ * identity as an account, redeeming the owner token, and user preferences.
  */
 export function AccountDialog({ onClose }: { onClose(): void }) {
+  const { t } = useTranslation();
   const self = useSession((state) => state.self);
   const server = useSession((state) => state.server);
   const permissions = useMyPermissions();
@@ -25,7 +28,7 @@ export function AccountDialog({ onClose }: { onClose(): void }) {
 
   return (
     <Modal
-      title="Your identity"
+      title={t("dialogs.account.title")}
       subtitle={`On ${server.name}`}
       onClose={onClose}
       tabs={
@@ -34,19 +37,25 @@ export function AccountDialog({ onClose }: { onClose(): void }) {
             className={tab === "identity" ? "tab tab--active" : "tab"}
             onClick={() => setTab("identity")}
           >
-            Profile
+            {t("contextMenu.profile")}
           </button>
           <button
             className={tab === "account" ? "tab tab--active" : "tab"}
             onClick={() => setTab("account")}
           >
-            Account
+            {t("dialogs.account.title")}
           </button>
           <button
             className={tab === "ownership" ? "tab tab--active" : "tab"}
             onClick={() => setTab("ownership")}
           >
-            Ownership
+            {t("server.claimAdmin")}
+          </button>
+          <button
+            className={tab === "preferences" ? "tab tab--active" : "tab"}
+            onClick={() => setTab("preferences")}
+          >
+            {t("common.language")}
           </button>
         </>
       }
@@ -54,11 +63,77 @@ export function AccountDialog({ onClose }: { onClose(): void }) {
       {tab === "identity" ? <ProfileTab /> : null}
       {tab === "account" ? <AccountTab canRegister={canRegister} /> : null}
       {tab === "ownership" ? <OwnershipTab /> : null}
+      {tab === "preferences" ? <PreferencesTab /> : null}
     </Modal>
   );
 }
 
+function PreferencesTab() {
+  const { t, language, setLanguage, supportedLanguages } = useTranslation();
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="field">
+        <label className="field__label">{t("dialogs.account.languageSetting")}</label>
+        <span className="field__hint">{t("dialogs.account.languageDesc")}</span>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+            gap: "8px",
+            marginTop: "8px",
+          }}
+        >
+          {supportedLanguages.map((lang) => {
+            const isSelected = lang.code === language;
+            return (
+              <button
+                key={lang.code}
+                type="button"
+                className="lang-card"
+                onClick={() => setLanguage(lang.code)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  borderRadius: "var(--radius-sm)",
+                  background: isSelected ? "var(--accent-soft)" : "var(--bg-raised)",
+                  border: isSelected ? "1.5px solid var(--accent)" : "1px solid var(--border)",
+                  color: isSelected ? "var(--accent)" : "var(--text)",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "all var(--speed) ease",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "14px" }}>{lang.nativeName}</div>
+                  {lang.name !== lang.nativeName ? (
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: isSelected ? "var(--accent)" : "var(--text-dim)",
+                        opacity: 0.8,
+                      }}
+                    >
+                      {lang.name}
+                    </div>
+                  ) : null}
+                </div>
+                {isSelected ? (
+                  <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--accent)" }}>✓</span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function ProfileTab() {
+  const { t } = useTranslation();
   const self = useSession((state) => state.self);
   const setNickname = useSession((state) => state.setNickname);
   const permissions = useMyPermissions();
@@ -91,11 +166,11 @@ function ProfileTab() {
       style={{ display: "flex", flexDirection: "column", gap: 16 }}
     >
       {error ? <p className="alert">{error}</p> : null}
-      {saved ? <p className="alert alert--info">Nickname updated.</p> : null}
+      {saved ? <p className="alert alert--info">{t("common.save")}</p> : null}
 
       <div className="field">
         <label className="field__label" htmlFor="nickname-field">
-          Nickname
+          {t("connect.nicknameLabel")}
         </label>
         <input
           id="nickname-field"
@@ -110,8 +185,8 @@ function ProfileTab() {
         />
         <span className="field__hint">
           {allowed
-            ? "How you appear to everyone on this server."
-            : "This server does not let you change your nickname."}
+            ? t("dialogs.nickname.subtitle")
+            : t("errors.forbidden")}
         </span>
       </div>
 
@@ -120,13 +195,14 @@ function ProfileTab() {
         type="submit"
         disabled={busy || !allowed || value.trim() === self?.nickname || value.trim() === ""}
       >
-        Save nickname
+        {t("common.save")}
       </button>
     </form>
   );
 }
 
 function AccountTab({ canRegister }: { canRegister: boolean }) {
+  const { t } = useTranslation();
   const self = useSession((state) => state.self);
   const register = useSession((state) => state.register);
 
@@ -140,11 +216,10 @@ function AccountTab({ canRegister }: { canRegister: boolean }) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <p className="alert alert--info">
-          This identity is claimed as <strong>@{self.username}</strong>.
+          {t("dialogs.account.registeredTitle")}: <strong>@{self.username}</strong>
         </p>
         <p className="field__hint">
-          You can sign in with those credentials from any device, and you will come back as this
-          same member with the same roles.
+          {t("dialogs.account.registeredDesc", { username: self.username })}
         </p>
       </div>
     );
@@ -153,7 +228,7 @@ function AccountTab({ canRegister }: { canRegister: boolean }) {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (password !== confirm) {
-      setError("The two passwords do not match.");
+      setError(t("errors.invalid_credentials"));
       return;
     }
     setBusy(true);
@@ -175,19 +250,17 @@ function AccountTab({ canRegister }: { canRegister: boolean }) {
       style={{ display: "flex", flexDirection: "column", gap: 16 }}
     >
       <p className="field__hint">
-        You are connected as a guest. Right now this identity lives only in this client: clearing
-        its data would lose it for good. Claiming it with a username and password keeps the same
-        member, the same id and the same roles, and lets you sign back in from anywhere.
+        {t("dialogs.account.guestNoticeDesc")}
       </p>
 
       {!canRegister ? (
-        <p className="alert">This server is not accepting new accounts.</p>
+        <p className="alert">{t("errors.registration_closed")}</p>
       ) : null}
       {error ? <p className="alert">{error}</p> : null}
 
       <div className="field">
         <label className="field__label" htmlFor="claim-username">
-          Username
+          {t("connect.usernameLabel")}
         </label>
         <input
           id="claim-username"
@@ -200,12 +273,11 @@ function AccountTab({ canRegister }: { canRegister: boolean }) {
           disabled={!canRegister}
           required
         />
-        <span className="field__hint">Letters, digits, dot, underscore and hyphen.</span>
       </div>
 
       <div className="field">
         <label className="field__label" htmlFor="claim-password">
-          Password
+          {t("connect.passwordLabel")}
         </label>
         <input
           id="claim-password"
@@ -221,7 +293,7 @@ function AccountTab({ canRegister }: { canRegister: boolean }) {
 
       <div className="field">
         <label className="field__label" htmlFor="claim-confirm">
-          Confirm password
+          {t("dialogs.account.confirmPassword")}
         </label>
         <input
           id="claim-confirm"
@@ -236,13 +308,14 @@ function AccountTab({ canRegister }: { canRegister: boolean }) {
       </div>
 
       <button className="btn btn--primary" type="submit" disabled={busy || !canRegister}>
-        Claim this identity
+        {t("dialogs.account.registerButton")}
       </button>
     </form>
   );
 }
 
 function OwnershipTab() {
+  const { t } = useTranslation();
   const claimAdmin = useSession((state) => state.claimAdmin);
   const permissions = useMyPermissions();
 
@@ -269,7 +342,7 @@ function OwnershipTab() {
   }
 
   if (alreadyAdmin) {
-    return <p className="alert alert--info">You are an administrator of this server.</p>;
+    return <p className="alert alert--info">{t("server.claimAdminSuccess")}</p>;
   }
 
   return (
@@ -278,16 +351,15 @@ function OwnershipTab() {
       style={{ display: "flex", flexDirection: "column", gap: 16 }}
     >
       <p className="field__hint">
-        A new server prints a one-time owner token in its console. Redeeming it here makes you the
-        administrator. It works exactly once.
+        {t("server.claimAdminPrompt")}
       </p>
 
       {error ? <p className="alert">{error}</p> : null}
-      {done ? <p className="alert alert--info">You are now an administrator.</p> : null}
+      {done ? <p className="alert alert--info">{t("server.claimAdminSuccess")}</p> : null}
 
       <div className="field">
         <label className="field__label" htmlFor="owner-token">
-          Owner token
+          {t("server.claimAdmin")}
         </label>
         <input
           id="owner-token"
@@ -303,8 +375,9 @@ function OwnershipTab() {
       </div>
 
       <button className="btn btn--primary" type="submit" disabled={busy || token.trim() === ""}>
-        Redeem token
+        {t("server.claimAdminButton")}
       </button>
     </form>
   );
 }
+

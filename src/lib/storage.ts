@@ -139,3 +139,22 @@ export function writeSidebarWidth(width: number): void {
     // Storage is unavailable; nothing critical fails.
   }
 }
+
+const LANGUAGE_KEY = "aural.language.v1";
+
+export function readLanguage(): string | null {
+  try {
+    return localStorage.getItem(LANGUAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function writeLanguage(lang: string): void {
+  try {
+    localStorage.setItem(LANGUAGE_KEY, lang);
+  } catch {
+    // Storage is unavailable; fallback in-memory works.
+  }
+}
+

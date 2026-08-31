@@ -383,29 +383,46 @@ export class AuralError extends Error {
   }
 }
 
+import { t } from "./i18n";
+
 /** Human wording for the error codes a user can actually act on. */
 export function describeError(error: unknown): string {
   if (!(error instanceof AuralError)) {
-    return error instanceof Error ? error.message : "Something went wrong.";
+    return error instanceof Error ? error.message : t("errors.unknown");
   }
   switch (error.code) {
     case "invalid_credentials":
-      return "Those credentials are not valid.";
+      return t("errors.invalid_credentials");
     case "username_taken":
-      return "That username is already taken.";
+      return t("errors.username_taken");
     case "registration_closed":
-      return "This server is not accepting new accounts.";
+      return t("errors.registration_closed");
     case "guests_disabled":
-      return "This server only accepts registered accounts.";
+      return t("errors.guests_disabled");
     case "server_password":
-      return "The server password is missing or wrong.";
+      return t("errors.server_password");
     case "server_full":
-      return "This server is full.";
+      return t("errors.server_full");
     case "forbidden":
-      return error.message || "You are not allowed to do that.";
+      return t("errors.forbidden");
     case "rate_limited":
-      return "Too many attempts. Try again in a moment.";
+      return t("errors.rate_limited");
+    case "bad_request":
+      return t("errors.bad_request");
+    case "unauthorized":
+      return t("errors.unauthorized");
+    case "not_found":
+      return t("errors.not_found");
+    case "conflict":
+      return t("errors.conflict");
+    case "internal":
+      return t("errors.internal");
+    case "unsupported_version":
+      return t("errors.unsupported_version");
+    case "already_registered":
+      return t("errors.already_registered");
     default:
-      return error.message || "Something went wrong.";
+      return error.message || t("errors.unknown");
   }
 }
+

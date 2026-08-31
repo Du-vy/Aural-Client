@@ -2,7 +2,9 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { Avatar } from "@/components/Avatar";
 import { AuralMark, TrashIcon } from "@/components/Icons";
+import { LanguageSelector } from "@/components/LanguageSelector";
 import { DEFAULT_PORT, fetchServerInfo, parseAddress } from "@/lib/address";
+import { useTranslation } from "@/lib/i18n";
 import type { ServerInfo } from "@/lib/protocol";
 import { useSession } from "@/store/session";
 
@@ -13,6 +15,7 @@ type Mode = "guest" | "signin";
  * thing Aural has to a home page: pick a saved one, or type where to go.
  */
 export function ConnectView() {
+  const { t } = useTranslation();
   const saved = useSession((state) => state.saved);
   const status = useSession((state) => state.status);
   const error = useSession((state) => state.error);
@@ -29,10 +32,6 @@ export function ConnectView() {
 
   const busy = status === "connecting" || status === "reconnecting";
 
-  // The preview is a courtesy: it makes a typo visible before connecting, and
-  // it reveals whether the server wants a password. A failure is not reported,
-  // because a server that blocks the plain HTTP probe may still accept the
-  // WebSocket.
   useEffect(() => {
     setPreview(null);
     let parsed;
@@ -96,7 +95,7 @@ export function ConnectView() {
         <div className="connect__saved">
           {saved.length === 0 ? (
             <p className="connect__empty">
-              No servers yet. Enter an address to connect to one.
+              {t("connect.savedEmpty")}
             </p>
           ) : (
             saved.map((server) => (
@@ -115,8 +114,8 @@ export function ConnectView() {
                 <button
                   className="saved__forget"
                   onClick={() => forget(server.id)}
-                  aria-label={`Forget ${server.name}`}
-                  title="Forget this server"
+                  aria-label={`${t("common.delete")} ${server.name}`}
+                  title={t("connect.removeSaved")}
                 >
                   <TrashIcon size={15} />
                 </button>
@@ -124,14 +123,18 @@ export function ConnectView() {
             ))
           )}
         </div>
+
+        <div style={{ marginTop: "auto", paddingTop: 16, display: "flex", justifyContent: "center" }}>
+          <LanguageSelector compact={false} />
+        </div>
       </aside>
 
       <main className="connect__panel">
         <form className="connect__form" onSubmit={(event) => void submit(event)}>
           <div>
-            <h1 className="connect__title">Connect to a server</h1>
+            <h1 className="connect__title">{t("connect.title")}</h1>
             <p className="connect__subtitle">
-              Aural servers are self-hosted. Enter the address of one you have been given.
+              {t("connect.subtitle")}
             </p>
           </div>
 
@@ -139,7 +142,7 @@ export function ConnectView() {
 
           <div className="field">
             <label className="field__label" htmlFor="address">
-              Server address
+              {t("connect.addressLabel")}
             </label>
             <input
               id="address"
@@ -165,40 +168,40 @@ export function ConnectView() {
               className={mode === "guest" ? "tab tab--active" : "tab"}
               onClick={() => setMode("guest")}
             >
-              Join as guest
+              {t("connect.joinAsGuest")}
             </button>
             <button
               type="button"
               className={mode === "signin" ? "tab tab--active" : "tab"}
               onClick={() => setMode("signin")}
             >
-              Sign in
+              {t("connect.signIn")}
             </button>
           </div>
 
           {mode === "guest" ? (
             <div className="field">
               <label className="field__label" htmlFor="nickname">
-                Nickname
+                {t("connect.nicknameLabel")}
               </label>
               <input
                 id="nickname"
                 className="input"
                 value={nickname}
                 onChange={(event) => setNickname(event.target.value)}
-                placeholder="Guest"
+                placeholder={t("common.guest")}
                 maxLength={32}
                 autoComplete="nickname"
               />
               <span className="field__hint">
-                You can claim this identity with a username and password once you are in.
+                {t("dialogs.account.guestNoticeDesc")}
               </span>
             </div>
           ) : (
             <>
               <div className="field">
                 <label className="field__label" htmlFor="username">
-                  Username
+                  {t("connect.usernameLabel")}
                 </label>
                 <input
                   id="username"
@@ -213,7 +216,7 @@ export function ConnectView() {
               </div>
               <div className="field">
                 <label className="field__label" htmlFor="password">
-                  Password
+                  {t("connect.passwordLabel")}
                 </label>
                 <input
                   id="password"
@@ -231,7 +234,7 @@ export function ConnectView() {
           {preview?.passwordProtected ? (
             <div className="field">
               <label className="field__label" htmlFor="server-password">
-                Server password
+                {t("connect.serverPasswordLabel")}
               </label>
               <input
                 id="server-password"
@@ -242,13 +245,13 @@ export function ConnectView() {
                 autoComplete="off"
                 required
               />
-              <span className="field__hint">This server is password protected.</span>
+              <span className="field__hint">{t("connect.serverPasswordPlaceholder")}</span>
             </div>
           ) : null}
 
           <button className="btn btn--primary btn--block" type="submit" disabled={busy}>
             {busy ? <span className="spinner" /> : null}
-            {busy ? "Connecting" : "Connect"}
+            {busy ? t("connect.connecting") : t("connect.connectButton")}
           </button>
         </form>
       </main>
@@ -257,6 +260,7 @@ export function ConnectView() {
 }
 
 function ServerPreview({ info }: { info: ServerInfo }) {
+  const { t } = useTranslation();
   return (
     <div className="preview">
       <div className="preview__head">
@@ -268,16 +272,17 @@ function ServerPreview({ info }: { info: ServerInfo }) {
       </div>
       <div className="preview__facts">
         <span className="tag">
-          {info.onlineUsers}/{info.maxUsers} online
+          {t("connect.onlineCount", { online: info.onlineUsers, max: info.maxUsers })}
         </span>
         <span className="tag">
-          {info.voiceMode === "client_host" ? "User-hosted voice" : "Server-hosted voice"}
+          {info.voiceMode === "client_host" ? t("connect.voiceModeClient") : t("connect.voiceModeServer")}
         </span>
-        {info.passwordProtected ? <span className="tag">Password</span> : null}
-        {!info.guestsAllowed ? <span className="tag">Accounts only</span> : null}
-        {!info.registrationEnabled ? <span className="tag">Registration closed</span> : null}
-        <span className="tag">v{info.softwareVersion}</span>
+        {info.passwordProtected ? <span className="tag">{t("connect.serverPasswordLabel")}</span> : null}
+        {!info.guestsAllowed ? <span className="tag">{t("errors.guests_disabled")}</span> : null}
+        {!info.registrationEnabled ? <span className="tag">{t("errors.registration_closed")}</span> : null}
+        <span className="tag">{t("connect.version", { version: info.softwareVersion })}</span>
       </div>
     </div>
   );
 }
+

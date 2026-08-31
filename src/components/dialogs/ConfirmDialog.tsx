@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { useTranslation } from "@/lib/i18n";
 import { Modal } from "../Modal";
 
 interface ConfirmDialogProps {
@@ -16,14 +17,18 @@ interface ConfirmDialogProps {
 export function ConfirmDialog({
   title,
   subtitle,
-  confirmText = "Confirm",
-  cancelText = "Cancel",
+  confirmText,
+  cancelText,
   danger = true,
   tip,
   children,
   onConfirm,
   onClose,
 }: ConfirmDialogProps) {
+  const { t } = useTranslation();
+  const finalConfirmText = confirmText ?? t("common.continue");
+  const finalCancelText = cancelText ?? t("common.cancel");
+
   return (
     <Modal
       title={title}
@@ -32,7 +37,7 @@ export function ConfirmDialog({
       footer={
         <>
           <button className="btn btn--ghost" type="button" onClick={onClose}>
-            {cancelText}
+            {finalCancelText}
           </button>
           <button
             className={danger ? "btn btn--danger" : "btn btn--primary"}
@@ -43,8 +48,9 @@ export function ConfirmDialog({
             }}
             autoFocus
           >
-            {confirmText}
+            {finalConfirmText}
           </button>
+
         </>
       }
     >

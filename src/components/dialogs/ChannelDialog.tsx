@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 
+import { useTranslation } from "@/lib/i18n";
 import { describeError, type ChannelType } from "@/lib/protocol";
 import { useSession } from "@/store/session";
 import { Modal } from "../Modal";
@@ -19,6 +20,7 @@ export function ChannelDialog({
   editChannelId,
   onClose,
 }: ChannelDialogProps) {
+  const { t } = useTranslation();
   const channels = useSession((state) => state.channels);
   const createChannel = useSession((state) => state.createChannel);
   const updateChannel = useSession((state) => state.updateChannel);
@@ -77,22 +79,22 @@ export function ChannelDialog({
       title={
         isEditing
           ? isCategory
-            ? "Edit Category"
-            : "Edit Channel"
+            ? t("dialogs.channel.editTitle")
+            : t("dialogs.channel.editTitle")
           : isCategory
-            ? "Create a category"
-            : "Create a channel"
+            ? t("dialogs.channel.categoryType")
+            : t("dialogs.channel.createTitle")
       }
       subtitle={
         isEditing
-          ? "Update name and channel settings."
-          : "Voice channels carry audio; text channels store chat history."
+          ? t("common.save")
+          : t("dialogs.channel.textTypeDesc")
       }
       onClose={onClose}
       footer={
         <>
           <button className="btn btn--ghost" onClick={onClose} type="button">
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn--primary"
@@ -100,7 +102,7 @@ export function ChannelDialog({
             form="channel-form"
             disabled={busy || name.trim() === ""}
           >
-            {isEditing ? "Save Changes" : "Create"}
+            {isEditing ? t("common.save") : t("dialogs.channel.create")}
           </button>
         </>
       }
@@ -115,7 +117,7 @@ export function ChannelDialog({
         {!isEditing ? (
           <div className="field">
             <label className="field__label" htmlFor="channel-type">
-              Type
+              {t("dialogs.channel.channelType")}
             </label>
             <select
               id="channel-type"
@@ -123,16 +125,16 @@ export function ChannelDialog({
               value={type}
               onChange={(event) => setType(event.target.value as ChannelType)}
             >
-              <option value="text">Text channel</option>
-              <option value="voice">Voice channel</option>
-              <option value="category">Category</option>
+              <option value="text">{t("dialogs.channel.textType")}</option>
+              <option value="voice">{t("dialogs.channel.voiceType")}</option>
+              <option value="category">{t("dialogs.channel.categoryType")}</option>
             </select>
           </div>
         ) : null}
 
         <div className="field">
           <label className="field__label" htmlFor="channel-name">
-            Name
+            {t("dialogs.channel.channelName")}
           </label>
           <input
             id="channel-name"
@@ -149,7 +151,7 @@ export function ChannelDialog({
         {!isCategory ? (
           <div className="field">
             <label className="field__label" htmlFor="channel-topic">
-              Topic (optional)
+              {t("dialogs.channel.channelTopic")}
             </label>
             <input
               id="channel-topic"
@@ -157,7 +159,7 @@ export function ChannelDialog({
               value={topic}
               onChange={(event) => setTopic(event.target.value)}
               maxLength={1024}
-              placeholder="What's this channel about?"
+              placeholder={t("dialogs.channel.channelTopicPlaceholder")}
             />
           </div>
         ) : null}
@@ -165,7 +167,7 @@ export function ChannelDialog({
         {!isEditing && !isCategory ? (
           <div className="field">
             <label className="field__label" htmlFor="channel-parent">
-              Category
+              {t("dialogs.channel.parentCategory")}
             </label>
             <select
               id="channel-parent"
@@ -173,7 +175,7 @@ export function ChannelDialog({
               value={parent === null ? "" : String(parent)}
               onChange={(event) => setParent(event.target.value === "" ? null : Number(event.target.value))}
             >
-              <option value="">No category</option>
+              <option value="">{t("dialogs.channel.noCategory")}</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -186,7 +188,7 @@ export function ChannelDialog({
         {type === "voice" ? (
           <div className="field">
             <label className="field__label" htmlFor="channel-limit">
-              User limit
+              {t("dialogs.channel.userLimit")}
             </label>
             <input
               id="channel-limit"
@@ -197,10 +199,11 @@ export function ChannelDialog({
               value={userLimit}
               onChange={(event) => setUserLimit(Number(event.target.value))}
             />
-            <span className="field__hint">0 means no limit.</span>
+            <span className="field__hint">0 = {t("dialogs.channel.noLimit")}</span>
           </div>
         ) : null}
       </form>
     </Modal>
   );
 }
+

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { useTranslation } from "@/lib/i18n";
 import { useSession } from "@/store/session";
 import { colorRoleOf, groupMembers } from "@/store/selectors";
 import type { User } from "@/lib/protocol";
@@ -12,6 +13,7 @@ interface MemberListProps {
 
 /** Everyone connected, grouped by their highest hoisted role. */
 export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProps) {
+  const { t } = useTranslation();
   const users = useSession((state) => state.users);
   const roles = useSession((state) => state.roles);
   const channels = useSession((state) => state.channels);
@@ -24,7 +26,7 @@ export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProp
         {groups.map((group) => (
           <section key={group.key} className="members__group">
             <h3 className="members__label" style={{ color: group.color ?? undefined }}>
-              {group.label} — {group.members.length}
+              {group.key === "members" ? t("common.online") : group.label} — {group.members.length}
             </h3>
             {group.members.map((user) => {
               const color = colorRoleOf(user, roles)?.color;
@@ -37,6 +39,7 @@ export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProp
                   onContextMenu={(event) => {
                     if (onContextMenuMember) {
                       event.preventDefault();
+                      event.stopPropagation();
                       onContextMenuMember(event, user);
                     }
                   }}
@@ -47,7 +50,7 @@ export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProp
                       {user.nickname}
                     </span>
                     <span className="member__meta">
-                      {channel ? `In ${channel.name}` : user.registered ? "Member" : "Guest"}
+                      {channel ? channel.name : user.registered ? t("common.member") : t("common.guest")}
                     </span>
                   </span>
                 </button>

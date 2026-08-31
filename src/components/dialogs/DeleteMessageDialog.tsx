@@ -1,4 +1,5 @@
 import { isEmojiOnly } from "@/lib/emoji";
+import { useTranslation } from "@/lib/i18n";
 import { formatFull, formatTime } from "@/lib/time";
 import type { Message, Role, User } from "@/lib/protocol";
 import { colorRoleOf } from "@/store/selectors";
@@ -20,17 +21,18 @@ export function DeleteMessageDialog({
   onConfirm,
   onClose,
 }: DeleteMessageDialogProps) {
+  const { t } = useTranslation();
   const color = author ? (colorRoleOf(author, roles)?.color ?? null) : null;
 
   return (
     <Modal
-      title="Delete Message"
-      subtitle="Are you sure you want to delete this message?"
+      title={t("dialogs.deleteMessage.title")}
+      subtitle={t("dialogs.deleteMessage.confirm")}
       onClose={onClose}
       footer={
         <>
           <button className="btn btn--ghost" type="button" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn--danger"
@@ -41,7 +43,7 @@ export function DeleteMessageDialog({
             }}
             autoFocus
           >
-            Delete
+            {t("common.delete")}
           </button>
         </>
       }
@@ -74,11 +76,12 @@ export function DeleteMessageDialog({
       </div>
 
       <div className="confirm-tip">
-        <span className="confirm-tip__tag">PROTIP:</span>
+        <span className="confirm-tip__tag">{t("common.protip")}</span>
         <span>
-          You can hold <kbd className="kbd">Shift</kbd> when clicking delete to bypass this confirmation.
+          {t("dialogs.deleteMessage.protipDesc")}
         </span>
       </div>
     </Modal>
   );
 }
+

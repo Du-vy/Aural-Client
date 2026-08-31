@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { useTranslation } from "@/lib/i18n";
 import { Perm, has } from "@/lib/permissions";
 import { describeError } from "@/lib/protocol";
 import { useSession } from "@/store/session";
@@ -15,6 +16,7 @@ interface MemberDialogProps {
 
 /** A member card: who they are, what they hold, and what you may do about it. */
 export function MemberDialog({ userId, onClose }: MemberDialogProps) {
+  const { t } = useTranslation();
   const user = useSession(
     (state) => state.users.get(userId) ?? (state.self?.id === userId ? state.self : undefined),
   );
@@ -61,7 +63,7 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
   }
 
   return (
-    <Modal title={user.nickname} subtitle={user.registered ? `@${user.username}` : "Guest"} onClose={onClose}>
+    <Modal title={user.nickname} subtitle={user.registered ? `@${user.username}` : t("common.guest")} onClose={onClose}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <Avatar user={user} size="md" online={user.online} />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -81,7 +83,7 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
 
       {grantable.length > 0 && !isSelf ? (
         <div className="field">
-          <span className="field__label">Roles</span>
+          <span className="field__label">{t("contextMenu.roles")}</span>
           <div className="permlist">
             {grantable.map((role) => {
               const granted = user.roles.includes(role.id);
@@ -105,7 +107,7 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
             })}
           </div>
           {!canModerate ? (
-            <span className="field__hint">This member ranks at or above you.</span>
+            <span className="field__hint">{t("errors.forbidden")}</span>
           ) : null}
         </div>
       ) : null}
@@ -113,7 +115,7 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
       {has(permissions, Perm.MoveUsers) && !isSelf ? (
         <div className="field">
           <label className="field__label" htmlFor="move-target">
-            Move to voice channel
+            {t("permissions.names.MoveUsers")}
           </label>
           <select
             id="move-target"
@@ -126,7 +128,7 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
               )
             }
           >
-            <option value="">Not in a channel</option>
+            <option value="">{t("common.none")}</option>
             {voiceChannels.map((channel) => (
               <option key={channel.id} value={channel.id}>
                 {channel.name}
@@ -142,15 +144,15 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
           disabled={busy || !canModerate}
           onClick={() => setConfirmKick(true)}
         >
-          Disconnect {user.nickname}
+          {t("contextMenu.kickMember", { name: user.nickname })}
         </button>
       ) : null}
 
       {confirmKick ? (
         <ConfirmDialog
-          title={`Kick ${user.nickname}`}
-          subtitle={`Are you sure you want to kick @${user.nickname} from the server?`}
-          confirmText="Kick"
+          title={t("dialogs.confirm.kickUserTitle")}
+          subtitle={t("dialogs.confirm.kickUserConfirm", { name: user.nickname })}
+          confirmText={t("members.kick")}
           danger
           onConfirm={() =>
             void guard(async () => {

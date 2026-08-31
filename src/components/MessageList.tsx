@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { isEmojiOnly } from "@/lib/emoji";
+import { useTranslation } from "@/lib/i18n";
 import { GROUPING_WINDOW_SECONDS, formatDay, formatFull, formatTime, sameDay } from "@/lib/time";
 import type { Message, Role, User } from "@/lib/protocol";
 import { colorRoleOf } from "@/store/selectors";
@@ -83,6 +84,7 @@ export function MessageList({
   onOpenMember,
   onContextMenuMember,
 }: MessageListProps) {
+  const { t } = useTranslation();
   const scroller = useRef<HTMLDivElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   /** Whether the reader is at the bottom, and so wants to follow along. */
@@ -148,7 +150,7 @@ export function MessageList({
     if (isAuthor) {
       entries.push({
         id: "edit",
-        label: "Edit Message",
+        label: t("common.edit"),
         icon: <PencilIcon size={15} />,
         onClick: () => setEditing(msg.id),
       });
@@ -157,7 +159,7 @@ export function MessageList({
     if (canDelete) {
       entries.push({
         id: "delete",
-        label: "Delete Message",
+        label: t("common.delete"),
         icon: <TrashIcon size={15} />,
         danger: true,
         onClick: () => requestDelete(msg, false),
@@ -171,27 +173,27 @@ export function MessageList({
     entries.push(
       {
         id: "copy-text",
-        label: "Copy Text",
+        label: t("common.copy"),
         icon: <CopyIcon size={15} />,
         onClick: () => void navigator.clipboard.writeText(msg.content),
       },
       {
         id: "copy-id",
-        label: "Copy Message ID",
+        label: t("server.copyId"),
         icon: <CopyIcon size={15} />,
         onClick: () => void navigator.clipboard.writeText(String(msg.id)),
       },
     );
 
     return entries;
-  }, [contextMenu, selfId, canManageMessages]);
+  }, [contextMenu, selfId, canManageMessages, t]);
 
   return (
     <div className="chat" ref={scroller} onScroll={handleScroll}>
       {hasMore ? (
         <div className="chat__older">
           <button className="btn btn--ghost" onClick={onLoadOlder} disabled={loading}>
-            {loading ? "Loading…" : "Load older messages"}
+            {loading ? t("chat.loadingHistory") : t("chat.loadOlder")}
           </button>
         </div>
       ) : (
@@ -199,10 +201,11 @@ export function MessageList({
           <span className="chat__start-icon">
             <HashIcon size={26} />
           </span>
-          <h2 className="chat__start-title">Welcome to #{channelName}</h2>
-          <p className="chat__start-body">This is the beginning of the channel.</p>
+          <h2 className="chat__start-title">{t("chat.welcomeTitle", { channel: channelName })}</h2>
+          <p className="chat__start-body">{t("chat.welcomeSubtitle", { channel: channelName })}</p>
         </div>
       )}
+
 
       {error ? <p className="chat__error">{error}</p> : null}
 
@@ -298,6 +301,7 @@ function MessageRow({
   onContextMenuMember,
   onContextMenu,
 }: MessageRowProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState(message.content);
 
   // The author's colour is only knowable while they are connected, because
@@ -394,7 +398,7 @@ function MessageRow({
               }}
             />
             <p className="field__hint">
-              Enter to save, Escape to cancel, Shift+Enter for a new line.
+              {t("chat.enterToSave")}, {t("chat.escapeToCancel")}
             </p>
           </form>
         ) : (
@@ -405,7 +409,7 @@ function MessageRow({
             {message.editedAt !== null ? (
               <span className="msg__edited" title={formatFull(message.editedAt)}>
                 {" "}
-                (edited)
+                {t("chat.edited")}
               </span>
             ) : null}
           </p>
@@ -421,8 +425,8 @@ function MessageRow({
                 setDraft(message.content);
                 onStartEdit();
               }}
-              title="Edit"
-              aria-label="Edit message"
+              title={t("common.edit")}
+              aria-label={t("chat.editMessageAria")}
             >
               <PencilIcon size={14} />
             </button>
@@ -431,8 +435,8 @@ function MessageRow({
             <button
               className="iconbtn iconbtn--danger"
               onClick={onDelete}
-              title="Delete"
-              aria-label="Delete message"
+              title={t("common.delete")}
+              aria-label={t("chat.deleteMessageAria")}
             >
               <TrashIcon size={14} />
             </button>
@@ -442,3 +446,4 @@ function MessageRow({
     </div>
   );
 }
+

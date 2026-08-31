@@ -6,10 +6,11 @@
 interface IconProps {
   size?: number;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 function icon(path: React.ReactNode, viewBox = "0 0 24 24") {
-  return function Icon({ size = 18, className }: IconProps) {
+  return function Icon({ size = 18, className, style }: IconProps) {
     return (
       <svg
         width={size}
@@ -21,6 +22,7 @@ function icon(path: React.ReactNode, viewBox = "0 0 24 24") {
         strokeLinecap="round"
         strokeLinejoin="round"
         className={className}
+        style={style}
         aria-hidden="true"
         focusable="false"
       >
@@ -29,6 +31,7 @@ function icon(path: React.ReactNode, viewBox = "0 0 24 24") {
     );
   };
 }
+
 
 export const SearchIcon = icon(
   <>
@@ -166,7 +169,16 @@ export const UserXIcon = icon(
   </>,
 );
 
+export const GlobeIcon = icon(
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+  </>,
+);
+
 export const AuralMark = ({ size = 26 }: IconProps) => (
+
   <svg
     width={size}
     height={size}

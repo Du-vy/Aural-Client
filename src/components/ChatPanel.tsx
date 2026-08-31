@@ -7,6 +7,8 @@ import { useChannelPermissions } from "@/store/selectors";
 import { MessageComposer } from "./MessageComposer";
 import { MessageList } from "./MessageList";
 
+import { useTranslation } from "@/lib/i18n";
+
 interface ChatPanelProps {
   channel: Channel;
   onOpenMember?(userId: number): void;
@@ -19,6 +21,7 @@ export function ChatPanel({
   onOpenMember,
   onContextMenuMember,
 }: ChatPanelProps) {
+  const { t } = useTranslation();
   const users = useSession((state) => state.users);
   const roles = useSession((state) => state.roles);
   const self = useSession((state) => state.self);
@@ -61,9 +64,10 @@ export function ChatPanel({
 
       <MessageComposer
         channelName={channel.name}
-        disabledReason={canSend ? null : "You do not have permission to send messages here."}
+        disabledReason={canSend ? null : t("chat.messageDisabledPlaceholder")}
         onSend={(content) => sendMessage(channel.id, content)}
       />
     </div>
   );
 }
+

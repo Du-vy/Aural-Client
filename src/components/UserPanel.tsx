@@ -1,3 +1,4 @@
+import { useTranslation } from "@/lib/i18n";
 import { useSession } from "@/store/session";
 import { Avatar } from "./Avatar";
 import { GearIcon, HangUpIcon, LogOutIcon } from "./Icons";
@@ -11,6 +12,7 @@ interface UserPanelProps {
  * channel, and the way out of both.
  */
 export function UserPanel({ onOpenAccount }: UserPanelProps) {
+  const { t } = useTranslation();
   const self = useSession((state) => state.self);
   const channels = useSession((state) => state.channels);
   const status = useSession((state) => state.status);
@@ -23,16 +25,16 @@ export function UserPanel({ onOpenAccount }: UserPanelProps) {
 
   const state =
     status === "reconnecting"
-      ? "Reconnecting…"
+      ? t("connect.reconnecting")
       : channel
-        ? `In ${channel.name}`
+        ? channel.name
         : self.registered
           ? `@${self.username}`
-          : "Guest — not saved";
+          : `${t("common.guest")}`;
 
   return (
     <div className="userpanel">
-      <button className="userpanel__identity" onClick={onOpenAccount} title="Account and identity">
+      <button className="userpanel__identity" onClick={onOpenAccount} title={t("dialogs.account.title")}>
         <Avatar user={self} size="md" online={status === "connected"} />
         <span className="userpanel__body">
           <span className="userpanel__name">{self.nickname}</span>
@@ -45,8 +47,8 @@ export function UserPanel({ onOpenAccount }: UserPanelProps) {
           <button
             className="iconbtn iconbtn--danger"
             onClick={() => void leaveChannel()}
-            title={`Leave ${channel.name}`}
-            aria-label={`Leave ${channel.name}`}
+            title={`${t("common.leave")} ${channel.name}`}
+            aria-label={`${t("common.leave")} ${channel.name}`}
           >
             <HangUpIcon size={17} />
           </button>
@@ -54,16 +56,16 @@ export function UserPanel({ onOpenAccount }: UserPanelProps) {
         <button
           className="iconbtn"
           onClick={onOpenAccount}
-          title="Account and identity"
-          aria-label="Account and identity"
+          title={t("userPanel.accountSettings")}
+          aria-label={t("userPanel.accountSettings")}
         >
           <GearIcon size={17} />
         </button>
         <button
           className="iconbtn iconbtn--danger"
           onClick={disconnect}
-          title="Disconnect from this server"
-          aria-label="Disconnect from this server"
+          title={t("userPanel.disconnect")}
+          aria-label={t("userPanel.disconnect")}
         >
           <LogOutIcon size={17} />
         </button>
@@ -71,3 +73,4 @@ export function UserPanel({ onOpenAccount }: UserPanelProps) {
     </div>
   );
 }
+
