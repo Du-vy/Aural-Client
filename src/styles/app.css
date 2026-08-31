@@ -1397,6 +1397,21 @@
   font-weight: 600;
 }
 
+.msg__avatar-btn {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform var(--speed) ease, filter var(--speed) ease;
+}
+
+.msg__avatar-btn:hover {
+  filter: brightness(1.15);
+  transform: scale(1.05);
+}
+
 .msg__body {
   min-width: 0;
 }
@@ -1412,6 +1427,23 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
+}
+
+.msg__author-btn {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  line-height: inherit;
+}
+
+.msg__author-btn:hover {
+  text-decoration: underline;
 }
 
 .msg__time {

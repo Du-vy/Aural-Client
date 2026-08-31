@@ -15,7 +15,9 @@ interface MemberDialogProps {
 
 /** A member card: who they are, what they hold, and what you may do about it. */
 export function MemberDialog({ userId, onClose }: MemberDialogProps) {
-  const user = useSession((state) => state.users.get(userId));
+  const user = useSession(
+    (state) => state.users.get(userId) ?? (state.self?.id === userId ? state.self : undefined),
+  );
   const self = useSession((state) => state.self);
   const roles = useSession((state) => state.roles);
   const channels = useSession((state) => state.channels);

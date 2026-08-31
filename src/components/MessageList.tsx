@@ -63,6 +63,8 @@ interface MessageListProps {
   onLoadOlder(): void;
   onEdit(messageId: number, content: string): void;
   onDelete(messageId: number): void;
+  onOpenMember?(userId: number): void;
+  onContextMenuMember?(event: React.MouseEvent, user: User): void;
 }
 
 export function MessageList({
@@ -78,6 +80,8 @@ export function MessageList({
   onLoadOlder,
   onEdit,
   onDelete,
+  onOpenMember,
+  onContextMenuMember,
 }: MessageListProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
@@ -226,6 +230,8 @@ export function MessageList({
               onEdit(message.id, content);
             }}
             onDelete={(e) => requestDelete(message, e.shiftKey)}
+            onOpenMember={onOpenMember}
+            onContextMenuMember={onContextMenuMember}
             onContextMenu={(event) => {
               event.preventDefault();
               setContextMenu({ x: event.clientX, y: event.clientY, message });
@@ -271,6 +277,8 @@ interface MessageRowProps {
   onCancelEdit(): void;
   onSubmitEdit(content: string): void;
   onDelete(event: React.MouseEvent): void;
+  onOpenMember?(userId: number): void;
+  onContextMenuMember?(event: React.MouseEvent, user: User): void;
   onContextMenu?(event: React.MouseEvent): void;
 }
 
@@ -286,6 +294,8 @@ function MessageRow({
   onCancelEdit,
   onSubmitEdit,
   onDelete,
+  onOpenMember,
+  onContextMenuMember,
   onContextMenu,
 }: MessageRowProps) {
   const [draft, setDraft] = useState(message.content);
@@ -302,7 +312,21 @@ function MessageRow({
       <div className="msg__gutter">
         {startsBlock ? (
           author ? (
-            <Avatar user={author} size="md" />
+            <button
+              type="button"
+              className="msg__avatar-btn"
+              onClick={() => onOpenMember?.(author.id)}
+              onContextMenu={(event) => {
+                if (onContextMenuMember) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onContextMenuMember(event, author);
+                }
+              }}
+              title={author.nickname}
+            >
+              <Avatar user={author} size="md" />
+            </button>
           ) : (
             <span className="msg__avatar-offline" aria-hidden="true">
               {message.author.slice(0, 1).toUpperCase()}
@@ -318,9 +342,27 @@ function MessageRow({
       <div className="msg__body">
         {startsBlock ? (
           <div className="msg__head">
-            <span className="msg__author" style={color ? { color } : undefined}>
-              {message.author}
-            </span>
+            {author ? (
+              <button
+                type="button"
+                className="msg__author-btn"
+                onClick={() => onOpenMember?.(author.id)}
+                onContextMenu={(event) => {
+                  if (onContextMenuMember) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onContextMenuMember(event, author);
+                  }
+                }}
+                style={color ? { color } : undefined}
+              >
+                {message.author}
+              </button>
+            ) : (
+              <span className="msg__author" style={color ? { color } : undefined}>
+                {message.author}
+              </span>
+            )}
             <time className="msg__time" title={formatFull(message.createdAt)}>
               {formatTime(message.createdAt)}
             </time>

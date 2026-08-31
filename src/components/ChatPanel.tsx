@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 import { Perm, has } from "@/lib/permissions";
-import type { Channel } from "@/lib/protocol";
+import type { Channel, User } from "@/lib/protocol";
 import { EMPTY_HISTORY, useSession } from "@/store/session";
 import { useChannelPermissions } from "@/store/selectors";
 import { MessageComposer } from "./MessageComposer";
@@ -9,10 +9,16 @@ import { MessageList } from "./MessageList";
 
 interface ChatPanelProps {
   channel: Channel;
+  onOpenMember?(userId: number): void;
+  onContextMenuMember?(event: React.MouseEvent, user: User): void;
 }
 
 /** One text channel: its history, and the box to add to it. */
-export function ChatPanel({ channel }: ChatPanelProps) {
+export function ChatPanel({
+  channel,
+  onOpenMember,
+  onContextMenuMember,
+}: ChatPanelProps) {
   const users = useSession((state) => state.users);
   const roles = useSession((state) => state.roles);
   const self = useSession((state) => state.self);
@@ -49,6 +55,8 @@ export function ChatPanel({ channel }: ChatPanelProps) {
         onLoadOlder={() => void loadOlder(channel.id)}
         onEdit={(messageId, content) => void editMessage(messageId, content)}
         onDelete={(messageId) => void deleteMessage(messageId)}
+        onOpenMember={onOpenMember}
+        onContextMenuMember={onContextMenuMember}
       />
 
       <MessageComposer

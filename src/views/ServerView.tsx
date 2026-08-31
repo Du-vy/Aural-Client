@@ -482,7 +482,14 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         ) : null}
 
         {selected?.type === "text" ? (
-          <ChatPanel key={selected.id} channel={selected} />
+          <ChatPanel
+            key={selected.id}
+            channel={selected}
+            onOpenMember={(userId) => setDialog({ kind: "member", userId })}
+            onContextMenuMember={(e, user) => {
+              setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
+            }}
+          />
         ) : (
           <div className="content">
             <div className="placeholder">
