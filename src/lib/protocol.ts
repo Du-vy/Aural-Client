@@ -37,7 +37,10 @@ export type ErrorCode =
   | "invalid_credentials"
   | "username_taken"
   | "already_registered"
-  | "rate_limited";
+  | "rate_limited"
+  | "too_large"
+  | "storage_full"
+  | "uploads_disabled";
 
 /** Reply ops. Every request receives exactly one of these. */
 export const OP_RESULT = "result";
@@ -114,6 +117,22 @@ export interface ServerInfo {
   registrationEnabled: boolean;
   guestsAllowed: boolean;
   voiceMode: VoiceMode;
+  uploads: UploadLimits;
+}
+
+/**
+ * What a server accepts as an attachment, told to the client before it sends
+ * anything so a file that is too large is refused in the picker rather than
+ * after a long transfer. Byte counts are decimal strings for the same reason
+ * permission masks are.
+ */
+export interface UploadLimits {
+  enabled: boolean;
+  maxFileBytes: string;
+  /** "0" means the only ceiling is the server's disk. */
+  maxTotalBytes: string;
+  usedBytes: string;
+  maxPerMessage: number;
 }
 
 export interface User {
@@ -176,6 +195,28 @@ export interface Message {
   /** Unix seconds. */
   createdAt: number;
   editedAt: number | null;
+  /** Files posted with the message. They are deleted along with it. */
+  attachments?: Attachment[];
+}
+
+/**
+ * One file carried by a message.
+ *
+ * `url` is relative to the server root, so it is resolved against the address
+ * this client connected to. It carries an unguessable key and needs no further
+ * authentication, which is what lets it be handed straight to an `<img>`,
+ * `<audio>` or `<video>` tag.
+ */
+export interface Attachment {
+  id: number;
+  filename: string;
+  contentType: string;
+  /** Decimal string: a file may be larger than 2^53 bytes. */
+  size: string;
+  url: string;
+  /** Set for images whose dimensions the server could read. */
+  width?: number;
+  height?: number;
 }
 
 export interface Hello {
@@ -275,6 +316,11 @@ export interface ChannelDeleteRequest {
 export interface MessageSendRequest {
   channelId: number;
   content: string;
+  /**
+   * Ids returned by `POST /upload`. A message may carry files with no text of
+   * its own, which is the one case where empty content is accepted.
+   */
+  attachments?: number[];
 }
 
 export interface MessageHistoryRequest {
@@ -421,6 +467,12 @@ export function describeError(error: unknown): string {
       return t("errors.unsupported_version");
     case "already_registered":
       return t("errors.already_registered");
+    case "too_large":
+      return t("errors.too_large");
+    case "storage_full":
+      return t("errors.storage_full");
+    case "uploads_disabled":
+      return t("errors.uploads_disabled");
     default:
       return error.message || t("errors.unknown");
   }

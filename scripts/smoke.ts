@@ -12,6 +12,7 @@
 import { parseAddress, fetchServerInfo } from "../src/lib/address";
 import { Gateway } from "../src/lib/gateway";
 import { Perm, has, resolve, resolveChannelPermissions } from "../src/lib/permissions";
+import { attachmentKind, attachmentUrl, downloadUrl, formatBytes } from "../src/lib/uploads";
 import {
   Ev,
   Op,
@@ -366,6 +367,121 @@ async function main() {
     !useSession.getState().history.get(storeText.id)?.messages.some((m) => m.id === mine.id),
     "a deleted message leaves the store through its event",
   );
+
+  // --- attachments ----------------------------------------------------------
+  //
+  // A file is the one thing that lives outside both the socket and the
+  // database, so it is the one thing neither side's own tests can prove works
+  // end to end: upload over HTTP, name over the socket, read back over HTTP.
+
+  const limits = useSession.getState().server?.uploads;
+  if (!limits?.enabled) {
+    console.log("\nattachments: skipped, this server has uploads switched off");
+  } else {
+    console.log("\nattachments");
+    check(Number(limits.maxFileBytes) > 0, `the server advertises a file limit of ${formatBytes(Number(limits.maxFileBytes))}`);
+    check(limits.maxPerMessage > 0, `a message may carry ${limits.maxPerMessage} files`);
+
+    const body = `# Smoke\n\nWritten at ${new Date().toISOString()}.\n`;
+    const upload = useSession
+      .getState()
+      .uploadAttachment(storeText.id, new File([body], "smoke.md", { type: "text/markdown" }));
+    const attachment = await upload.done;
+
+    check(attachment.id > 0, "the server accepts a file and gives it an id");
+    check(attachment.filename === "smoke.md", "the filename survives the upload");
+    // The type is settled by the server from the extension, never taken from
+    // what the uploader claimed.
+    check(attachment.contentType === "text/plain", "the server decides the content type itself");
+    check(Number(attachment.size) === new TextEncoder().encode(body).length, "the recorded size is the real one");
+    check(attachmentKind(attachment) === "text", "a markdown file is classified as previewable text");
+
+    const withFile = `here is a file ${Date.now()}`;
+    await useSession.getState().sendMessage(storeText.id, withFile, [attachment.id]);
+    await settle();
+
+    const carried = useSession
+      .getState()
+      .history.get(storeText.id)
+      ?.messages.find((message) => message.content === withFile);
+    check(carried !== undefined, "the message carrying a file reaches the store");
+    check(carried?.attachments?.length === 1, "the message carries exactly one file");
+    check(carried?.attachments?.[0]?.id === attachment.id, "it carries the file that was uploaded");
+
+    // The URL the server advertises has to work as handed over, since it is
+    // what an <img> or <video> tag is given verbatim.
+    const address = useSession.getState().address;
+    const fileUrl = attachmentUrl(address, carried!.attachments![0]!);
+    const fetched = await fetch(fileUrl);
+    check(fetched.status === 200, "the advertised URL serves the file");
+    check(await fetched.text() === body, "the file comes back byte for byte");
+    check(
+      (fetched.headers.get("content-disposition") ?? "").startsWith("inline"),
+      "a previewable file is served inline",
+    );
+
+    const saved = await fetch(downloadUrl(address, carried!.attachments![0]!));
+    check(
+      (saved.headers.get("content-disposition") ?? "").startsWith("attachment"),
+      "the download URL forces a save instead",
+    );
+    void saved.body?.cancel();
+
+    // Only the head of a file is pulled in for a preview, which needs the
+    // server to answer range requests.
+    const ranged = await fetch(fileUrl, { headers: { Range: "bytes=0-7" } });
+    check(ranged.status === 206, "the server answers range requests");
+    check((await ranged.text()).length === 8, "a range request returns only what was asked for");
+
+    // Deleting the message is what deletes the file. This is the whole of the
+    // moderation story for attachments, so it is worth proving rather than
+    // assuming.
+    await useSession.getState().deleteMessage(carried!.id);
+    await settle();
+    const gone = await fetch(fileUrl);
+    check(gone.status === 404, "deleting the message deletes the file it carried");
+    void gone.body?.cancel();
+
+    // A message may be nothing but a file.
+    const second = useSession
+      .getState()
+      .uploadAttachment(storeText.id, new File(["second"], "note.txt", { type: "text/plain" }));
+    const bare = await second.done;
+    await useSession.getState().sendMessage(storeText.id, "", [bare.id]);
+    await settle();
+    const wordless = useSession
+      .getState()
+      .history.get(storeText.id)
+      ?.messages.find((message) => message.attachments?.some((a) => a.id === bare.id));
+    check(wordless !== undefined, "a message can be a file and nothing else");
+    check(wordless?.content === "", "such a message carries no text at all");
+    await useSession.getState().deleteMessage(wordless!.id);
+    await settle();
+
+    // An upload belongs to whoever made it, and to one message only.
+    const orphan = useSession
+      .getState()
+      .uploadAttachment(storeText.id, new File(["once"], "once.txt", { type: "text/plain" }));
+    const onceOnly = await orphan.done;
+    await useSession.getState().sendMessage(storeText.id, "first and only", [onceOnly.id]);
+    await settle();
+    let refused = false;
+    try {
+      await useSession.getState().sendMessage(storeText.id, "again", [onceOnly.id]);
+    } catch {
+      refused = true;
+    }
+    check(refused, "an upload cannot be posted to a second message");
+
+    const posted = useSession
+      .getState()
+      .history.get(storeText.id)
+      ?.messages.find((message) => message.content === "first and only");
+    if (posted) {
+      await useSession.getState().deleteMessage(posted.id);
+      await settle();
+    }
+  }
 
   useSession.getState().disconnect();
 

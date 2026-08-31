@@ -1,8 +1,20 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 
 import { useTranslation } from "@/lib/i18n";
+import { describeError, type Attachment, type UploadLimits } from "@/lib/protocol";
+import { UploadCancelled, formatBytes, parseBytes } from "@/lib/uploads";
+import { AttachmentTray, type PendingFile } from "./AttachmentTray";
 import { EmojiPicker } from "./EmojiPicker";
-import { SmileyIcon } from "./Icons";
+import { PlusIcon, SmileyIcon } from "./Icons";
 
 /** Matches the server's own limit, so the count means the same on both sides. */
 export const MAX_MESSAGE_LENGTH = 2000;
@@ -39,21 +51,51 @@ export function insertAtCaret(
 }
 
 interface MessageComposerProps {
+  channelId: number;
   channelName: string;
   /** Why posting is unavailable, or null when it is allowed. */
   disabledReason: string | null;
-  onSend(content: string): Promise<void>;
+  /** Whether this user may attach files in this channel. */
+  canAttach: boolean;
+  /** What the server accepts, so a file too large is refused before it is sent. */
+  limits: UploadLimits | null;
+  onSend(content: string, attachments: number[]): Promise<void>;
+  onUpload(file: File, onProgress: (fraction: number) => void): {
+    done: Promise<Attachment>;
+    cancel(): void;
+  };
 }
 
-export function MessageComposer({ channelName, disabledReason, onSend }: MessageComposerProps) {
+let localIdSeq = 0;
+
+export function MessageComposer({
+  channelId,
+  channelName,
+  disabledReason,
+  canAttach,
+  limits,
+  onSend,
+  onUpload,
+}: MessageComposerProps) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pending, setPending] = useState<PendingFile[]>([]);
+  /** Depth rather than a flag: dragging over a child fires leave on the parent. */
+  const [dragDepth, setDragDepth] = useState(0);
+
   const input = useRef<HTMLTextAreaElement>(null);
+  const filePicker = useRef<HTMLInputElement>(null);
   /** Where the caret was before focus moved into the picker. */
   const caret = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
+  /** Cancels every upload still running, for when the channel changes. */
+  const running = useRef(new Map<string, () => void>());
+
+  const uploadsEnabled = canAttach && (limits?.enabled ?? false);
+  const maxFileBytes = parseBytes(limits?.maxFileBytes);
+  const maxPerMessage = limits?.maxPerMessage ?? 0;
 
   // The box grows with the message instead of scrolling a single line.
   useEffect(() => {
@@ -64,12 +106,26 @@ export function MessageComposer({ channelName, disabledReason, onSend }: Message
   }, [draft]);
 
   // Moving to another channel abandons the draft rather than carrying it into
-  // a conversation it was not written for.
+  // a conversation it was not written for. Files go with it: an upload is bound
+  // to the channel it was made for, so it could not be posted here anyway.
   useEffect(() => {
     setDraft("");
     setError(null);
     setPickerOpen(false);
-  }, [channelName]);
+    setPending([]);
+    setDragDepth(0);
+    for (const cancel of running.current.values()) cancel();
+    running.current.clear();
+  }, [channelId]);
+
+  // An upload still in flight when the client closes has nothing to attach to.
+  useEffect(() => {
+    const inFlight = running.current;
+    return () => {
+      for (const cancel of inFlight.values()) cancel();
+      inFlight.clear();
+    };
+  }, []);
 
   /** Remembers the caret, which is lost the moment the picker takes focus. */
   function rememberCaret() {
@@ -97,19 +153,122 @@ export function MessageComposer({ channelName, disabledReason, onSend }: Message
     });
   }
 
+  const patchPending = useCallback((localId: string, patch: Partial<PendingFile>) => {
+    setPending((current) =>
+      current.map((item) => (item.localId === localId ? { ...item, ...patch } : item)),
+    );
+  }, []);
+
+  /**
+   * Starts uploading the files somebody picked, dropped or pasted.
+   *
+   * Each one goes up on its own as soon as it is added, rather than when the
+   * message is sent: by the time a sentence has been typed the picture is
+   * usually already there, and pressing Enter is instant.
+   */
+  const addFiles = useCallback(
+    (files: FileList | File[]) => {
+      const chosen = [...files];
+      if (chosen.length === 0) return;
+      if (!uploadsEnabled) {
+        setError(t("attachments.notAllowed"));
+        return;
+      }
+
+      const room = maxPerMessage > 0 ? maxPerMessage - pending.length : chosen.length;
+      if (room <= 0) {
+        setError(t("attachments.tooMany", { count: maxPerMessage }));
+        return;
+      }
+      setError(chosen.length > room ? t("attachments.tooMany", { count: maxPerMessage }) : null);
+
+      const accepted: PendingFile[] = [];
+      for (const file of chosen.slice(0, room)) {
+        localIdSeq += 1;
+        const localId = `f${localIdSeq}`;
+
+        // Refusing an oversized file here, rather than letting the server
+        // refuse it, is the difference between an instant answer and a long
+        // upload that ends in one.
+        if (maxFileBytes > 0 && file.size > maxFileBytes) {
+          accepted.push({
+            localId,
+            file,
+            previewUrl: null,
+            progress: 0,
+            attachment: null,
+            error: t("attachments.tooLarge", { limit: formatBytes(maxFileBytes) }),
+          });
+          continue;
+        }
+
+        accepted.push({
+          localId,
+          file,
+          // An image gets a thumbnail from the local file, so the tray shows
+          // what was picked before the upload has finished.
+          previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+          progress: 0,
+          attachment: null,
+          error: null,
+        });
+
+        const upload = onUpload(file, (fraction) => patchPending(localId, { progress: fraction }));
+        running.current.set(localId, upload.cancel);
+        void upload.done
+          .then((attachment) => patchPending(localId, { attachment, progress: 1 }))
+          .catch((failure) => {
+            if (failure instanceof UploadCancelled) return;
+            patchPending(localId, { error: describeError(failure) });
+          })
+          .finally(() => running.current.delete(localId));
+      }
+
+      setPending((current) => [...current, ...accepted]);
+    },
+    [uploadsEnabled, pending.length, maxPerMessage, maxFileBytes, onUpload, patchPending, t],
+  );
+
+  function removePending(localId: string) {
+    running.current.get(localId)?.();
+    running.current.delete(localId);
+    setPending((current) => {
+      const item = current.find((held) => held.localId === localId);
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      // A file already accepted by the server is simply abandoned: nothing has
+      // claimed it, so the server sweeps it with the rest of the unposted ones.
+      return current.filter((held) => held.localId !== localId);
+    });
+  }
+
+  function clearPending() {
+    for (const item of pending) {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    }
+    setPending([]);
+  }
+
+  const uploading = pending.some((item) => item.attachment === null && item.error === null);
+  const ready = pending.filter((item) => item.attachment !== null);
+  const hasFiles = ready.length > 0;
+
   async function submit(event?: FormEvent) {
     event?.preventDefault();
     const content = draft.trim();
-    if (!content || sending) return;
+    if (sending || uploading) return;
+    // A message needs something in it: words, files, or both.
+    if (!content && !hasFiles) return;
 
     setSending(true);
     setError(null);
     try {
-      await onSend(content);
+      await onSend(content, ready.map((item) => item.attachment!.id));
       setDraft("");
+      clearPending();
     } catch (failure) {
-      // The draft is deliberately left in the box: a rejected message is one
-      // the writer still has, and retyping it would be the wrong outcome.
+      // The draft and its files are deliberately left in place: a rejected
+      // message is one the writer still has, and making them redo it would be
+      // the wrong outcome.
       setError(failure instanceof Error ? failure.message : t("errors.unknown"));
     } finally {
       setSending(false);
@@ -123,6 +282,27 @@ export function MessageComposer({ channelName, disabledReason, onSend }: Message
     }
   }
 
+  function onPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const files = [...(event.clipboardData?.files ?? [])];
+    if (files.length === 0) return;
+    // A screenshot on the clipboard is a file, and pasting it should attach it
+    // rather than doing nothing.
+    event.preventDefault();
+    addFiles(files);
+  }
+
+  /** Whether a drag carries files, as opposed to selected text. */
+  function carriesFiles(event: DragEvent): boolean {
+    return [...(event.dataTransfer?.types ?? [])].includes("Files");
+  }
+
+  function onDrop(event: DragEvent) {
+    setDragDepth(0);
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    addFiles(event.dataTransfer.files);
+  }
+
   if (disabledReason !== null) {
     return (
       <div className="composer composer--disabled">
@@ -132,11 +312,61 @@ export function MessageComposer({ channelName, disabledReason, onSend }: Message
   }
 
   const remaining = MAX_MESSAGE_LENGTH - draft.length;
+  const dragging = dragDepth > 0;
 
   return (
-    <form className="composer" onSubmit={submit}>
+    <form
+      className={dragging ? "composer composer--dropping" : "composer"}
+      onSubmit={submit}
+      onDragEnter={(event) => {
+        if (!carriesFiles(event) || !uploadsEnabled) return;
+        event.preventDefault();
+        setDragDepth((depth) => depth + 1);
+      }}
+      onDragOver={(event) => {
+        if (!carriesFiles(event) || !uploadsEnabled) return;
+        // Without this the browser takes the drop itself and navigates away
+        // from the client to display the file.
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={() => setDragDepth((depth) => Math.max(0, depth - 1))}
+      onDrop={onDrop}
+    >
       {error ? <p className="composer__error">{error}</p> : null}
+
+      {pending.length > 0 ? (
+        <AttachmentTray items={pending} onRemove={removePending} />
+      ) : null}
+
       <div className="composer__box">
+        {uploadsEnabled ? (
+          <>
+            <input
+              ref={filePicker}
+              type="file"
+              multiple
+              className="composer__file-input"
+              tabIndex={-1}
+              onChange={(event) => {
+                if (event.target.files) addFiles(event.target.files);
+                // Reset, or picking the same file twice in a row does nothing.
+                event.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              className="composer__button composer__attach"
+              title={t("attachments.attach")}
+              aria-label={t("attachments.attach")}
+              disabled={sending}
+              onClick={() => filePicker.current?.click()}
+            >
+              <PlusIcon size={19} />
+            </button>
+          </>
+        ) : null}
+
         <textarea
           ref={input}
           className="composer__input"
@@ -148,6 +378,7 @@ export function MessageComposer({ channelName, disabledReason, onSend }: Message
           disabled={sending}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           onSelect={rememberCaret}
           onBlur={rememberCaret}
         />
@@ -177,7 +408,12 @@ export function MessageComposer({ channelName, disabledReason, onSend }: Message
           </button>
         </span>
       </div>
+
+      {dragging ? (
+        <div className="composer__drop" aria-hidden="true">
+          {t("attachments.dropHere", { channel: channelName })}
+        </div>
+      ) : null}
     </form>
   );
 }
-

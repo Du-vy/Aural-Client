@@ -13,6 +13,7 @@ import { DeleteMessageDialog } from "./dialogs/DeleteMessageDialog";
 import { ExternalLinkDialog } from "./dialogs/ExternalLinkDialog";
 import { CopyIcon, HashIcon, LinkIcon, PencilIcon, TrashIcon } from "./Icons";
 import { MessageContent } from "./MessageContent";
+import { MessageAttachments } from "./attachments/MessageAttachments";
 
 /**
  * One rendered row. A message either opens a block, carrying its author and
@@ -184,14 +185,14 @@ export function MessageList({
       entries.push({ type: "separator" });
     }
 
-    entries.push(
-      {
+    if (msg.content.trim() !== "") {
+      entries.push({
         id: "copy-text",
         label: t("common.copy"),
         icon: <CopyIcon size={15} />,
         onClick: () => void navigator.clipboard.writeText(msg.content),
-      },
-    );
+      });
+    }
 
     const urls = extractUrls(msg.content);
     if (urls.length === 1) {
@@ -450,10 +451,19 @@ function MessageRow({
               {t("chat.enterToSave")}, {t("chat.escapeToCancel")}
             </p>
           </form>
+        ) : null}
+
+        {editing ? (
+          // An edit rewrites the words and never touches the files, so they
+          // stay on screen rather than blinking out for the length of the edit.
+          message.attachments && message.attachments.length > 0 ? (
+            <MessageAttachments attachments={message.attachments} onOpenLink={onOpenLink} />
+          ) : null
         ) : (
           <MessageContent
             content={message.content}
             editedAt={message.editedAt}
+            attachments={message.attachments}
             onOpenLink={onOpenLink}
           />
         )}

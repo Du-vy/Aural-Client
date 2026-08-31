@@ -32,12 +32,20 @@ const { insertAtCaret } = await import("@/components/MessageComposer");
 const { ServerSettingsDialog } = await import("@/components/dialogs/ServerSettingsDialog");
 const { ExternalLinkDialog } = await import("@/components/dialogs/ExternalLinkDialog");
 const { MessageContent } = await import("@/components/MessageContent");
+const { MessageAttachments } = await import("@/components/attachments/MessageAttachments");
+const { AttachmentTray } = await import("@/components/AttachmentTray");
+const { Markdown } = await import("@/components/attachments/Markdown");
+const { TextAttachment } = await import("@/components/attachments/TextAttachment");
+const { parseMarkdown, parseInline } = await import("@/lib/markdown");
+const { attachmentKind, formatBytes, extensionOf, attachmentUrl } = await import("@/lib/uploads");
+const { parseAddress } = await import("@/lib/address");
 const { extractUrls, classifyUrl, isOnlyMediaUrls, tokenizeMessageText } = await import("@/lib/links");
 const { addTrustedDomain, isDomainTrusted } = await import("@/lib/storage");
 const { Perm, format } = await import("@/lib/permissions");
 const { useSession } = await import("@/store/session");
 const { setLanguage, getLanguage, t, SUPPORTED_LANGUAGES } = await import("@/lib/i18n");
 
+type Attachment = import("@/lib/protocol").Attachment;
 type Channel = import("@/lib/protocol").Channel;
 type Message = import("@/lib/protocol").Message;
 type Role = import("@/lib/protocol").Role;
@@ -46,6 +54,31 @@ type User = import("@/lib/protocol").User;
 
 // React needs to be told this is a test environment before act() is used.
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
+
+/**
+ * Every request this check makes is answered from here.
+ *
+ * Two things in the client fetch on render: the OpenGraph embed behind a web
+ * link, and the preview of a text attachment. A check that reaches the real
+ * internet is one that fails on a train, leaks what is being tested to a third
+ * party, and leaves requests in flight for the teardown to abort noisily.
+ */
+const served: { body: string; status: number; requests: Array<{ url: string; range: string | null }> } = {
+  body: "",
+  status: 206,
+  requests: [],
+};
+
+globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+  const headers = new Headers(init?.headers);
+  served.requests.push({ url: String(input), range: headers.get("Range") });
+  return Promise.resolve(
+    new Response(served.body, {
+      status: served.status,
+      headers: { "Content-Type": "text/plain" },
+    }),
+  );
+}) as typeof fetch;
 
 // Ensure default English for standard render assertions
 setLanguage("en");
@@ -105,7 +138,55 @@ const server: ServerInfo = {
   registrationEnabled: true,
   guestsAllowed: true,
   voiceMode: "client_host",
+  uploads: {
+    enabled: true,
+    maxFileBytes: String(50 * 1024 * 1024),
+    maxTotalBytes: String(5 * 1024 * 1024 * 1024),
+    usedBytes: "0",
+    maxPerMessage: 10,
+  },
 };
+
+/** One of each kind of attachment, so every renderer is exercised. */
+const attachments: Attachment[] = [
+  {
+    id: 1,
+    filename: "screenshot.png",
+    contentType: "image/png",
+    size: String(184 * 1024),
+    url: "/attachments/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/screenshot.png",
+    width: 800,
+    height: 450,
+  },
+  {
+    id: 2,
+    filename: "clip.mp4",
+    contentType: "video/mp4",
+    size: String(4 * 1024 * 1024),
+    url: "/attachments/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/clip.mp4",
+  },
+  {
+    id: 3,
+    filename: "voice-note.mp3",
+    contentType: "audio/mpeg",
+    size: String(920 * 1024),
+    url: "/attachments/cccccccccccccccccccccccccccccccc/voice-note.mp3",
+  },
+  {
+    id: 4,
+    filename: "README.md",
+    contentType: "text/plain",
+    size: "2048",
+    url: "/attachments/dddddddddddddddddddddddddddddddd/README.md",
+  },
+  {
+    id: 5,
+    filename: "release.zip",
+    contentType: "application/zip",
+    size: String(12 * 1024 * 1024),
+    url: "/attachments/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/release.zip",
+  },
+];
 
 const roles: Role[] = [
   {
@@ -417,6 +498,96 @@ render(
   ["msg-embed--youtube"],
 );
 
+console.log("\nattachments");
+
+// The address matters: the server sends a root-relative URL, and it is the
+// connected address that turns it into one a browser can actually fetch.
+seed({ address: parseAddress("127.0.0.1:9871") });
+
+render(
+  "a message carrying one of every kind of file",
+  <MessageAttachments attachments={attachments} onOpenLink={noop} />,
+  ["attachment--image", "attachment--video", "attachment--audio", "attachment--text", "attachment--file"],
+);
+
+render(
+  "a message that is nothing but a picture",
+  <MessageContent content="" editedAt={null} attachments={[attachments[0]!]} onOpenLink={noop} />,
+  ["attachment--image"],
+);
+
+render(
+  "a message with words and a file",
+  <MessageContent
+    content="Here is the build."
+    editedAt={null}
+    attachments={[attachments[4]!]}
+    onOpenLink={noop}
+  />,
+  ["Here is the build.", "release.zip", "12 MB"],
+);
+
+render(
+  "an image whose file has gone missing",
+  <MessageAttachments
+    attachments={[{ ...attachments[0]!, url: "missing.png" }]}
+    onOpenLink={noop}
+  />,
+  ["attachment--broken", "no longer available"],
+);
+
+render(
+  "the composer tray, mid-upload and after a refusal",
+  <AttachmentTray
+    items={[
+      {
+        localId: "a",
+        file: new File(["x"], "uploading.png", { type: "image/png" }),
+        previewUrl: null,
+        progress: 0.42,
+        attachment: null,
+        error: null,
+      },
+      {
+        localId: "b",
+        file: new File(["x"], "huge.iso", { type: "application/octet-stream" }),
+        previewUrl: null,
+        progress: 0,
+        attachment: null,
+        error: "That file is larger than the 50.0 MB this server allows.",
+      },
+    ]}
+    onRemove={noop}
+  />,
+  ["uploading.png", "huge.iso", "tray__item--failed", "tray__progress"],
+);
+
+render(
+  "markdown rendered from an attached file",
+  <Markdown
+    source={[
+      "# Title",
+      "",
+      "Some **bold** and *italic* and `code`, plus a [link](https://aural.chat).",
+      "",
+      "- one",
+      "- two",
+      "",
+      "```go",
+      "func main() {}",
+      "```",
+      "",
+      "> a quote",
+      "",
+      "| a | b |",
+      "| - | - |",
+      "| 1 | 2 |",
+    ].join("\n")}
+    onOpenLink={noop}
+  />,
+  ["Title", "md__pre", "func main() {}", "md__list", "md__quote", "md__table", "msg__link"],
+);
+
 console.log("\nedge cases");
 seed({ channels: new Map(), self: { ...admin, channelId: null } });
 render("server view with no visible channels", <App />);
@@ -508,6 +679,174 @@ function checkThat(name: string, condition: boolean): void {
 
   addTrustedDomain("trusted-site.org");
   checkThat("trusted domain is recorded and checked", isDomainTrusted("trusted-site.org") && isDomainTrusted("sub.trusted-site.org") && !isDomainTrusted("untrusted.org"));
+}
+
+{
+  checkThat(
+    "an attachment is classified by what the server says it is",
+    attachmentKind(attachments[0]!) === "image" &&
+      attachmentKind(attachments[1]!) === "video" &&
+      attachmentKind(attachments[2]!) === "audio" &&
+      attachmentKind(attachments[3]!) === "text" &&
+      attachmentKind(attachments[4]!) === "file",
+  );
+
+  checkThat(
+    "byte counts read the way a person says them",
+    formatBytes(0) === "0 B" &&
+      formatBytes(1536) === "1.5 KB" &&
+      formatBytes(50 * 1024 * 1024) === "50 MB",
+  );
+
+  checkThat(
+    "an extension is the last segment, lowercased",
+    extensionOf("Report.FINAL.PDF") === "pdf" && extensionOf("Makefile") === "",
+  );
+
+  // The relative URL the server sends has to resolve against the address this
+  // client connected to, or nothing would load through a proxy.
+  const address = parseAddress("192.168.1.5:9871");
+  checkThat(
+    "an attachment url resolves against the connected server",
+    attachmentUrl(address, attachments[0]!) ===
+      "http://192.168.1.5:9871/attachments/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/screenshot.png",
+  );
+
+  // Markdown must never be able to produce markup, only a tree of nodes.
+  const blocks = parseMarkdown("# Heading\n\ntext\n\n- item\n\n```\ncode\n```");
+  checkThat(
+    "markdown parses into heading, paragraph, list and code",
+    blocks.length === 4 &&
+      blocks[0]?.type === "heading" &&
+      blocks[1]?.type === "paragraph" &&
+      blocks[2]?.type === "list" &&
+      blocks[3]?.type === "code",
+  );
+
+  const inline = parseInline("a **bold** and `**not bold**`");
+  checkThat(
+    "inline code is never looked inside",
+    inline.some((node) => node.type === "strong") &&
+      inline.some((node) => node.type === "code" && node.value === "**not bold**"),
+  );
+
+  const link = parseInline("[click](javascript:alert(1))");
+  checkThat(
+    "a link that is not http is stripped of its href",
+    link.every((node) => node.type !== "link"),
+  );
+}
+
+{
+  // Editing swaps the message body for a box. Rendering both at once is the
+  // kind of mistake a static render check cannot see, so this drives the real
+  // button and looks at what is left.
+  const withFile: Message = {
+    id: 900,
+    channelId: 2,
+    userId: admin.id,
+    author: "Pablo",
+    content: "the text being edited",
+    createdAt: nowSeconds - 30,
+    editedAt: null,
+    attachments: [attachments[4]!],
+  };
+
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  act(() => {
+    root.render(
+      <MessageList
+        channelName="general"
+        messages={[withFile]}
+        users={new Map([[admin.id, admin]])}
+        roles={new Map(roles.map((role) => [role.id, role]))}
+        selfId={admin.id}
+        hasMore={false}
+        loading={false}
+        error={null}
+        canManageMessages={false}
+        onLoadOlder={noop}
+        onEdit={noop}
+        onDelete={noop}
+      />,
+    );
+  });
+
+  const edit = container.querySelector<HTMLButtonElement>('[aria-label="Edit message"]');
+  checkThat("a message of your own offers an edit button", edit !== null);
+
+  act(() => {
+    edit?.click();
+  });
+
+  const html = container.innerHTML;
+  checkThat("editing opens a box", html.includes("msg__edit-input"));
+  checkThat(
+    "editing replaces the message rather than doubling it",
+    !html.includes("msg__content-wrap"),
+  );
+  checkThat(
+    "the files stay on screen while the words are rewritten",
+    html.includes("release.zip"),
+  );
+
+  act(() => {
+    root.unmount();
+  });
+  container.remove();
+}
+
+{
+  // A preview that never resolves renders exactly like one still loading, so
+  // the only way to tell them apart is to open one and wait for it. This is
+  // what catches an effect that cancels its own request.
+  served.body = "# Title\n\nsome **prose** from the file.\n";
+  served.requests.length = 0;
+  // Only this file's requests are counted: the OpenGraph embeds rendered
+  // earlier resolve on their own schedule and would otherwise be counted here.
+  const asked = () => served.requests.filter((r) => r.url.includes("README.md"));
+
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(
+      <TextAttachment
+        attachment={attachments[3]!}
+        url="http://127.0.0.1:9871/attachments/dddddddddddddddddddddddddddddddd/README.md"
+        onDownload={noop}
+        onOpenLink={noop}
+      />,
+    );
+  });
+
+  checkThat("a text file is closed until it is asked for", asked().length === 0);
+
+  const toggle = container.querySelector<HTMLButtonElement>(".attachment__text-toggle");
+  await act(async () => {
+    toggle?.click();
+  });
+  // One more turn of the loop, for the fetch and the state it sets.
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  checkThat("opening it fetches the file once", asked().length === 1);
+  checkThat("it asks for only the head of the file", asked()[0]?.range === "bytes=0-65535");
+
+  const html = container.innerHTML;
+  checkThat("the preview resolves instead of loading forever", !html.includes("Loading..."));
+  checkThat("a markdown file renders as markdown", html.includes("md__h") && html.includes("<strong>"));
+  checkThat("the file's text actually reaches the screen", html.includes("some "));
+
+  await act(async () => {
+    root.unmount();
+  });
+  container.remove();
 }
 
 console.log("\nmulti-language (i18n) verification");

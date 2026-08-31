@@ -19,6 +19,7 @@ export const Perm = {
   SendMessages: 1n << 3n,
   ChangeNickname: 1n << 4n,
   Register: 1n << 5n,
+  AttachFiles: 1n << 6n,
 
   ManageChannels: 1n << 8n,
   ManageRoles: 1n << 9n,
@@ -48,6 +49,7 @@ export const PERMISSION_ORDER: PermissionName[] = [
   "SendMessages",
   "ChangeNickname",
   "Register",
+  "AttachFiles",
   "ManageChannels",
   "ManageRoles",
   "ManageServer",
@@ -70,6 +72,7 @@ export const PERMISSION_HELP: Record<PermissionName, string> = {
   SendMessages: "Send messages in a text channel",
   ChangeNickname: "Change their own nickname",
   Register: "Claim their identity as an account",
+  AttachFiles: "Post files alongside a message",
   ManageChannels: "Create, edit and delete channels",
   ManageRoles: "Manage roles and channel permissions",
   ManageServer: "Rename the server",

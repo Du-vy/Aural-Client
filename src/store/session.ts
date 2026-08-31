@@ -18,6 +18,7 @@ import {
   Op,
   PROTOCOL_VERSION,
   describeError,
+  type Attachment,
   type Channel,
   type ChannelDeletedEvent,
   type ChannelEvent,
@@ -46,6 +47,7 @@ import {
   upsertServer,
   type SavedServer,
 } from "@/lib/storage";
+import { uploadFile, type RunningUpload } from "@/lib/uploads";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting";
 
@@ -89,6 +91,15 @@ interface SessionState {
   address: ServerAddress | null;
   savedId: string | null;
   gateway: Gateway | null;
+  /**
+   * The session token this connection is running on.
+   *
+   * It is held here as well as in storage because the HTTP endpoints
+   * authenticate with it, and storage is not always there to read it back
+   * from: a private window, cleared site data, or a browser set to refuse it
+   * all leave the bookmark unwritten while the connection itself is fine.
+   */
+  token: string | null;
 
   server: ServerInfo | null;
   self: User | null;
@@ -136,7 +147,17 @@ interface SessionState {
   openChannel(channelId: number): Promise<void>;
   /** Loads the page before the oldest message held. */
   loadOlder(channelId: number): Promise<void>;
-  sendMessage(channelId: number, content: string): Promise<void>;
+  /** Posts a message, optionally carrying files already uploaded. */
+  sendMessage(channelId: number, content: string, attachments?: number[]): Promise<void>;
+  /**
+   * Sends one file to a channel and resolves with the attachment it became.
+   * The returned handle can cancel an upload still in flight.
+   */
+  uploadAttachment(
+    channelId: number,
+    file: File,
+    onProgress?: (fraction: number) => void,
+  ): RunningUpload;
   editMessage(messageId: number, content: string): Promise<void>;
   deleteMessage(messageId: number): Promise<void>;
 
@@ -391,6 +412,7 @@ export const useSession = create<SessionState>((set, get) => {
         status: "idle",
         notice: wasConnected ? closeMessage(info.code, info.reason) : null,
         error: wasConnected ? null : closeMessage(info.code, info.reason),
+        token: null,
         server: null,
         self: null,
         users: new Map(),
@@ -438,6 +460,7 @@ export const useSession = create<SessionState>((set, get) => {
     address: null,
     savedId: null,
     gateway: null,
+    token: null,
     server: null,
     self: null,
     users: new Map(),
@@ -553,6 +576,7 @@ export const useSession = create<SessionState>((set, get) => {
         address,
         savedId: address.label,
         gateway,
+        token: ready.sessionToken ?? token ?? null,
         saved: bookmarks,
       });
       applySnapshot(ready);
@@ -570,6 +594,7 @@ export const useSession = create<SessionState>((set, get) => {
         gateway: null,
         address: null,
         savedId: null,
+        token: null,
         server: null,
         self: null,
         users: new Map(),
@@ -693,8 +718,27 @@ export const useSession = create<SessionState>((set, get) => {
       }
     },
 
-    async sendMessage(channelId, content) {
-      await requireGateway().request(Op.MessageSend, { channelId, content });
+    async sendMessage(channelId, content, attachments) {
+      await requireGateway().request(Op.MessageSend, {
+        channelId,
+        content,
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      });
+    },
+
+    uploadAttachment(channelId, file, onProgress) {
+      const { address, savedId, token: live } = get();
+      // The upload endpoint authenticates with the same token the WebSocket
+      // resumes with. The live one is preferred over the stored one, which may
+      // never have been written where storage is unavailable.
+      const token = live ?? (savedId ? getServer(savedId)?.token : undefined);
+      if (!address || !token) {
+        return {
+          done: Promise.reject(new Error("Not connected.")),
+          cancel: () => {},
+        };
+      }
+      return uploadFile({ address, token, channelId, file, onProgress });
     },
 
     async editMessage(messageId, content) {
@@ -723,4 +767,4 @@ export const useSession = create<SessionState>((set, get) => {
   };
 });
 
-export type { Channel, Message, Role, ServerInfo, User };
+export type { Attachment, Channel, Message, Role, ServerInfo, User };

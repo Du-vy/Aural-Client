@@ -124,6 +124,35 @@ for enforcement.
 Masks are 64-bit and travel as decimal strings, so they are `bigint` here: a
 JavaScript number loses precision above 2^53.
 
+### Attachments
+
+The `+` beside the message box picks files; dropping them on the composer or
+pasting a screenshot does the same thing. Each one starts uploading the moment
+it is added rather than when the message is sent, so by the time a sentence is
+typed the file is usually already there and pressing Enter is instant. Uploads
+run independently and each shows its own progress, because a video and a
+screenshot picked together finish at very different times.
+
+Files go over HTTP, not over the WebSocket — that is what makes a progress bar
+and a seekable video possible. `src/lib/uploads.ts` posts them and turns a
+failure into the same `AuralError` the socket raises, so one table of error
+codes covers both halves of the protocol.
+
+Each file is rendered by what it is: images open into a lightbox, video and
+audio play in place, text and Markdown open into a collapsible preview that
+fetches only the head of the file, and anything else is a card with a download
+button. Right-clicking any of them offers download, open and copy link.
+
+Markdown is rendered by `src/lib/markdown.ts`, which parses a subset into a tree
+of nodes rather than into HTML. A `.md` file in a channel was written by whoever
+uploaded it, and a renderer that cannot produce markup cannot be made to inject
+any. It is about 300 lines and takes no dependency.
+
+A file's life is its message's life: deleting the message deletes the file on
+the server. The size limits are the server's, advertised before anything is
+sent, so a file that is too large is refused in the picker rather than after a
+long transfer.
+
 ### Emoji
 
 The catalogue in `src/lib/emoji-data.ts` is generated, not written:
@@ -163,6 +192,8 @@ src/lib/time.ts          message timestamps, day separators and grouping
 src/lib/emoji.ts         whether a message is emoji enough to render large
 src/lib/emoji-catalogue.ts  searching, recents and skin tones for the picker
 src/lib/emoji-data.ts    the catalogue itself, generated from Unicode
+src/lib/uploads.ts       sending files, addressing them, and sizing them
+src/lib/markdown.ts      a Markdown subset, parsed to nodes and never to markup
 src/lib/storage.ts       saved servers and their session tokens
 src/store/session.ts     one connection and everything known about it
 src/store/selectors.ts   derived views: the channel tree, member groups, access
@@ -218,19 +249,23 @@ to WebSocket endpoints the user types in, which no fixed policy can enumerate.
 **v0.1** — connecting by address, identity and registration, the channel tree,
 roles and permissions, presence, responsive layout.
 
-**v0.2 (here)** — text channels: reading, posting, paged history, editing and
+**v0.2** — text channels: reading, posting, paged history, editing and
 deleting, with messages grouped by author and separated by day, and an emoji
 picker with search, categories, recents and skin tones.
 
-**v0.3** — voice. The server already advertises which of the two hosting models
+**v0.3 (here)** — file attachments: picking, dropping and pasting files, with
+per-file progress; images, video and audio played in place; Markdown and text
+previewed inline; and a right-click menu to download any of them.
+
+**v0.4** — voice. The server already advertises which of the two hosting models
 it runs, and the client shows it on the connect screen:
 
 - `client_host` — the first user to enter a voice channel relays its audio for
   everyone in it, handing off when they leave.
 - `server_host` — the server relays all audio.
 
-**Later** — screen sharing, multiple simultaneous server connections, message
-attachments, and Aural Hub for finding public servers.
+**Later** — screen sharing, multiple simultaneous server connections, and
+Aural Hub for finding public servers.
 
 ## License
 

@@ -235,6 +235,53 @@ export const LinkIcon = icon(
   </>,
 );
 
+export const PaperclipIcon = icon(
+  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />,
+);
+
+export const DownloadIcon = icon(
+  <>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </>,
+);
+
+export const FileIcon = icon(
+  <>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+  </>,
+);
+
+export const FileTextIcon = icon(
+  <>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="8" y1="13" x2="16" y2="13" />
+    <line x1="8" y1="17" x2="13" y2="17" />
+  </>,
+);
+
+export const FilmIcon = icon(
+  <>
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <line x1="7" y1="4" x2="7" y2="20" />
+    <line x1="17" y1="4" x2="17" y2="20" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+  </>,
+);
+
+export const ArchiveIcon = icon(
+  <>
+    <rect x="2" y="4" width="20" height="5" rx="1" />
+    <path d="M4 9v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" />
+    <line x1="10" y1="13" x2="14" y2="13" />
+  </>,
+);
+
+export const ChevronRightIcon = icon(<polyline points="9 18 15 12 9 6" />);
+
 export const AuralMark = ({ size = 26 }: IconProps) => (
   <svg
     width={size}

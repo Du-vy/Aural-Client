@@ -33,8 +33,12 @@ export function ChatPanel({
   const editMessage = useSession((state) => state.editMessage);
   const deleteMessage = useSession((state) => state.deleteMessage);
 
+  const server = useSession((state) => state.server);
+  const uploadAttachment = useSession((state) => state.uploadAttachment);
+
   const permissions = useChannelPermissions(channel.id);
   const canSend = has(permissions, Perm.SendMessages);
+  const canAttach = has(permissions, Perm.AttachFiles);
   const canManageMessages = has(permissions, Perm.ManageMessages);
 
   // History is fetched the first time a channel is opened and then kept, so
@@ -63,9 +67,13 @@ export function ChatPanel({
       />
 
       <MessageComposer
+        channelId={channel.id}
         channelName={channel.name}
         disabledReason={canSend ? null : t("chat.messageDisabledPlaceholder")}
-        onSend={(content) => sendMessage(channel.id, content)}
+        canAttach={canAttach}
+        limits={server?.uploads ?? null}
+        onSend={(content, attachments) => sendMessage(channel.id, content, attachments)}
+        onUpload={(file, onProgress) => uploadAttachment(channel.id, file, onProgress)}
       />
     </div>
   );
