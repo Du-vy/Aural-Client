@@ -1,15 +1,7 @@
-import { Suspense, lazy, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
+import { EmojiPicker } from "./EmojiPicker";
 import { SmileyIcon } from "./Icons";
-
-/**
- * The picker carries the whole emoji catalogue, which is by far the largest
- * thing this client would otherwise load. Splitting it out keeps it off the
- * critical path of every session that never opens it.
- */
-const EmojiPicker = lazy(async () => ({
-  default: (await import("./EmojiPicker")).EmojiPicker,
-}));
 
 /** Matches the server's own limit, so the count means the same on both sides. */
 export const MAX_MESSAGE_LENGTH = 2000;
@@ -166,9 +158,7 @@ export function MessageComposer({ channelName, disabledReason, onSend }: Message
 
         <span className="composer__emoji">
           {pickerOpen ? (
-            <Suspense fallback={<div className="picker picker--loading">Loading emoji…</div>}>
-              <EmojiPicker onPick={insertEmoji} onClose={() => setPickerOpen(false)} />
-            </Suspense>
+            <EmojiPicker onPick={insertEmoji} onClose={() => setPickerOpen(false)} />
           ) : null}
           <button
             type="button"

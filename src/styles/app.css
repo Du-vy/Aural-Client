@@ -394,10 +394,43 @@
 /* --- channel sidebar ------------------------------------------------------ */
 
 .sidebar {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
   background: var(--bg-sidebar);
+}
+
+.sidebar__resizer {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 10;
+  user-select: none;
+  background: transparent;
+  transition: background var(--speed) ease;
+}
+
+.sidebar__resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+}
+
+.sidebar__resizer:hover,
+.app--resizing-sidebar .sidebar__resizer {
+  background: var(--accent);
+}
+
+.app--resizing-sidebar {
+  user-select: none;
+  cursor: col-resize;
 }
 
 .sidebar__header {
@@ -641,6 +674,10 @@
   color: var(--text);
 }
 
+.iconbtn[aria-pressed="true"] {
+  color: var(--text);
+}
+
 .iconbtn--danger:hover:not(:disabled) {
   background: var(--danger-soft);
   color: var(--danger-hover);
@@ -788,11 +825,15 @@
 /* --- member list ---------------------------------------------------------- */
 
 .members {
-  display: flex;
+  display: none;
   flex-direction: column;
   min-height: 0;
   background: var(--bg-sidebar);
   border-left: 1px solid var(--border);
+}
+
+.app--members-open .members {
+  display: flex;
 }
 
 .members__list {
@@ -880,6 +921,11 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-overlay);
   overflow: hidden;
+}
+
+.scrim--drawer,
+.scrim--members {
+  display: none;
 }
 
 .modal--wide {
@@ -1487,6 +1533,11 @@
   padding: 4px 8px 10px;
 }
 
+.picker__body section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}
+
 .picker__label {
   position: sticky;
   top: 0;
@@ -1550,6 +1601,14 @@
     width: min(280px, 82vw);
     box-shadow: var(--shadow-overlay);
   }
+
+  .scrim--members {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: var(--bg-scrim);
+  }
 }
 
 @media (max-width: 820px) {
@@ -1589,6 +1648,10 @@
     box-shadow: var(--shadow-overlay);
   }
 
+  .sidebar__resizer {
+    display: none;
+  }
+
   .app--drawer-open .rail,
   .app--drawer-open .sidebar {
     transform: translateX(0);
@@ -1599,6 +1662,7 @@
   }
 
   .scrim--drawer {
+    display: block;
     position: fixed;
     inset: 0;
     z-index: 30;

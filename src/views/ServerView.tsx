@@ -18,6 +18,13 @@ import { AccountDialog } from "@/components/dialogs/AccountDialog";
 import { ChannelDialog } from "@/components/dialogs/ChannelDialog";
 import { MemberDialog } from "@/components/dialogs/MemberDialog";
 import { ServerSettingsDialog } from "@/components/dialogs/ServerSettingsDialog";
+import {
+  DEFAULT_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  readSidebarWidth,
+  writeSidebarWidth,
+} from "@/lib/storage";
 import { Perm, has } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import { useMyPermissions } from "@/store/selectors";
@@ -45,8 +52,12 @@ export function ServerView({ onAddServer }: ServerViewProps) {
 
   const [dialog, setDialog] = useState<Dialog>({ kind: "none" });
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
-  const [membersOpen, setMembersOpen] = useState(true);
+  const [membersOpen, setMembersOpen] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth > 1100 : true,
+  );
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => readSidebarWidth());
+  const [resizingSidebar, setResizingSidebar] = useState(false);
 
   const selected = selectedChannelId === null ? null : (channels.get(selectedChannelId) ?? null);
 
@@ -66,14 +77,54 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   );
   const canManageChannels = has(permissions, Perm.ManageChannels);
 
+  function startResize(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    setResizingSidebar(true);
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+
+    function onPointerMove(event: PointerEvent) {
+      const delta = event.clientX - startX;
+      const nextWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, startWidth + delta));
+      setSidebarWidth(nextWidth);
+    }
+
+    function onPointerUp(event: PointerEvent) {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
+      setResizingSidebar(false);
+      const delta = event.clientX - startX;
+      const finalWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, startWidth + delta));
+      setSidebarWidth(finalWidth);
+      writeSidebarWidth(finalWidth);
+    }
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }
+
+  function resetSidebarWidth() {
+    setSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
+    writeSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
+  }
+
   if (!server) return null;
 
-  const shellClasses = ["app", "app--with-members"];
-  if (membersOpen) shellClasses.push("app--members-open");
+  const shellClasses = ["app"];
+  if (membersOpen) shellClasses.push("app--with-members", "app--members-open");
   if (drawerOpen) shellClasses.push("app--drawer-open");
+  if (resizingSidebar) shellClasses.push("app--resizing-sidebar");
 
   return (
-    <div className={shellClasses.join(" ")}>
+    <div
+      className={shellClasses.join(" ")}
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+    >
       <nav className="rail" aria-label="Servers">
         {saved.map((entry) => (
           <button
@@ -137,6 +188,15 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         />
 
         <UserPanel onOpenAccount={() => setDialog({ kind: "account" })} />
+
+        <div
+          className="sidebar__resizer"
+          onPointerDown={startResize}
+          onDoubleClick={resetSidebarWidth}
+          title="Drag to resize (double click to reset)"
+          role="separator"
+          aria-orientation="vertical"
+        />
       </aside>
 
       <main className="main">
@@ -211,6 +271,9 @@ export function ServerView({ onAddServer }: ServerViewProps) {
 
       {drawerOpen ? (
         <div className="scrim--drawer" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
+      ) : null}
+      {membersOpen ? (
+        <div className="scrim--members" onClick={() => setMembersOpen(false)} aria-hidden="true" />
       ) : null}
 
       {dialog.kind === "account" ? <AccountDialog onClose={() => setDialog({ kind: "none" })} /> : null}

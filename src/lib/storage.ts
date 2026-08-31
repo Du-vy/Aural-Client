@@ -111,3 +111,31 @@ export function serverIdFor(address: string): string | null {
     return null;
   }
 }
+
+export const DEFAULT_SIDEBAR_WIDTH = 248;
+export const MIN_SIDEBAR_WIDTH = 190;
+export const MAX_SIDEBAR_WIDTH = 480;
+
+const SIDEBAR_WIDTH_KEY = "aural.sidebar_width.v1";
+
+export function readSidebarWidth(): number {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    if (!raw) return DEFAULT_SIDEBAR_WIDTH;
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isFinite(parsed) && parsed >= MIN_SIDEBAR_WIDTH && parsed <= MAX_SIDEBAR_WIDTH) {
+      return parsed;
+    }
+    return DEFAULT_SIDEBAR_WIDTH;
+  } catch {
+    return DEFAULT_SIDEBAR_WIDTH;
+  }
+}
+
+export function writeSidebarWidth(width: number): void {
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+  } catch {
+    // Storage is unavailable; nothing critical fails.
+  }
+}

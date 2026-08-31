@@ -19,3 +19,6 @@ tauri = { version = "2", features = [] }
 
 [features]
 default = []
+
+[lints.rust]
+linker_messages = "allow"

@@ -139,6 +139,7 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
           />
           {query ? (
             <button
+              type="button"
               className="picker__clear"
               onClick={() => {
                 setQuery("");
@@ -153,6 +154,7 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
 
         <span className="picker__tone">
           <button
+            type="button"
             className="picker__tone-button"
             onClick={() => setToneOpen((open) => !open)}
             title="Skin tone"
@@ -166,6 +168,7 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
               {SKIN_TONES.map((option) => (
                 <button
                   key={option.key}
+                  type="button"
                   className={option.key === tone ? "picker__tone-option picker__tone-option--active" : "picker__tone-option"}
                   title={option.label}
                   aria-label={option.label}
@@ -189,6 +192,7 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
         {strip.map((name) => (
           <button
             key={name}
+            type="button"
             className={!searching && name === active ? "picker__tab picker__tab--active" : "picker__tab"}
             title={name}
             aria-label={name}
@@ -214,6 +218,7 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
                       // A recent emoji can also appear in its own group, so the
                       // index is part of what makes the key unique.
                       key={`${entry[0]}-${index}`}
+                      type="button"
                       className="picker__emoji"
                       title={`${entry[1]}${tonable(entry) && modifier ? ", toned" : ""}`}
                       aria-label={entry[1]}
