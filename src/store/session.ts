@@ -206,7 +206,7 @@ interface SessionState {
   register(username: string, password: string): Promise<void>;
   signIn(username: string, password: string): Promise<void>;
   claimAdmin(token: string): Promise<void>;
-  updateServer(patch: { name?: string; description?: string }): Promise<void>;
+  updateServer(patch: { name?: string; description?: string; klipyApiKey?: string }): Promise<void>;
 
   createChannel(input: {
     name: string;

@@ -16,7 +16,23 @@ import {
   type EmojiEntry,
   type SkinToneKey,
 } from "@/lib/emoji-catalogue";
-import { CloseIcon, SearchIcon } from "./Icons";
+import { getTwemojiUrl } from "@/lib/twemoji";
+import {
+  getGifCategories,
+  getMediaPreviewUrl,
+  getMediaSendUrl,
+  getTrendingStickers,
+  searchGifs,
+  searchStickers,
+  type KlipyCategory,
+  type KlipyMediaItem,
+} from "@/lib/klipy";
+import { useSession } from "@/store/session";
+import { useMyPermissions } from "@/store/selectors";
+import { Perm, has } from "@/lib/permissions";
+import { CloseIcon, SearchIcon, TrendingIcon, HeartIcon, GifIcon } from "./Icons";
+
+export type PickerTab = "gifs" | "stickers" | "emojis";
 
 /** One icon per group, shown on the category strip. */
 const GROUP_ICONS: Readonly<Record<string, string>> = {
@@ -35,17 +51,46 @@ const GROUP_ICONS: Readonly<Record<string, string>> = {
 const RECENT = "Recent";
 
 interface EmojiPickerProps {
+  initialTab?: PickerTab;
   onPick(emoji: string): void;
+  onSendMedia?(mediaUrl: string): void;
   onClose(): void;
+  onOpenSettings?(): void;
 }
 
-export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
+export function EmojiPicker({
+  initialTab = "emojis",
+  onPick,
+  onSendMedia,
+  onClose,
+  onOpenSettings,
+}: EmojiPickerProps) {
   const { t } = useTranslation();
+  const server = useSession((state) => state.server);
+  const permissions = useMyPermissions();
+  const canManageServer = has(permissions, Perm.ManageServer);
+
+  const [tab, setTab] = useState<PickerTab>(initialTab);
   const [query, setQuery] = useState("");
   const [tone, setTone] = useState<SkinToneKey>(() => storedTone());
   const [recent, setRecent] = useState<string[]>(() => recentEmoji());
   const [toneOpen, setToneOpen] = useState(false);
-  const [active, setActive] = useState<string>(() => (recentEmoji().length > 0 ? RECENT : "Smileys"));
+  const [activeCategory, setActiveCategory] = useState<string>(() =>
+    recentEmoji().length > 0 ? RECENT : "Smileys",
+  );
+  const [hoveredInfo, setHoveredInfo] = useState<{
+    emoji?: string;
+    name?: string;
+    subtext?: string;
+    imgUrl?: string;
+  } | null>(null);
+
+  // KLIPY State
+  const klipyApiKey = server?.klipyApiKey?.trim() || "";
+  const [categories, setCategories] = useState<KlipyCategory[]>([]);
+  const [gifs, setGifs] = useState<KlipyMediaItem[]>([]);
+  const [stickers, setStickers] = useState<KlipyMediaItem[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
 
   const panel = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -97,14 +142,11 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
     }
   };
 
-  // Opening the picker to type is the common case, so the search box takes the
-  // caret immediately.
   useLayoutEffect(() => {
     search.current?.focus();
-  }, []);
+  }, [tab]);
 
-  // Escape closes, and a click anywhere outside dismisses, which is what a
-  // popover is expected to do.
+  // Escape closes, outside click dismisses
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
@@ -123,7 +165,59 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
     };
   }, [onClose, toneOpen]);
 
-  const results = useMemo(() => searchEmoji(query), [query]);
+  // Load GIF categories when GIF tab is active
+  useEffect(() => {
+    if (tab === "gifs" && klipyApiKey && categories.length === 0) {
+      getGifCategories(klipyApiKey)
+        .then((cats) => setCategories(cats))
+        .catch(() => setCategories([]));
+    }
+  }, [tab, klipyApiKey, categories.length]);
+
+  // Fetch GIFs (trending or search) with debounce
+  useEffect(() => {
+    if (tab !== "gifs" || !klipyApiKey) return;
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setGifs([]);
+      return;
+    }
+
+    setLoadingMedia(true);
+    const timer = setTimeout(() => {
+      searchGifs(klipyApiKey, trimmed)
+        .then((items) => setGifs(items))
+        .catch(() => setGifs([]))
+        .finally(() => setLoadingMedia(false));
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [tab, query, klipyApiKey]);
+
+  // Fetch Stickers with debounce
+  useEffect(() => {
+    if (tab !== "stickers" || !klipyApiKey) return;
+    setLoadingMedia(true);
+    const trimmed = query.trim();
+
+    const timer = setTimeout(() => {
+      if (!trimmed) {
+        getTrendingStickers(klipyApiKey)
+          .then((items) => setStickers(items))
+          .catch(() => setStickers([]))
+          .finally(() => setLoadingMedia(false));
+      } else {
+        searchStickers(klipyApiKey, trimmed)
+          .then((items) => setStickers(items))
+          .catch(() => setStickers([]))
+          .finally(() => setLoadingMedia(false));
+      }
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [tab, query, klipyApiKey]);
+
+  const results = useMemo(() => (tab === "emojis" ? searchEmoji(query) : []), [query, tab]);
   const searching = query.trim() !== "";
 
   const recentEntries = useMemo(
@@ -135,51 +229,127 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
   );
 
   const sections = useMemo(() => {
+    if (tab !== "emojis") return [];
     if (searching) {
       return [{ id: "search", name: `${results.length}`, entries: results.map((m) => m.entry) }];
     }
-    const groups = EMOJI_GROUPS.map((group) => ({ id: group.name, name: getGroupName(group.name), entries: [...group.emoji] }));
+    const groups = EMOJI_GROUPS.map((group) => ({
+      id: group.name,
+      name: getGroupName(group.name),
+      entries: [...group.emoji],
+    }));
     return recentEntries.length > 0
       ? [{ id: RECENT, name: getGroupName(RECENT), entries: recentEntries }, ...groups]
       : groups;
-  }, [searching, results, recentEntries, t]);
+  }, [tab, searching, results, recentEntries, t]);
 
   const strip = useMemo(
-    () => (recentEntries.length > 0 ? [RECENT, ...EMOJI_GROUPS.map((g) => g.name)] : EMOJI_GROUPS.map((g) => g.name)),
+    () =>
+      recentEntries.length > 0
+        ? [RECENT, ...EMOJI_GROUPS.map((g) => g.name)]
+        : EMOJI_GROUPS.map((g) => g.name),
     [recentEntries.length],
   );
 
-  function choose(entry: EmojiEntry) {
-    // The untoned character is what is remembered, so changing tone later
-    // re-renders the same recents in the new tone.
+  function chooseEmoji(entry: EmojiEntry) {
     setRecent(rememberEmoji(entry[0]));
     onPick(display(entry, modifier));
   }
 
+  function handleSendMediaItem(item: KlipyMediaItem) {
+    const url = getMediaSendUrl(item);
+    if (!url) return;
+    if (onSendMedia) {
+      onSendMedia(url);
+    } else {
+      onPick(url);
+    }
+    onClose();
+  }
+
   function jumpTo(id: string) {
-    setActive(id);
+    setActiveCategory(id);
     const target = scroller.current?.querySelector<HTMLElement>(`[data-section="${CSS.escape(id)}"]`);
     target?.scrollIntoView({ block: "start" });
   }
 
+  const getSearchPlaceholder = () => {
+    switch (tab) {
+      case "gifs":
+        return t("emoji.gifs.searchPlaceholder");
+      case "stickers":
+        return t("emoji.stickers.searchPlaceholder");
+      case "emojis":
+        return t("emoji.searchPlaceholder");
+    }
+  };
+
   return (
-    <div className="picker" ref={panel} role="dialog" aria-label={t("composer.emoji")}>
+    <div className="picker picker--unified" ref={panel} role="dialog" aria-label={t("composer.emoji")}>
+      {/* Top Segmented Tabs Header */}
+      <div className="picker__nav">
+        <div className="picker__tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "gifs"}
+            className={tab === "gifs" ? "picker__tab-pill picker__tab-pill--active" : "picker__tab-pill"}
+            onClick={() => {
+              setTab("gifs");
+              setQuery("");
+              setHoveredInfo(null);
+            }}
+          >
+            {t("emoji.tabs.gifs")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "stickers"}
+            className={
+              tab === "stickers" ? "picker__tab-pill picker__tab-pill--active" : "picker__tab-pill"
+            }
+            onClick={() => {
+              setTab("stickers");
+              setQuery("");
+              setHoveredInfo(null);
+            }}
+          >
+            {t("emoji.tabs.stickers")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "emojis"}
+            className={
+              tab === "emojis" ? "picker__tab-pill picker__tab-pill--active" : "picker__tab-pill"
+            }
+            onClick={() => {
+              setTab("emojis");
+              setQuery("");
+              setHoveredInfo(null);
+            }}
+          >
+            {t("emoji.tabs.emojis")}
+          </button>
+        </div>
+      </div>
+
+      {/* Search Bar */}
       <header className="picker__head">
         <span className="picker__search">
-          <SearchIcon size={14} />
+          <SearchIcon size={15} />
           <input
             ref={search}
             className="picker__input"
             value={query}
-            placeholder={t("emoji.searchPlaceholder")}
-            aria-label={t("emoji.searchPlaceholder")}
+            placeholder={getSearchPlaceholder()}
+            aria-label={getSearchPlaceholder()}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
-              // Enter picks the best match, so a search can be finished without
-              // reaching for the mouse.
-              if (event.key === "Enter" && results[0]) {
+              if (tab === "emojis" && event.key === "Enter" && results[0]) {
                 event.preventDefault();
-                choose(results[0].entry);
+                chooseEmoji(results[0].entry);
               }
             }}
           />
@@ -198,88 +368,331 @@ export function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
           ) : null}
         </span>
 
-        <span className="picker__tone">
-          <button
-            type="button"
-            className="picker__tone-button"
-            onClick={() => setToneOpen((open) => !open)}
-            title={t("emoji.skinTone")}
-            aria-label={t("emoji.skinTone")}
-            aria-expanded={toneOpen}
-          >
-            {SKIN_TONES.find((option) => option.key === tone)?.swatch}
-          </button>
-          {toneOpen ? (
-            <div className="picker__tones" role="menu">
-              {SKIN_TONES.map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  className={option.key === tone ? "picker__tone-option picker__tone-option--active" : "picker__tone-option"}
-                  title={getToneLabel(option.key)}
-                  aria-label={getToneLabel(option.key)}
-                  role="menuitemradio"
-                  aria-checked={option.key === tone}
-                  onClick={() => {
-                    setTone(option.key);
-                    storeTone(option.key);
-                    setToneOpen(false);
-                  }}
-                >
-                  {option.swatch}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </span>
+        {/* Skin Tone Selector (only on Emojis tab) */}
+        {tab === "emojis" && (
+          <span className="picker__tone">
+            <button
+              type="button"
+              className="picker__tone-button"
+              onClick={() => setToneOpen((open) => !open)}
+              title={t("emoji.skinTone")}
+              aria-label={t("emoji.skinTone")}
+              aria-expanded={toneOpen}
+            >
+              <img
+                src={getTwemojiUrl(SKIN_TONES.find((option) => option.key === tone)?.swatch || "👋")}
+                alt=""
+                className="picker__twemoji"
+                width={18}
+                height={18}
+                draggable={false}
+              />
+            </button>
+            {toneOpen ? (
+              <div className="picker__tones" role="menu">
+                {SKIN_TONES.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    className={
+                      option.key === tone
+                        ? "picker__tone-option picker__tone-option--active"
+                        : "picker__tone-option"
+                    }
+                    title={getToneLabel(option.key)}
+                    aria-label={getToneLabel(option.key)}
+                    role="menuitemradio"
+                    aria-checked={option.key === tone}
+                    onClick={() => {
+                      setTone(option.key);
+                      storeTone(option.key);
+                      setToneOpen(false);
+                    }}
+                  >
+                    <img
+                      src={getTwemojiUrl(option.swatch)}
+                      alt=""
+                      className="picker__twemoji"
+                      width={18}
+                      height={18}
+                      draggable={false}
+                    />
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </span>
+        )}
       </header>
 
-      <nav className="picker__strip" aria-label={t("composer.emoji")}>
-        {strip.map((id) => (
-          <button
-            key={id}
-            type="button"
-            className={!searching && id === active ? "picker__tab picker__tab--active" : "picker__tab"}
-            title={getGroupName(id)}
-            aria-label={getGroupName(id)}
-            onClick={() => jumpTo(id)}
-          >
-            {GROUP_ICONS[id]}
-          </button>
-        ))}
-      </nav>
+      {/* Main Content Area */}
+      <div className="picker__content-wrap">
+        {/* GIF TAB */}
+        {tab === "gifs" && (
+          <div className="picker__body picker__body--gifs" ref={scroller}>
+            {!klipyApiKey ? (
+              <div className="picker__notice">
+                <div className="picker__notice-icon">
+                  <GifIcon size={32} />
+                </div>
+                <h4 className="picker__notice-title">{t("emoji.gifs.noKeyTitle")}</h4>
+                <p className="picker__notice-desc">{t("emoji.gifs.noKeyDesc")}</p>
+                {canManageServer && onOpenSettings && (
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    onClick={() => {
+                      onClose();
+                      onOpenSettings();
+                    }}
+                  >
+                    {t("emoji.gifs.openSettings")}
+                  </button>
+                )}
+              </div>
+            ) : query.trim() === "" ? (
+              <div className="picker__categories-grid">
+                {/* Favorites Card */}
+                <button
+                  type="button"
+                  className="picker__category-card picker__category-card--fav"
+                  onClick={() => setQuery("favorites")}
+                >
+                  <span className="picker__category-icon">
+                    <HeartIcon size={18} />
+                  </span>
+                  <span className="picker__category-name">{t("emoji.gifs.favorites")}</span>
+                </button>
 
-      <div className="picker__body" ref={scroller}>
-        {sections.map((section) => (
-          <section key={section.id} data-section={section.id}>
-            <h3 className="picker__label">{section.name}</h3>
-            {section.entries.length === 0 ? (
-              <p className="picker__empty">{t("emoji.noResults")}</p>
+                {/* Trending Card */}
+                <button
+                  type="button"
+                  className="picker__category-card picker__category-card--trending"
+                  onClick={() => setQuery("trending")}
+                >
+                  <span className="picker__category-icon">
+                    <TrendingIcon size={18} />
+                  </span>
+                  <span className="picker__category-name">{t("emoji.gifs.popular")}</span>
+                </button>
+
+                {/* Category Cards from Klipy */}
+                {categories.map((cat) => (
+                  <button
+                    key={cat.category}
+                    type="button"
+                    className="picker__category-card"
+                    style={{ backgroundImage: `url(${cat.preview_url})` }}
+                    onClick={() => setQuery(cat.query || cat.category)}
+                  >
+                    <span className="picker__category-overlay" />
+                    <span className="picker__category-name">{cat.category}</span>
+                  </button>
+                ))}
+              </div>
+            ) : loadingMedia ? (
+              <div className="picker--loading">{t("emoji.gifs.loading")}</div>
+            ) : gifs.length === 0 ? (
+              <p className="picker__empty">{t("emoji.gifs.noResults")}</p>
             ) : (
-              <div className="picker__grid">
-                {section.entries.map((entry, index) => {
-                  const character = display(entry, modifier);
+              <div className="picker__media-grid">
+                {gifs.map((item) => {
+                  const preview = getMediaPreviewUrl(item);
                   return (
                     <button
-                      // A recent emoji can also appear in its own group, so the
-                      // index is part of what makes the key unique.
-                      key={`${entry[0]}-${index}`}
+                      key={item.id}
                       type="button"
-                      className="picker__emoji"
-                      title={`${entry[1]}${tonable(entry) && modifier ? ", toned" : ""}`}
-                      aria-label={entry[1]}
-                      onClick={() => choose(entry)}
+                      className="picker__media-item"
+                      onClick={() => handleSendMediaItem(item)}
+                      title={item.title}
                     >
-                      {character}
+                      <img src={preview} alt={item.title} loading="lazy" />
                     </button>
                   );
                 })}
               </div>
             )}
-          </section>
-        ))}
+          </div>
+        )}
+
+        {/* STICKERS TAB */}
+        {tab === "stickers" && (
+          <div className="picker__body picker__body--stickers" ref={scroller}>
+            {!klipyApiKey ? (
+              <div className="picker__notice">
+                <div className="picker__notice-icon">
+                  <GifIcon size={32} />
+                </div>
+                <h4 className="picker__notice-title">{t("emoji.stickers.noKeyTitle")}</h4>
+                <p className="picker__notice-desc">{t("emoji.stickers.noKeyDesc")}</p>
+                {canManageServer && onOpenSettings && (
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    onClick={() => {
+                      onClose();
+                      onOpenSettings();
+                    }}
+                  >
+                    {t("emoji.stickers.openSettings")}
+                  </button>
+                )}
+              </div>
+            ) : loadingMedia ? (
+              <div className="picker--loading">{t("emoji.stickers.loading")}</div>
+            ) : stickers.length === 0 ? (
+              <p className="picker__empty">{t("emoji.stickers.noResults")}</p>
+            ) : (
+              <div className="picker__stickers-grid">
+                {stickers.map((item) => {
+                  const preview = getMediaPreviewUrl(item);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className="picker__sticker-item"
+                      onClick={() => handleSendMediaItem(item)}
+                      onMouseEnter={() =>
+                        setHoveredInfo({
+                          name: item.title,
+                          subtext: item.slug,
+                          imgUrl: preview,
+                        })
+                      }
+                      onMouseLeave={() => setHoveredInfo(null)}
+                      title={item.title}
+                    >
+                      <img src={preview} alt={item.title} loading="lazy" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* EMOJIS TAB */}
+        {tab === "emojis" && (
+          <div className="picker__emoji-layout">
+            {/* Left Sidebar Category Strip */}
+            <nav className="picker__strip" aria-label={t("composer.emoji")}>
+              {strip.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={
+                    !searching && id === activeCategory
+                      ? "picker__tab picker__tab--active"
+                      : "picker__tab"
+                  }
+                  title={getGroupName(id)}
+                  aria-label={getGroupName(id)}
+                  onClick={() => jumpTo(id)}
+                >
+                  <img
+                    src={getTwemojiUrl(GROUP_ICONS[id] || "😀")}
+                    alt=""
+                    className="picker__twemoji"
+                    width={18}
+                    height={18}
+                    draggable={false}
+                  />
+                </button>
+              ))}
+            </nav>
+
+            {/* Emoji Grid */}
+            <div className="picker__body" ref={scroller}>
+              {sections.map((section) => (
+                <section key={section.id} data-section={section.id}>
+                  <h3 className="picker__label">{section.name}</h3>
+                  {section.entries.length === 0 ? (
+                    <p className="picker__empty">{t("emoji.noResults")}</p>
+                  ) : (
+                    <div className="picker__grid">
+                      {section.entries.map((entry, index) => {
+                        const character = display(entry, modifier);
+                        const nameFormatted = `:${entry[1].toLowerCase().replace(/\s+/g, "_")}:`;
+                        const twemojiUrl = getTwemojiUrl(character);
+                        return (
+                          <button
+                            key={`${entry[0]}-${index}`}
+                            type="button"
+                            className="picker__emoji"
+                            title={`${entry[1]}${tonable(entry) && modifier ? ", toned" : ""}`}
+                            aria-label={entry[1]}
+                            onClick={() => chooseEmoji(entry)}
+                            onMouseEnter={() =>
+                              setHoveredInfo({
+                                emoji: character,
+                                name: nameFormatted,
+                                subtext: entry[1],
+                                imgUrl: twemojiUrl,
+                              })
+                            }
+                            onMouseLeave={() => setHoveredInfo(null)}
+                          >
+                            <img
+                              src={twemojiUrl}
+                              alt={character}
+                              className="picker__twemoji"
+                              width={22}
+                              height={22}
+                              loading="lazy"
+                              draggable={false}
+                              onError={(e) => {
+                                // Fallback to Unicode character text if CDN has issue
+                                const target = e.currentTarget;
+                                target.style.display = "none";
+                                if (target.parentElement) {
+                                  target.parentElement.textContent = character;
+                                }
+                              }}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Bottom Preview Bar */}
+      <footer className="picker__footer">
+        {hoveredInfo ? (
+          <div className="picker__preview">
+            {hoveredInfo.imgUrl && (
+              <img
+                src={hoveredInfo.imgUrl}
+                alt=""
+                className="picker__preview-img"
+                width={28}
+                height={28}
+              />
+            )}
+            <div className="picker__preview-meta">
+              <span className="picker__preview-name">{hoveredInfo.name}</span>
+              {hoveredInfo.subtext && (
+                <span className="picker__preview-sub">{hoveredInfo.subtext}</span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="picker__preview picker__preview--placeholder">
+            <span className="picker__preview-placeholder-text">
+              {tab === "emojis"
+                ? ":heart: :red_heart:"
+                : tab === "gifs"
+                  ? "Powered by KLIPY"
+                  : "KLIPY Stickers"}
+            </span>
+          </div>
+        )}
+      </footer>
     </div>
   );
 }
-

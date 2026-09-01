@@ -119,6 +119,7 @@ export interface ServerInfo {
   guestsAllowed: boolean;
   voiceMode: VoiceMode;
   uploads: UploadLimits;
+  klipyApiKey?: string;
 }
 
 /**
@@ -272,6 +273,7 @@ export interface ClaimAdminRequest {
 export interface ServerUpdateRequest {
   name?: string;
   description?: string;
+  klipyApiKey?: string;
 }
 
 export interface UserUpdateRequest {

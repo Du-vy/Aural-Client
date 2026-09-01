@@ -17,6 +17,7 @@ import { SettingsModal, type SettingsNavCategory } from "../SettingsModal";
 import {
   FileTextIcon,
   FolderIcon,
+  GifIcon,
   HashIcon,
   LinkIcon,
   PlusIcon,
@@ -82,8 +83,6 @@ export function ServerSettingsDialog({ onClose }: { onClose(): void }) {
           id: "integrations",
           label: t("dialogs.serverSettings.tabIntegrations"),
           icon: <LinkIcon size={16} />,
-          badge: t("dialogs.userSettings.soonBadge"),
-          badgeType: "soon",
         },
         {
           id: "audit",
@@ -827,34 +826,140 @@ function ServerEmojisPage() {
 
 function ServerIntegrationsPage() {
   const { t } = useTranslation();
+  const server = useSession((state) => state.server);
+  const updateServer = useSession((state) => state.updateServer);
+  const permissions = useMyPermissions();
+
+  const [klipyKey, setKlipyKey] = useState(server?.klipyApiKey ?? "");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const allowed = has(permissions, Perm.ManageServer);
+  const isConfigured = Boolean(server?.klipyApiKey && server.klipyApiKey.trim().length > 0);
+  const isDirty = klipyKey.trim() !== (server?.klipyApiKey ?? "");
+
+  useEffect(() => {
+    setKlipyKey(server?.klipyApiKey ?? "");
+  }, [server?.klipyApiKey]);
+
+  async function handleSave(e?: FormEvent) {
+    if (e) e.preventDefault();
+    if (!allowed || busy || !isDirty) return;
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await updateServer({ klipyApiKey: klipyKey.trim() });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="settings-section">
       <header className="settings-section__header">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h2 className="settings-section__title">
-            {t("dialogs.serverSettings.integrations.title")}
-          </h2>
-          <span className="settings-badge settings-badge--soon">
-            {t("dialogs.userSettings.soonBadge")}
-          </span>
-        </div>
+        <h2 className="settings-section__title">
+          {t("dialogs.serverSettings.integrations.title")}
+        </h2>
         <p className="settings-section__desc">
           {t("dialogs.serverSettings.integrations.desc")}
         </p>
       </header>
 
-      <div className="settings-card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <h3 className="settings-card__title">Webhooks</h3>
-            <p className="settings-card__subtitle">
-              {t("dialogs.serverSettings.integrations.empty")}
+      {/* KLIPY Service Card */}
+      <div className="settings-card settings-card--integration">
+        <div className="settings-card__header">
+          <div className="settings-card__header-info">
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <span className="settings-card__service-icon" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "var(--radius-sm)", background: "var(--accent-dim)", color: "var(--accent)" }}>
+                <GifIcon size={20} />
+              </span>
+              <div>
+                <h3 className="settings-card__title" style={{ margin: 0, fontSize: 16 }}>
+                  {t("dialogs.serverSettings.integrations.klipyTitle")}
+                </h3>
+                <span
+                  className={
+                    isConfigured
+                      ? "settings-badge settings-badge--active"
+                      : "settings-badge settings-badge--inactive"
+                  }
+                  style={{
+                    display: "inline-block",
+                    marginTop: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: "2px 8px",
+                    borderRadius: 12,
+                    background: isConfigured ? "rgba(35, 165, 90, 0.15)" : "rgba(255, 255, 255, 0.08)",
+                    color: isConfigured ? "#23a55a" : "var(--text-dim)",
+                  }}
+                >
+                  {isConfigured
+                    ? t("dialogs.serverSettings.integrations.klipyActive")
+                    : t("dialogs.serverSettings.integrations.klipyInactive")}
+                </span>
+              </div>
+            </div>
+            <p className="settings-card__subtitle" style={{ marginTop: 8 }}>
+              {t("dialogs.serverSettings.integrations.klipyDesc")}
             </p>
           </div>
-          <button type="button" className="btn btn--ghost" disabled>
-            {t("dialogs.serverSettings.integrations.createWebhook")}
-          </button>
         </div>
+
+        <form onSubmit={handleSave} style={{ marginTop: 16 }}>
+          <div className="settings-field">
+            <label className="settings-field__label" htmlFor="klipy-api-key" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase" }}>
+              {t("dialogs.serverSettings.integrations.klipyKeyLabel")}
+            </label>
+            <input
+              id="klipy-api-key"
+              type="text"
+              className="text-input"
+              style={{ width: "100%", fontFamily: "monospace", fontSize: 13 }}
+              value={klipyKey}
+              onChange={(e) => setKlipyKey(e.target.value)}
+              placeholder={t("dialogs.serverSettings.integrations.klipyKeyPlaceholder")}
+              disabled={!allowed || busy}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <p style={{ margin: "8px 0 0", fontSize: 12 }}>
+              <a
+                href="https://klipy.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "var(--accent)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                {t("dialogs.serverSettings.integrations.klipyPortalLink")} &rarr;
+              </a>
+            </p>
+          </div>
+
+          {error && <p className="settings-error" style={{ color: "var(--danger)", fontSize: 13, marginTop: 10 }}>{error}</p>}
+          {saved && (
+            <p className="settings-success" style={{ color: "#23a55a", fontSize: 13, marginTop: 10 }}>
+              {t("dialogs.serverSettings.integrations.saved")}
+            </p>
+          )}
+
+          {allowed && (
+            <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="submit"
+                className="btn btn--primary"
+                disabled={!isDirty || busy}
+              >
+                {busy ? t("common.loading") : t("dialogs.serverSettings.integrations.saveKey")}
+              </button>
+            </div>
+          )}
+        </form>
       </div>
     </div>
   );

@@ -19,8 +19,18 @@ export function VideoAttachment({ attachment, url }: MediaAttachmentProps) {
   const aspect =
     attachment.width && attachment.height ? attachment.width / attachment.height : undefined;
 
+  const maxWidth =
+    aspect !== undefined
+      ? aspect < 1
+        ? Math.min(480, Math.max(160, Math.round(380 * aspect)))
+        : 480
+      : undefined;
+
   return (
-    <div className="attachment attachment--video">
+    <div
+      className="attachment attachment--video"
+      style={maxWidth ? { maxWidth } : undefined}
+    >
       <video
         src={url}
         controls

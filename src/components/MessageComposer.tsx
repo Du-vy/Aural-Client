@@ -13,8 +13,8 @@ import { useTranslation } from "@/lib/i18n";
 import { describeError, type Attachment, type UploadLimits } from "@/lib/protocol";
 import { UploadCancelled, formatBytes, parseBytes } from "@/lib/uploads";
 import { AttachmentTray, type PendingFile } from "./AttachmentTray";
-import { EmojiPicker } from "./EmojiPicker";
-import { PlusIcon, SmileyIcon } from "./Icons";
+import { EmojiPicker, type PickerTab } from "./EmojiPicker";
+import { GifIcon, PlusIcon, SmileyIcon, StickerIcon } from "./Icons";
 
 /** Matches the server's own limit, so the count means the same on both sides. */
 export const MAX_MESSAGE_LENGTH = 2000;
@@ -81,7 +81,7 @@ export function MessageComposer({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerTab, setPickerTab] = useState<PickerTab | null>(null);
   const [pending, setPending] = useState<PendingFile[]>([]);
   /** Depth rather than a flag: dragging over a child fires leave on the parent. */
   const [dragDepth, setDragDepth] = useState(0);
@@ -111,7 +111,7 @@ export function MessageComposer({
   useEffect(() => {
     setDraft("");
     setError(null);
-    setPickerOpen(false);
+    setPickerTab(null);
     setPending([]);
     setDragDepth(0);
     for (const cancel of running.current.values()) cancel();
@@ -389,19 +389,48 @@ export function MessageComposer({
           </span>
         ) : null}
 
-        <span className="composer__emoji">
-          {pickerOpen ? (
-            <EmojiPicker onPick={insertEmoji} onClose={() => setPickerOpen(false)} />
+        <span className="composer__picker-wrap">
+          {pickerTab !== null ? (
+            <EmojiPicker
+              initialTab={pickerTab}
+              onPick={insertEmoji}
+              onSendMedia={async (url) => {
+                setPickerTab(null);
+                await onSend(url, []);
+              }}
+              onClose={() => setPickerTab(null)}
+            />
           ) : null}
           <button
             type="button"
-            className={pickerOpen ? "composer__button composer__button--on" : "composer__button"}
+            className={pickerTab === "gifs" ? "composer__button composer__button--on" : "composer__button"}
+            title={t("composer.gif")}
+            aria-label={t("composer.gif")}
+            disabled={sending}
+            onClick={() => setPickerTab((current) => (current === "gifs" ? null : "gifs"))}
+          >
+            <GifIcon size={19} />
+          </button>
+          <button
+            type="button"
+            className={pickerTab === "stickers" ? "composer__button composer__button--on" : "composer__button"}
+            title={t("composer.sticker")}
+            aria-label={t("composer.sticker")}
+            disabled={sending}
+            onClick={() => setPickerTab((current) => (current === "stickers" ? null : "stickers"))}
+          >
+            <StickerIcon size={19} />
+          </button>
+          <button
+            type="button"
+            className={pickerTab === "emojis" ? "composer__button composer__button--on" : "composer__button"}
             title={t("composer.emoji")}
             aria-label={t("composer.emoji")}
-            aria-expanded={pickerOpen}
+            disabled={sending}
+            aria-expanded={pickerTab !== null}
             onClick={() => {
               rememberCaret();
-              setPickerOpen((open) => !open);
+              setPickerTab((current) => (current === "emojis" ? null : "emojis"));
             }}
           >
             <SmileyIcon size={19} />

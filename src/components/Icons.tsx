@@ -415,6 +415,46 @@ export const RotateCcwIcon = icon(
   </>,
 );
 
+export const GifIcon = ({ size = 18, className, style }: IconProps) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+    aria-hidden="true"
+    focusable="false"
+  >
+    <rect x="2" y="4" width="20" height="16" rx="4" />
+    <path d="M8.5 9h-2a1.5 1.5 0 0 0-1.5 1.5v3A1.5 1.5 0 0 0 6.5 15h2v-2.5h-1" />
+    <path d="M12 9v6" />
+    <path d="M15.5 15v-6h3" />
+    <path d="M15.5 12h2" />
+  </svg>
+);
+
+export const StickerIcon = icon(
+  <>
+    <path d="M15 3H6a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-8l-5-7z" />
+    <path d="M14 3v5a2 2 0 0 0 2 2h5" />
+    <circle cx="8.5" cy="13.5" r=".75" fill="currentColor" />
+    <circle cx="12.5" cy="13.5" r=".75" fill="currentColor" />
+    <path d="M8.5 16.5a2.5 2.5 0 0 0 4 0" />
+  </>,
+);
+
+export const TrendingIcon = icon(
+  <>
+    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+    <polyline points="17 6 23 6 23 12" />
+  </>,
+);
+
 export const AuralMark = ({ size = 26 }: IconProps) => (
   <svg
     width={size}
