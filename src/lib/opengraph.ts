@@ -4,6 +4,8 @@
  * video metadata extraction, and graceful error handling.
  */
 
+import { useSession } from "@/store/session";
+
 export interface EmbedMetrics {
   replies?: number;
   retweets?: number;
@@ -250,7 +252,31 @@ async function fetchMetadata(url: string): Promise<OgData | null> {
     }
   }
 
-  // 3. Try direct fetch in case target server sends CORS headers
+  // 3. Try connected Aural-Server /unfurl endpoint (bypasses CORS & anti-bot restrictions server-side)
+  try {
+    const address = useSession.getState().address;
+    if (address) {
+      const scheme = address.secure ? "https" : "http";
+      const host =
+        address.host.includes(":") && !address.host.startsWith("[")
+          ? `[${address.host}]`
+          : address.host;
+      const endpoint = `${scheme}://${host}:${address.port}/unfurl?url=${encodeURIComponent(url)}`;
+      const res = await fetch(endpoint, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && (data.title || data.description || data.image || data.video)) {
+          return data;
+        }
+      }
+    }
+  } catch {
+    // Fall through to client-side fallbacks
+  }
+
+  // 4. Try direct fetch in case target server sends CORS headers
   try {
     const res = await fetch(url, {
       signal: AbortSignal.timeout(2500),
@@ -268,10 +294,10 @@ async function fetchMetadata(url: string): Promise<OgData | null> {
     // Expected for CORS protected domains; try fallback provider
   }
 
-  // 4. Try Microlink public API fallback for CORS-blocked sites
+  // 5. Try Microlink public API fallback for CORS-blocked sites
   try {
     const res = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`, {
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(6000),
     });
     if (res.ok) {
       const body = await res.json();
