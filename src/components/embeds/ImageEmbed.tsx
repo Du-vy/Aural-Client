@@ -30,6 +30,7 @@ export function ImageEmbed({ url, onOpenLink }: ImageEmbedProps) {
           className={`msg-embed__image ${loaded ? "msg-embed__image--loaded" : ""}`}
           onLoad={() => setLoaded(true)}
           onError={() => setError(true)}
+          referrerPolicy="no-referrer"
           onClick={(e) => {
             e.preventDefault();
             onOpenLink(url);
