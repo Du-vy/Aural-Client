@@ -31,7 +31,7 @@ export function initials(nickname: string): string {
 
 interface AvatarProps {
   user: Pick<User, "id" | "nickname">;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   /** Draws the presence dot. */
   online?: boolean;
 }

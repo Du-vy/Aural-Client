@@ -22,4 +22,8 @@ type Leaves<T> = T extends object
 
 export type TranslationKey = Leaves<TranslationSchema>;
 
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
+
 export type { TranslationSchema };

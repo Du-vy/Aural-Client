@@ -15,6 +15,7 @@ import { pt } from "./locales/pt";
 import { hi } from "./locales/hi";
 import { zh } from "./locales/zh";
 import type {
+  DeepPartial,
   InterpolationParams,
   Language,
   LanguageInfo,
@@ -35,7 +36,7 @@ export const SUPPORTED_LANGUAGES: readonly LanguageInfo[] = [
 
 export const DEFAULT_LANGUAGE: Language = "en";
 
-const dictionaries: Record<Language, TranslationSchema> = {
+const dictionaries: Record<Language, DeepPartial<TranslationSchema>> = {
   en,
   es,
   de,

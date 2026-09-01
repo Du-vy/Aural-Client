@@ -1,6 +1,7 @@
 import type { TranslationSchema } from "./en";
+import type { DeepPartial } from "../types";
 
-export const it: TranslationSchema = {
+export const it: DeepPartial<TranslationSchema> = {
   common: {
     save: "Salva modifiche",
     cancel: "Annulla",

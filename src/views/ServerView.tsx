@@ -26,7 +26,7 @@ import { MemberList } from "@/components/MemberList";
 import { SearchBar } from "@/components/SearchBar";
 import { SearchResults } from "@/components/SearchResults";
 import { UserPanel } from "@/components/UserPanel";
-import { AccountDialog } from "@/components/dialogs/AccountDialog";
+import { UserSettingsDialog } from "@/components/dialogs/UserSettingsDialog";
 import { ChannelDialog } from "@/components/dialogs/ChannelDialog";
 import { ConfirmDialog } from "@/components/dialogs/ConfirmDialog";
 import { MemberDialog } from "@/components/dialogs/MemberDialog";
@@ -181,14 +181,12 @@ export function ServerView({ onAddServer }: ServerViewProps) {
 
     if (contextMenu.kind === "server") {
       const entries: MenuEntry[] = [];
-      if (canManageServer) {
-        entries.push({
-          id: "server-settings",
-          label: t("server.serverSettings"),
-          icon: <GearIcon size={16} />,
-          onClick: () => setDialog({ kind: "settings" }),
-        });
-      }
+      entries.push({
+        id: "server-settings",
+        label: t("server.serverSettings"),
+        icon: <GearIcon size={16} />,
+        onClick: () => setDialog({ kind: "settings" }),
+      });
       if (canManageChannels) {
         entries.push(
           {
@@ -205,7 +203,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           },
         );
       }
-      if (entries.length > 0) entries.push({ type: "separator" });
+      entries.push({ type: "separator" });
       entries.push(
         {
           id: "copy-address",
@@ -401,6 +399,10 @@ export function ServerView({ onAddServer }: ServerViewProps) {
             key={entry.id}
             className={entry.id === savedId ? "rail__item rail__item--active" : "rail__item"}
             onClick={() => void connect({ address: entry.address, nickname: entry.nickname })}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
+            }}
             title={entry.name}
             aria-label={entry.name}
           >
@@ -575,7 +577,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         />
       ) : null}
 
-      {dialog.kind === "account" ? <AccountDialog onClose={() => setDialog({ kind: "none" })} /> : null}
+      {dialog.kind === "account" ? <UserSettingsDialog onClose={() => setDialog({ kind: "none" })} /> : null}
       {dialog.kind === "settings" ? (
         <ServerSettingsDialog onClose={() => setDialog({ kind: "none" })} />
       ) : null}
