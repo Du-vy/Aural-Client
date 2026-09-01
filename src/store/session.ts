@@ -27,11 +27,14 @@ import {
   type MessageDeletedEvent,
   type MessageEvent,
   type MessageHistoryResult,
+  type MessageSearchHit,
+  type MessageSearchResult,
   type Overwrite,
   type Ready,
   type Role,
   type RoleDeletedEvent,
   type RoleEvent,
+  type SearchSort,
   type ServerInfo,
   type ServerUpdatedEvent,
   type User,
@@ -47,6 +50,12 @@ import {
   upsertServer,
   type SavedServer,
 } from "@/lib/storage";
+import {
+  buildDirectory,
+  buildSearchRequest,
+  parseSearchInput,
+  type SearchToken,
+} from "@/lib/search";
 import { uploadFile, type RunningUpload } from "@/lib/uploads";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting";
@@ -60,6 +69,13 @@ export interface ChannelHistory {
   messages: Message[];
   /** Whether older messages remain before the oldest one held. */
   hasMore: boolean;
+  /**
+   * Whether newer messages remain past the newest one held, which is true only
+   * after jumping into the middle of a channel. While it is set the client is
+   * looking at a window rather than at the present, so arriving messages are
+   * left for the walk back rather than appended after a gap.
+   */
+  hasMoreAfter: boolean;
   loading: boolean;
   /** Set when a history request failed, so the view can offer a retry. */
   error: string | null;
@@ -68,9 +84,69 @@ export interface ChannelHistory {
 export const EMPTY_HISTORY: ChannelHistory = {
   messages: [],
   hasMore: false,
+  hasMoreAfter: false,
   loading: false,
   error: null,
 };
+
+/** How many results one page of the search panel holds. */
+export const SEARCH_PAGE_SIZE = 25;
+
+/**
+ * The one search this client is showing. It lives here rather than in the
+ * search box because the results panel, the box and a jump into a channel are
+ * three views of the same thing.
+ */
+export interface SearchState {
+  /** Whether the results panel is showing. */
+  open: boolean;
+  /** The line as typed, which is what the box renders. */
+  input: string;
+  /**
+   * The line the held results came from. It is kept apart from `input` so the
+   * box can be edited without the results underneath it changing to match a
+   * query that has not been run.
+   */
+  ran: string;
+  sort: SearchSort;
+  offset: number;
+  /**
+   * Bumped every time the box is asked for, which is how a keyboard shortcut
+   * reaches an input the shortcut's own component does not own.
+   */
+  focus: number;
+  hits: MessageSearchHit[];
+  total: number;
+  /** Filters naming something this client could not resolve. */
+  unresolved: SearchToken[];
+  loading: boolean;
+  error: string | null;
+}
+
+export const EMPTY_SEARCH: SearchState = {
+  open: false,
+  input: "",
+  ran: "",
+  sort: "newest",
+  offset: 0,
+  focus: 0,
+  hits: [],
+  total: 0,
+  unresolved: [],
+  loading: false,
+  error: null,
+};
+
+/**
+ * Where the reader has asked to be taken. The nonce is what makes jumping to
+ * the same message twice move the view twice, rather than looking to the
+ * interface like nothing changed.
+ */
+export interface JumpTarget {
+  channelId: number;
+  messageId: number;
+  nonce: number;
+}
 
 export interface ConnectOptions {
   address: string;
@@ -108,6 +184,10 @@ interface SessionState {
   roles: Map<number, Role>;
   /** Per text channel, keyed by channel id. Absent until first opened. */
   history: Map<number, ChannelHistory>;
+
+  search: SearchState;
+  /** The message the view should move to, set by a jump and cleared by it. */
+  jump: JumpTarget | null;
 
   /** Saved server bookmarks, mirrored from localStorage. */
   saved: SavedServer[];
@@ -147,6 +227,27 @@ interface SessionState {
   openChannel(channelId: number): Promise<void>;
   /** Loads the page before the oldest message held. */
   loadOlder(channelId: number): Promise<void>;
+  /** Loads the page after the newest message held, walking back to the present. */
+  loadNewer(channelId: number): Promise<void>;
+  /** Drops the window being held and returns to the newest page. */
+  returnToPresent(channelId: number): Promise<void>;
+  /**
+   * Moves the view to one message, loading the page around it when it is not
+   * already held. The channel it lives in is selected by the view watching
+   * `jump`, so this works from anywhere.
+   */
+  jumpToMessage(channelId: number, messageId: number): Promise<void>;
+  /** Clears a jump once the view has moved to it. */
+  clearJump(nonce: number): void;
+
+  openSearch(prefill?: string): void;
+  closeSearch(): void;
+  setSearchInput(input: string): void;
+  /**
+   * Runs the search. With no argument it re-runs what the box holds from the
+   * first page; the sort and offset are how the panel re-reads the same query.
+   */
+  runSearch(options?: { input?: string; sort?: SearchSort; offset?: number }): Promise<void>;
   /** Posts a message, optionally carrying files already uploaded. */
   sendMessage(channelId: number, content: string, attachments?: number[]): Promise<void>;
   /**
@@ -185,6 +286,8 @@ let reconnectAttempt = 0;
 let lastOptions: ConnectOptions | null = null;
 /** Guards against a stale socket writing over a newer connection's state. */
 let connectionEpoch = 0;
+/** Distinguishes one jump from the next, including a repeat of the same one. */
+let jumpNonce = 1;
 
 function cancelReconnect(): void {
   if (reconnectTimer !== null) {
@@ -314,6 +417,10 @@ export const useSession = create<SessionState>((set, get) => {
         // the newest page, this message included, when it is first opened.
         const current = state.history.get(message.channelId);
         if (!current) return;
+        // Nor is one whose reader has jumped back into the middle of it: the
+        // message belongs after a gap, and appending it would draw it as if it
+        // followed what is on screen. The walk back to the present collects it.
+        if (current.hasMoreAfter) return;
         if (current.messages.some((held) => held.id === message.id)) return;
 
         const history = new Map(state.history);
@@ -419,6 +526,8 @@ export const useSession = create<SessionState>((set, get) => {
         channels: new Map(),
         roles: new Map(),
         history: new Map(),
+        search: EMPTY_SEARCH,
+        jump: null,
       });
       cancelReconnect();
       return;
@@ -467,6 +576,8 @@ export const useSession = create<SessionState>((set, get) => {
     channels: new Map(),
     roles: new Map(),
     history: new Map(),
+    search: EMPTY_SEARCH,
+    jump: null,
     saved: listServers(),
 
     async connect(options) {
@@ -601,6 +712,8 @@ export const useSession = create<SessionState>((set, get) => {
         channels: new Map(),
         roles: new Map(),
         history: new Map(),
+        search: EMPTY_SEARCH,
+        jump: null,
       });
     },
 
@@ -686,6 +799,7 @@ export const useSession = create<SessionState>((set, get) => {
         patchHistory(channelId, {
           messages: mergeMessages(page.messages, held),
           hasMore: page.hasMore,
+          hasMoreAfter: false,
           loading: false,
           error: null,
         });
@@ -707,6 +821,8 @@ export const useSession = create<SessionState>((set, get) => {
           before: oldest.id,
         });
         const held = get().history.get(channelId)?.messages ?? [];
+        // hasMoreAfter is left alone: this page says nothing about the end of
+        // the channel the reader is not at.
         patchHistory(channelId, {
           messages: mergeMessages(page.messages, held),
           hasMore: page.hasMore,
@@ -715,6 +831,146 @@ export const useSession = create<SessionState>((set, get) => {
         });
       } catch (error) {
         patchHistory(channelId, { loading: false, error: describeError(error) });
+      }
+    },
+
+    async loadNewer(channelId) {
+      const current = get().history.get(channelId);
+      if (!current || current.loading || !current.hasMoreAfter) return;
+      const newest = current.messages.at(-1);
+      if (!newest) return;
+
+      patchHistory(channelId, { loading: true, error: null });
+      try {
+        const page = await requireGateway().request<MessageHistoryResult>(Op.MessageHistory, {
+          channelId,
+          after: newest.id,
+        });
+        const held = get().history.get(channelId)?.messages ?? [];
+        patchHistory(channelId, {
+          messages: mergeMessages(held, page.messages),
+          hasMoreAfter: page.hasMoreAfter,
+          loading: false,
+          error: null,
+        });
+      } catch (error) {
+        patchHistory(channelId, { loading: false, error: describeError(error) });
+      }
+    },
+
+    async returnToPresent(channelId) {
+      // The window being held is dropped rather than paged forward through:
+      // the present is one request away, and everything between is history the
+      // reader can scroll back into.
+      const history = new Map(get().history);
+      history.delete(channelId);
+      set({ history });
+      await get().openChannel(channelId);
+    },
+
+    async jumpToMessage(channelId, messageId) {
+      set({ jump: { channelId, messageId, nonce: jumpNonce++ } });
+
+      const current = get().history.get(channelId);
+      if (current && current.messages.some((held) => held.id === messageId)) return;
+
+      patchHistory(channelId, { loading: true, error: null });
+      try {
+        const page = await requireGateway().request<MessageHistoryResult>(Op.MessageHistory, {
+          channelId,
+          around: messageId,
+        });
+        // The window replaces whatever was held rather than merging into it:
+        // the two runs need not touch, and a merge would draw them as if they
+        // did.
+        patchHistory(channelId, {
+          messages: page.messages,
+          hasMore: page.hasMore,
+          hasMoreAfter: page.hasMoreAfter,
+          loading: false,
+          error: null,
+        });
+      } catch (error) {
+        patchHistory(channelId, { loading: false, error: describeError(error) });
+      }
+    },
+
+    clearJump(nonce) {
+      if (get().jump?.nonce === nonce) set({ jump: null });
+    },
+
+    openSearch(prefill) {
+      const { search } = get();
+      set({
+        search: {
+          ...search,
+          open: true,
+          focus: search.focus + 1,
+          ...(prefill === undefined ? {} : { input: prefill }),
+        },
+      });
+    },
+
+    closeSearch() {
+      set({ search: EMPTY_SEARCH });
+    },
+
+    setSearchInput(input) {
+      set({ search: { ...get().search, input } });
+    },
+
+    async runSearch(options = {}) {
+      const state = get();
+      const input = options.input ?? state.search.input;
+      const sort = options.sort ?? state.search.sort;
+      const offset = options.offset ?? 0;
+
+      const parsed = parseSearchInput(input);
+      const directory = buildDirectory(state.channels, state.users, state.history);
+      const { request, unresolved, empty } = buildSearchRequest(parsed, directory, {
+        sort,
+        offset,
+        limit: SEARCH_PAGE_SIZE,
+      });
+
+      const base: SearchState = {
+        ...state.search,
+        open: true,
+        input,
+        ran: input,
+        sort,
+        offset,
+        unresolved,
+      };
+
+      // A line that names nothing is not a failed search, it is one that has
+      // not been written yet: the panel opens on the filter help instead.
+      if (empty) {
+        set({ search: { ...base, hits: [], total: 0, loading: false, error: null } });
+        return;
+      }
+
+      set({ search: { ...base, loading: true, error: null } });
+      try {
+        const result = await requireGateway().request<MessageSearchResult>(
+          Op.MessageSearch,
+          request,
+        );
+        // A newer search may have been started while this one was in flight.
+        if (get().search.ran !== input || get().search.offset !== offset) return;
+        set({
+          search: {
+            ...get().search,
+            hits: result.hits,
+            total: result.total,
+            loading: false,
+            error: null,
+          },
+        });
+      } catch (error) {
+        set({
+          search: { ...get().search, hits: [], total: 0, loading: false, error: describeError(error) },
+        });
       }
     },
 
@@ -767,4 +1023,4 @@ export const useSession = create<SessionState>((set, get) => {
   };
 });
 
-export type { Attachment, Channel, Message, Role, ServerInfo, User };
+export type { Attachment, Channel, Message, MessageSearchHit, Role, ServerInfo, User };

@@ -23,6 +23,8 @@ import {
   VoiceIcon,
 } from "@/components/Icons";
 import { MemberList } from "@/components/MemberList";
+import { SearchBar } from "@/components/SearchBar";
+import { SearchResults } from "@/components/SearchResults";
 import { UserPanel } from "@/components/UserPanel";
 import { AccountDialog } from "@/components/dialogs/AccountDialog";
 import { ChannelDialog } from "@/components/dialogs/ChannelDialog";
@@ -86,6 +88,9 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   const setRoleMembership = useSession((state) => state.setRoleMembership);
   const moveUser = useSession((state) => state.moveUser);
   const kickUser = useSession((state) => state.kickUser);
+  const searchOpen = useSession((state) => state.search.open);
+  const openSearch = useSession((state) => state.openSearch);
+  const jump = useSession((state) => state.jump);
   const permissions = useMyPermissions();
 
   const [dialog, setDialog] = useState<Dialog>({ kind: "none" });
@@ -107,6 +112,27 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       .sort((a, b) => a.position - b.position)[0];
     setSelectedChannelId(firstText?.id ?? null);
   }, [channels, selectedChannelId]);
+
+  // A jump names the channel it is going to, so following one is how a search
+  // result opens somewhere other than where the reader already is. The message
+  // list does the rest once that channel is on screen.
+  useEffect(() => {
+    if (jump && channels.has(jump.channelId)) {
+      setSelectedChannelId(jump.channelId);
+      setDrawerOpen(false);
+    }
+  }, [jump, channels]);
+
+  // Ctrl+F, the shortcut everything with a search box answers to.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key.toLowerCase() !== "f" || !(event.ctrlKey || event.metaKey)) return;
+      event.preventDefault();
+      openSearch();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [openSearch]);
 
   const canManageServer = useMemo(
     () => has(permissions, Perm.ManageServer) || has(permissions, Perm.ManageRoles),
@@ -356,8 +382,11 @@ export function ServerView({ onAddServer }: ServerViewProps) {
 
   if (!server) return null;
 
+  // Search and the member list share the right-hand column: one query at a
+  // time is what somebody is reading, and the results are that query.
   const shellClasses = ["app"];
-  if (membersOpen) shellClasses.push("app--with-members", "app--members-open");
+  if (searchOpen) shellClasses.push("app--with-search");
+  else if (membersOpen) shellClasses.push("app--with-members", "app--members-open");
   if (drawerOpen) shellClasses.push("app--drawer-open");
   if (resizingSidebar) shellClasses.push("app--resizing-sidebar");
 
@@ -466,6 +495,8 @@ export function ServerView({ onAddServer }: ServerViewProps) {
 
           <span className="topbar__spacer" />
 
+          <SearchBar />
+
           <button
             className="iconbtn"
             onClick={() => setMembersOpen((open) => !open)}
@@ -517,12 +548,16 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         )}
       </main>
 
-      <MemberList
-        onOpenMember={(userId) => setDialog({ kind: "member", userId })}
-        onContextMenuMember={(e, user) => {
-          setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
-        }}
-      />
+      {searchOpen ? (
+        <SearchResults />
+      ) : (
+        <MemberList
+          onOpenMember={(userId) => setDialog({ kind: "member", userId })}
+          onContextMenuMember={(e, user) => {
+            setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
+          }}
+        />
+      )}
 
       {drawerOpen ? (
         <div className="scrim--drawer" onClick={() => setDrawerOpen(false)} aria-hidden="true" />

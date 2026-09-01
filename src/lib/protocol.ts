@@ -67,6 +67,7 @@ export const Op = {
 
   MessageSend: "message.send",
   MessageHistory: "message.history",
+  MessageSearch: "message.search",
   MessageEdit: "message.edit",
   MessageDelete: "message.delete",
 
@@ -323,10 +324,20 @@ export interface MessageSendRequest {
   attachments?: number[];
 }
 
+/**
+ * One page of a channel.
+ *
+ * The three cursors are exclusive of one another and all are exclusive of the
+ * message they name. Sending none of them reads the newest page.
+ */
 export interface MessageHistoryRequest {
   channelId: number;
-  /** Page backwards from this id, exclusive. Omitted starts at the newest. */
+  /** Page backwards, stopping short of this id. */
   before?: number;
+  /** Page forwards, starting past this id: the walk back to the present. */
+  after?: number;
+  /** Centre the page on this id, which is how a search result is opened. */
+  around?: number;
   limit?: number;
 }
 
@@ -334,7 +345,63 @@ export interface MessageHistoryRequest {
 export interface MessageHistoryResult {
   channelId: number;
   messages: Message[];
+  /** Whether older messages remain before the first one here. */
   hasMore: boolean;
+  /**
+   * Whether newer messages remain past the last one here, which is how the
+   * client knows it is holding the present rather than a window behind it.
+   */
+  hasMoreAfter: boolean;
+}
+
+/** How a page of search results is ordered. */
+export type SearchSort = "newest" | "oldest" | "relevance";
+
+/** Kinds of content a search can require a message to carry. */
+export type SearchHas = "link" | "file" | "image" | "video" | "sound";
+
+/**
+ * A search across every channel the caller may read.
+ *
+ * Every field narrows the result and they are combined with AND: a query with
+ * two channels and an author means "this text, by them, in either channel".
+ * Entries within one field are alternatives, which is what a row of filter
+ * chips reads as.
+ */
+export interface MessageSearchRequest {
+  /**
+   * Free text. Whitespace separates terms, all of which must appear in the
+   * message; double quotes hold a phrase together.
+   */
+  query?: string;
+  channelIds?: number[];
+  authorIds?: number[];
+  has?: SearchHas[];
+  /** Unix seconds. `after` is inclusive, `before` exclusive. */
+  after?: number;
+  before?: number;
+  sort?: SearchSort;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * One match and the conversation immediately around it. The neighbours travel
+ * with the hit because a line of chat rarely means anything alone: what makes
+ * a result recognisable is the message it was answering.
+ */
+export interface MessageSearchHit {
+  message: Message;
+  before?: Message;
+  after?: Message;
+}
+
+export interface MessageSearchResult {
+  hits: MessageSearchHit[];
+  /** How many messages matched in all, not just on this page. */
+  total: number;
+  offset: number;
+  limit: number;
 }
 
 export interface MessageEditRequest {

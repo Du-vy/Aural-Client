@@ -336,6 +336,12 @@
   grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr) var(--members-width);
 }
 
+/* Search takes the same column the member list does, and takes more of it:
+   a result carries three messages where a member carries a name. */
+.app--with-search {
+  grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr) var(--search-width);
+}
+
 /* --- server rail ---------------------------------------------------------- */
 
 .rail {
@@ -890,6 +896,530 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* --- search --------------------------------------------------------------- */
+
+.search {
+  position: relative;
+  flex-shrink: 1;
+  min-width: 0;
+  width: 260px;
+  transition: width 140ms ease;
+}
+
+.search:focus-within,
+.search--open {
+  width: 340px;
+}
+
+.search__box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 6px 0 9px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  border: 1px solid transparent;
+  transition: border-color var(--speed) ease;
+}
+
+.search:focus-within .search__box {
+  border-color: var(--accent);
+}
+
+.search__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
+.search__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text);
+  background: none;
+  border: 0;
+  outline: none;
+}
+
+.search__input::placeholder {
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search__clear {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  transition: background var(--speed) ease, color var(--speed) ease;
+}
+
+.search__clear:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.search__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  width: min(400px, calc(100vw - 32px));
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-overlay);
+}
+
+.search__menu-title {
+  padding: 4px 8px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.search__menu-list {
+  max-height: min(50vh, 340px);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.search__suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+.search__suggestion--active {
+  background: var(--selected);
+}
+
+.search__suggestion-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  color: var(--text-muted);
+}
+
+.search__suggestion--active .search__suggestion-icon {
+  color: var(--text);
+}
+
+.search__suggestion-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search__suggestion-hint {
+  flex-shrink: 0;
+  max-width: 45%;
+  font-size: 12px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search__menu-foot {
+  padding: 8px 8px 2px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* --- search results ------------------------------------------------------- */
+
+.results {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-sidebar);
+  border-left: 1px solid var(--border);
+}
+
+.results__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 50px;
+  flex-shrink: 0;
+  padding: 0 8px 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.results__title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.results__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.results__count {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.results__sorts {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+}
+
+.results__sort {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-dim);
+  transition: background var(--speed) ease, color var(--speed) ease;
+}
+
+.results__sort:hover {
+  color: var(--text);
+}
+
+.results__sort--active {
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.results__warning {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--warning);
+  background: rgba(224, 160, 48, 0.08);
+  border-bottom: 1px solid var(--border);
+}
+
+.results__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.results__error {
+  padding: 10px 4px;
+  font-size: 13px;
+  color: var(--danger-hover);
+}
+
+.results__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 20px;
+  text-align: center;
+}
+
+.results__placeholder-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  color: var(--text-dim);
+}
+
+.results__placeholder-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.results__placeholder-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.results__pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.results__pager .btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  gap: 4px;
+}
+
+.results__page {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One result: the message that matched, with the line either side of it. */
+.hit {
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+}
+
+.hit:hover {
+  border-color: var(--border-strong);
+}
+
+.hit__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px 6px;
+}
+
+.hit__channel {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hit__jump {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  opacity: 0;
+  transition: background var(--speed) ease, color var(--speed) ease, opacity var(--speed) ease;
+}
+
+.hit:hover .hit__jump,
+.hit__jump:focus-visible {
+  opacity: 1;
+}
+
+.hit__jump:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.hit__msg {
+  display: flex;
+  gap: 8px;
+  padding: 4px 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* The neighbours are context, not the answer: they are drawn back a step so
+   the eye lands on the message that actually matched. */
+.hit__msg:not(.hit__msg--match) {
+  opacity: 0.5;
+}
+
+.hit__msg--match {
+  background: var(--hover);
+}
+
+.hit__avatar {
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.hit__avatar-offline {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.hit__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.hit__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.hit__author {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hit__time {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.hit__text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  /* A long message is a preview here; the whole of it is one jump away. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+
+.hit__msg--match .hit__text {
+  color: var(--text);
+}
+
+.hit__mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+.hit__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hit__file {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- jumping into the history --------------------------------------------- */
+
+.chat__row--landed {
+  position: relative;
+  border-radius: var(--radius-sm);
+  /* The mark fades on its own: it says "here it is", and then gets out of the
+     way of reading the conversation it is in. */
+  animation: landed 4s ease-out forwards;
+}
+
+@keyframes landed {
+  0%,
+  55% {
+    background: var(--accent-soft);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  100% {
+    background: transparent;
+    box-shadow: inset 3px 0 0 transparent;
+  }
+}
+
+.chat__present {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 16px 0;
+  padding: 6px 8px 6px 12px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--accent);
+  color: var(--text-inverse);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chat__present span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat__present-action {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  font-weight: 700;
+  color: inherit;
+}
+
+.chat__present-action:hover {
+  text-decoration: underline;
 }
 
 /* --- context & dropdown menu ---------------------------------------------- */
@@ -1787,8 +2317,25 @@
 }
 
 @media (max-width: 1100px) {
-  .app--with-members {
+  .app--with-members,
+  .app--with-search {
     grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr);
+  }
+
+  .app--with-search .results {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    width: min(var(--search-width), 92vw);
+    box-shadow: var(--shadow-overlay);
+  }
+
+  .search,
+  .search:focus-within,
+  .search--open {
+    width: 220px;
   }
 
   .members {
@@ -1827,8 +2374,25 @@
 
 @media (max-width: 768px) {
   .app,
-  .app--with-members {
+  .app--with-members,
+  .app--with-search {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* There is no room for a topic and a search box at once, and the box is the
+     one being used. */
+  .topbar__topic {
+    display: none;
+  }
+
+  .search,
+  .search:focus-within,
+  .search--open {
+    width: 160px;
+  }
+
+  .search__menu {
+    width: min(360px, calc(100vw - 24px));
   }
 
   .rail,

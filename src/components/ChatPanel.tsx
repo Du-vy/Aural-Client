@@ -29,6 +29,10 @@ export function ChatPanel({
 
   const openChannel = useSession((state) => state.openChannel);
   const loadOlder = useSession((state) => state.loadOlder);
+  const loadNewer = useSession((state) => state.loadNewer);
+  const returnToPresent = useSession((state) => state.returnToPresent);
+  const jump = useSession((state) => state.jump);
+  const clearJump = useSession((state) => state.clearJump);
   const sendMessage = useSession((state) => state.sendMessage);
   const editMessage = useSession((state) => state.editMessage);
   const deleteMessage = useSession((state) => state.deleteMessage);
@@ -56,10 +60,15 @@ export function ChatPanel({
         roles={roles}
         selfId={self?.id ?? null}
         hasMore={history.hasMore}
+        hasMoreAfter={history.hasMoreAfter}
         loading={history.loading}
         error={history.error}
         canManageMessages={canManageMessages}
+        jump={jump?.channelId === channel.id ? jump : null}
+        onJumpDone={clearJump}
         onLoadOlder={() => void loadOlder(channel.id)}
+        onLoadNewer={() => void loadNewer(channel.id)}
+        onReturnToPresent={() => void returnToPresent(channel.id)}
         onEdit={(messageId, content) => void editMessage(messageId, content)}
         onDelete={(messageId) => void deleteMessage(messageId)}
         onOpenMember={onOpenMember}

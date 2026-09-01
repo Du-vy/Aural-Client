@@ -7,9 +7,9 @@ people run their own, and you reach them by address.
 React and TypeScript on Vite, wrapped by Tauri v2 so the same codebase ships as
 a desktop app and an Android app.
 
-> **Status: v0.2.** Connecting, identity, the channel tree, roles, permissions,
-> presence and text messaging all work against a real server. Voice is the next
-> milestone.
+> **Status: v0.4.** Connecting, identity, the channel tree, roles, permissions,
+> presence, text messaging, file attachments and search all work against a real
+> server. Voice is the next milestone.
 
 ## Quick start
 
@@ -253,11 +253,17 @@ roles and permissions, presence, responsive layout.
 deleting, with messages grouped by author and separated by day, and an emoji
 picker with search, categories, recents and skin tones.
 
-**v0.3 (here)** — file attachments: picking, dropping and pasting files, with
-per-file progress; images, video and audio played in place; Markdown and text
-previewed inline; and a right-click menu to download any of them.
+**v0.3** — file attachments: picking, dropping and pasting files, with per-file
+progress; images, video and audio played in place; Markdown and text previewed
+inline; and a right-click menu to download any of them.
 
-**v0.4** — voice. The server already advertises which of the two hosting models
+**v0.4 (here)** — search: a query written as one line, with `from:`, `in:`,
+`has:`, `before:`, `during:` and `after:` filters suggested as they are typed;
+results shown with the message either side of each hit, sorted by date or
+relevance and paged; and a jump that opens any result where it was written,
+with the way back to the present.
+
+**v0.5** — voice. The server already advertises which of the two hosting models
 it runs, and the client shows it on the connect screen:
 
 - `client_host` — the first user to enter a voice channel relays its audio for

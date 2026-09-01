@@ -6,12 +6,13 @@ import { openExternalUrl } from "@/lib/open";
 import { isDomainTrusted } from "@/lib/storage";
 import { GROUPING_WINDOW_SECONDS, formatDay, formatFull, formatTime, sameDay } from "@/lib/time";
 import type { Message, Role, User } from "@/lib/protocol";
+import type { JumpTarget } from "@/store/session";
 import { colorRoleOf } from "@/store/selectors";
 import { Avatar } from "./Avatar";
 import { ContextMenu, type MenuEntry } from "./ContextMenu";
 import { DeleteMessageDialog } from "./dialogs/DeleteMessageDialog";
 import { ExternalLinkDialog } from "./dialogs/ExternalLinkDialog";
-import { CopyIcon, HashIcon, LinkIcon, PencilIcon, TrashIcon } from "./Icons";
+import { ChevronIcon, CopyIcon, HashIcon, LinkIcon, PencilIcon, TrashIcon } from "./Icons";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./attachments/MessageAttachments";
 
@@ -63,10 +64,20 @@ interface MessageListProps {
   roles: ReadonlyMap<number, Role>;
   selfId: number | null;
   hasMore: boolean;
+  /**
+   * Whether newer messages remain past the last one held, which is true only
+   * while the reader is looking at a window they jumped back to.
+   */
+  hasMoreAfter: boolean;
   loading: boolean;
   error: string | null;
   canManageMessages: boolean;
+  /** Where a search result asked the view to go, when it is in this channel. */
+  jump: JumpTarget | null;
+  onJumpDone(nonce: number): void;
   onLoadOlder(): void;
+  onLoadNewer(): void;
+  onReturnToPresent(): void;
   onEdit(messageId: number, content: string): void;
   onDelete(messageId: number): void;
   onOpenMember?(userId: number): void;
@@ -80,10 +91,15 @@ export function MessageList({
   roles,
   selfId,
   hasMore,
+  hasMoreAfter,
   loading,
   error,
   canManageMessages,
+  jump,
+  onJumpDone,
   onLoadOlder,
+  onLoadNewer,
+  onReturnToPresent,
   onEdit,
   onDelete,
   onOpenMember,
@@ -96,6 +112,8 @@ export function MessageList({
   const following = useRef(true);
   /** Scroll height before an older page is prepended, to hold the position. */
   const anchor = useRef<{ height: number; top: number } | null>(null);
+  /** The row a jump landed on, marked until the reader looks somewhere else. */
+  const [landed, setLanded] = useState<number | null>(null);
 
   const [editing, setEditing] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Message | null>(null);
@@ -129,10 +147,24 @@ export function MessageList({
 
   // Following the conversation means staying pinned to the bottom as messages
   // arrive, but never yanking a reader away from older messages they scrolled
-  // back to.
+  // back to. A window jumped into is never the present, so it never follows.
   useEffect(() => {
-    if (following.current) bottom.current?.scrollIntoView({ block: "end" });
-  }, [newest]);
+    if (following.current && !hasMoreAfter) bottom.current?.scrollIntoView({ block: "end" });
+  }, [newest, hasMoreAfter]);
+
+  // A jump moves the view to one message and marks it. This runs after the
+  // effect above, which is what lets it win: the page a jump loads ends in a
+  // new newest id, and following it to the bottom is exactly what must not
+  // happen here.
+  useEffect(() => {
+    if (!jump) return;
+    const row = scroller.current?.querySelector(`[data-message="${jump.messageId}"]`);
+    if (!row) return;
+    following.current = false;
+    row.scrollIntoView({ block: "center" });
+    setLanded(jump.messageId);
+    onJumpDone(jump.nonce);
+  }, [jump, messages, onJumpDone]);
 
   // Prepending a page must not move what the reader is looking at, so the
   // scroll position is restored by the amount the content grew.
@@ -147,11 +179,18 @@ export function MessageList({
   function handleScroll() {
     const node = scroller.current;
     if (!node) return;
-    following.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
+    const fromBottom = node.scrollHeight - node.scrollTop - node.clientHeight;
+    following.current = fromBottom < 80;
 
     if (node.scrollTop < 120 && hasMore && !loading) {
       anchor.current = { height: node.scrollHeight, top: node.scrollTop };
       onLoadOlder();
+    }
+    // Reading past the end of a window jumped into walks it forward, which is
+    // how somebody follows a search result into the conversation that came
+    // after it rather than being thrown back to the present.
+    if (fromBottom < 120 && hasMoreAfter && !loading) {
+      onLoadNewer();
     }
   }
 
@@ -249,7 +288,11 @@ export function MessageList({
       {error ? <p className="chat__error">{error}</p> : null}
 
       {rows.map(({ message, daySeparator, startsBlock }) => (
-        <div key={message.id}>
+        <div
+          key={message.id}
+          data-message={message.id}
+          className={message.id === landed ? "chat__row chat__row--landed" : "chat__row"}
+        >
           {daySeparator ? (
             <div className="chat__day">
               <span>{daySeparator}</span>
@@ -284,6 +327,16 @@ export function MessageList({
       ))}
 
       <div ref={bottom} />
+
+      {hasMoreAfter ? (
+        <div className="chat__present">
+          <span>{t("results.jumpToPresent")}</span>
+          <button className="chat__present-action" onClick={onReturnToPresent}>
+            {t("results.jumpToPresentAction")}
+            <ChevronIcon size={14} />
+          </button>
+        </div>
+      ) : null}
 
       {contextMenu ? (
         <ContextMenu

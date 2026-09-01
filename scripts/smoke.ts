@@ -12,6 +12,7 @@
 import { parseAddress, fetchServerInfo } from "../src/lib/address";
 import { Gateway } from "../src/lib/gateway";
 import { Perm, has, resolve, resolveChannelPermissions } from "../src/lib/permissions";
+import { buildDirectory, buildSearchRequest, parseSearchInput } from "../src/lib/search";
 import { attachmentKind, attachmentUrl, downloadUrl, formatBytes } from "../src/lib/uploads";
 import {
   Ev,
@@ -23,6 +24,7 @@ import {
   type MessageDeletedEvent,
   type MessageEvent,
   type MessageHistoryResult,
+  type MessageSearchResult,
   type Ready,
   type Role,
   type ServerInfo,
@@ -252,6 +254,73 @@ async function main() {
   check(removed.messageId === posted.message.id, "the deletion is announced to everyone");
   check(removed.channelId === text!.id, "the deletion names its channel");
 
+  console.log("\nsearch");
+  // The needle is unique to this run, so the counts below are exact however
+  // many times the smoke test has been run against this server before.
+  const needle = `photosynthesis${Date.now()}`;
+  const asked = await bob.gateway.request<MessageEvent>(Op.MessageSend, {
+    channelId: text!.id,
+    content: `what is ${needle}?`,
+  });
+  const answered = await other.gateway.request<MessageEvent>(Op.MessageSend, {
+    channelId: text!.id,
+    content: `${needle} is how a leaf eats`,
+  });
+
+  const found = await bob.gateway.request<MessageSearchResult>(Op.MessageSearch, { query: needle });
+  check(found.total === 2, "both messages match the query");
+  check(found.hits[0]?.message.id === answered.message.id, "results come back newest first");
+  check(found.hits[0]?.before?.id === asked.message.id, "a hit carries the line before it");
+
+  const byAuthor = await bob.gateway.request<MessageSearchResult>(Op.MessageSearch, {
+    query: needle,
+    authorIds: [bobReady.user.id],
+  });
+  check(byAuthor.total === 1, "an author filter narrows to one of them");
+
+  // A voice channel carries no messages, and the server drops it rather than
+  // refusing the search, exactly as it drops one the caller may not read.
+  const elsewhere = await bob.gateway.request<MessageSearchResult>(Op.MessageSearch, {
+    query: needle,
+    channelIds: [voice.id],
+  });
+  check(elsewhere.total === 0, "a channel that carries no messages finds nothing");
+
+  const oldestFirst = await bob.gateway.request<MessageSearchResult>(Op.MessageSearch, {
+    query: needle,
+    sort: "oldest",
+  });
+  check(oldestFirst.hits[0]?.message.id === asked.message.id, "the oldest sort reverses them");
+
+  // The client's own query language, end to end: one typed line resolves to the
+  // request this server answers.
+  const directory = buildDirectory(
+    new Map(ready.channels.map((channel) => [channel.id, channel])),
+    new Map([[bobReady.user.id, bobReady.user]]),
+    new Map(),
+  );
+  const typed = buildSearchRequest(
+    parseSearchInput(`in:${text!.name} from:${bobReady.user.nickname} ${needle}`),
+    directory,
+    { sort: "newest" },
+  );
+  check(typed.unresolved.length === 0, "a typed line resolves against what the client knows");
+  const byLine = await bob.gateway.request<MessageSearchResult>(Op.MessageSearch, typed.request);
+  check(byLine.total === 1, "and finds the one message it names");
+
+  const around = await bob.gateway.request<MessageHistoryResult>(Op.MessageHistory, {
+    channelId: text!.id,
+    around: asked.message.id,
+  });
+  check(
+    around.messages.some((message) => message.id === asked.message.id),
+    "jumping to a result loads the page around it",
+  );
+  check(!around.hasMoreAfter, "the last page of a channel says it is the present");
+
+  await bob.gateway.request(Op.MessageDelete, { messageId: asked.message.id });
+  await other.gateway.request(Op.MessageDelete, { messageId: answered.message.id });
+
   console.log("\npermission enforcement");
   let refused = false;
   try {
@@ -367,6 +436,53 @@ async function main() {
     !useSession.getState().history.get(storeText.id)?.messages.some((m) => m.id === mine.id),
     "a deleted message leaves the store through its event",
   );
+
+  // --- search ---------------------------------------------------------------
+  //
+  // The panel reads everything it shows from the store, so this is the path
+  // that matters: a line as it would be typed, resolved against what this
+  // client knows, answered by the server, and then jumped into.
+
+  const needleWord = `sarsaparilla${Date.now()}`;
+  await live.sendMessage(storeText.id, `first mention of ${needleWord}`);
+  await settle();
+  await live.sendMessage(storeText.id, `second mention of ${needleWord}`);
+  await settle();
+
+  await useSession.getState().runSearch({ input: `in:${storeText.name} ${needleWord}` });
+  const searched = useSession.getState().search;
+  check(!searched.loading && searched.error === null, "the store runs a search");
+  check(searched.total === 2, "and holds every match");
+  check(searched.unresolved.length === 0, "the channel named in the line resolved");
+  check(
+    searched.hits[0]?.before?.id === searched.hits[1]?.message.id,
+    "a hit is read together with the line before it",
+  );
+
+  const target = searched.hits[1]!.message;
+  await useSession.getState().jumpToMessage(target.channelId, target.id);
+  check(
+    useSession.getState().jump?.messageId === target.id,
+    "a jump names the message the view has to move to",
+  );
+
+  // Dropping what is held forces the jump to fetch, which is what happens when
+  // a result turns up in a channel this client has never opened.
+  useSession.setState({ history: new Map() });
+  await useSession.getState().jumpToMessage(target.channelId, target.id);
+  const reloaded = useSession.getState().history.get(storeText.id);
+  check(
+    reloaded?.messages.some((message) => message.id === target.id),
+    "jumping into a channel that is not held fetches the page around the result",
+  );
+
+  useSession.getState().closeSearch();
+  check(!useSession.getState().search.open, "closing the panel puts the search away");
+
+  for (const message of reloaded!.messages.filter((m) => m.content.includes(needleWord))) {
+    await useSession.getState().deleteMessage(message.id);
+  }
+  await settle();
 
   // --- attachments ----------------------------------------------------------
   //

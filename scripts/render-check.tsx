@@ -28,6 +28,7 @@ const { NicknameDialog } = await import("@/components/dialogs/NicknameDialog");
 const { ContextMenu } = await import("@/components/ContextMenu");
 const { EmojiPicker } = await import("@/components/EmojiPicker");
 const { MessageList } = await import("@/components/MessageList");
+const { SearchResults } = await import("@/components/SearchResults");
 const { insertAtCaret } = await import("@/components/MessageComposer");
 const { ServerSettingsDialog } = await import("@/components/dialogs/ServerSettingsDialog");
 const { ExternalLinkDialog } = await import("@/components/dialogs/ExternalLinkDialog");
@@ -40,9 +41,19 @@ const { parseMarkdown, parseInline } = await import("@/lib/markdown");
 const { attachmentKind, formatBytes, extensionOf, attachmentUrl } = await import("@/lib/uploads");
 const { parseAddress } = await import("@/lib/address");
 const { extractUrls, classifyUrl, isOnlyMediaUrls, tokenizeMessageText } = await import("@/lib/links");
+const {
+  activeTokenAt,
+  buildDirectory,
+  buildSearchRequest,
+  parseDateSpan,
+  parseSearchInput,
+  replaceTokenAt,
+  searchTerms,
+  splitHighlights,
+} = await import("@/lib/search");
 const { addTrustedDomain, isDomainTrusted } = await import("@/lib/storage");
 const { Perm, format } = await import("@/lib/permissions");
-const { useSession } = await import("@/store/session");
+const { useSession, EMPTY_SEARCH } = await import("@/store/session");
 const { setLanguage, getLanguage, t, SUPPORTED_LANGUAGES } = await import("@/lib/i18n");
 
 type Attachment = import("@/lib/protocol").Attachment;
@@ -292,7 +303,7 @@ const messages: Message[] = [
 ];
 
 const seededHistory = new Map([
-  [2, { messages, hasMore: true, loading: false, error: null }],
+  [2, { messages, hasMore: true, hasMoreAfter: false, loading: false, error: null }],
 ]);
 
 function seed(overrides: Partial<Parameters<typeof useSession.setState>[0]> = {}) {
@@ -394,10 +405,14 @@ render("chat with history", <App />, [
   "Message #general",
 ]);
 
-seed({ history: new Map([[2, { messages: [], hasMore: false, loading: false, error: null }]]) });
+seed({
+  history: new Map([[2, { messages: [], hasMore: false, hasMoreAfter: false, loading: false, error: null }]]),
+});
 render("chat with an empty channel", <App />, ["Welcome to #general"]);
 
-seed({ history: new Map([[2, { messages: [], hasMore: false, loading: true, error: null }]]) });
+seed({
+  history: new Map([[2, { messages: [], hasMore: false, hasMoreAfter: false, loading: true, error: null }]]),
+});
 render("chat while history is loading", <App />);
 
 // The failed-load banner is rendered from MessageList directly, because
@@ -412,10 +427,15 @@ render(
     roles={new Map(roles.map((role) => [role.id, role]))}
     selfId={admin.id}
     hasMore={false}
+    hasMoreAfter={false}
     loading={false}
     error="The server refused that."
     canManageMessages={false}
+    jump={null}
+    onJumpDone={noop}
     onLoadOlder={noop}
+    onLoadNewer={noop}
+    onReturnToPresent={noop}
     onEdit={noop}
     onDelete={noop}
   />,
@@ -587,6 +607,77 @@ render(
   />,
   ["Title", "md__pre", "func main() {}", "md__list", "md__quote", "md__table", "msg__link"],
 );
+
+console.log("\nsearch");
+
+seed();
+useSession.setState({ search: { ...EMPTY_SEARCH, open: true, focus: 1 } });
+render("search open with an empty query", <App />, ["search__input", "results__placeholder"]);
+
+{
+  const hitMessage: Message = {
+    id: 41,
+    channelId: 2,
+    userId: guest.id,
+    author: guest.nickname,
+    content: "the deploy pipeline broke again",
+    createdAt: nowSeconds - 900,
+    editedAt: null,
+  };
+  seed();
+  useSession.setState({
+    search: {
+      ...EMPTY_SEARCH,
+      open: true,
+      input: "in:general deploy",
+      ran: "in:general deploy",
+      total: 1,
+      hits: [
+        {
+          message: hitMessage,
+          before: { ...hitMessage, id: 40, content: "what happened?", author: admin.nickname, userId: admin.id },
+          after: { ...hitMessage, id: 42, content: "looking now", author: admin.nickname, userId: admin.id },
+        },
+      ],
+    },
+  });
+  // The words that matched are marked, so the hit itself is only contiguous in
+  // the HTML on either side of the mark.
+  render("search results with a hit and its neighbours", <App />, [
+    "hit__msg--match",
+    "hit__mark",
+    "pipeline broke again",
+    "what happened?",
+  ]);
+
+  seed();
+  useSession.setState({
+    search: { ...EMPTY_SEARCH, open: true, input: "nothing", ran: "nothing", error: "The server refused that." },
+  });
+  render("search results after a failed search", <SearchResults />, ["results__error"]);
+
+  seed();
+  useSession.setState({
+    search: {
+      ...EMPTY_SEARCH,
+      open: true,
+      input: "from:nobody hello",
+      ran: "from:nobody hello",
+      unresolved: [{ key: "from", value: "nobody", start: 0, end: 11 }],
+    },
+  });
+  render("search results warning about a filter it could not resolve", <SearchResults />, [
+    "results__warning",
+    "from:nobody",
+  ]);
+}
+
+seed({
+  history: new Map([
+    [2, { messages, hasMore: true, hasMoreAfter: true, loading: false, error: null }],
+  ]),
+});
+render("a window jumped into, offering the way back to the present", <App />, ["chat__present"]);
 
 console.log("\nedge cases");
 seed({ channels: new Map(), self: { ...admin, channelId: null } });
@@ -765,10 +856,15 @@ function checkThat(name: string, condition: boolean): void {
         roles={new Map(roles.map((role) => [role.id, role]))}
         selfId={admin.id}
         hasMore={false}
+        hasMoreAfter={false}
         loading={false}
         error={null}
         canManageMessages={false}
+        jump={null}
+        onJumpDone={noop}
         onLoadOlder={noop}
+        onLoadNewer={noop}
+        onReturnToPresent={noop}
         onEdit={noop}
         onDelete={noop}
       />,
@@ -847,6 +943,88 @@ function checkThat(name: string, condition: boolean): void {
     root.unmount();
   });
   container.remove();
+}
+
+console.log("\nthe query language");
+
+{
+  const parsed = parseSearchInput('from:Alice in:"off topic" has:link  the  quick fox');
+  checkThat("filters and free text are told apart", parsed.text === "the quick fox");
+  checkThat("a quoted value keeps its space", parsed.filters[1]?.value === "off topic");
+  checkThat("three filters are read", parsed.filters.length === 3);
+
+  const bare = parseSearchInput("hello world");
+  checkThat("a line with no filters is all text", bare.filters.length === 0 && bare.text === "hello world");
+
+  const half = parseSearchInput("has:");
+  checkThat("a key with no value yet is still a filter", half.filters[0]?.value === "");
+
+  // The caret decides what is being typed, which is what the dropdown offers.
+  const token = activeTokenAt("from:al hello", 7);
+  checkThat("the caret inside a value reports the key", token.kind === "value" && token.key === "from");
+  checkThat("... and how much of the value is written", token.kind === "value" && token.value === "al");
+
+  const word = activeTokenAt("fro", 3);
+  checkThat("the caret in a bare word reports a word", word.kind === "word" && word.value === "fro");
+
+  const replaced = replaceTokenAt("from:al hello", 7, "from:Alice");
+  checkThat("accepting a suggestion rewrites the token", replaced.input === "from:Alice hello");
+  checkThat("... and leaves the caret past it", replaced.caret === "from:Alice ".length);
+
+  const day = parseDateSpan("2026-08-31");
+  const month = parseDateSpan("2026-08");
+  checkThat("a day spans one day", day !== null && day.end - day.start === 86_400);
+  checkThat("a month spans that month", month !== null && month.end - month.start === 31 * 86_400);
+  checkThat("an impossible date is refused", parseDateSpan("2026-02-31") === null);
+  checkThat("a word is not a date", parseDateSpan("yesterday") === null);
+
+  const directory = buildDirectory(
+    new Map(channels.map((channel) => [channel.id, channel])),
+    new Map([[admin.id, admin]]),
+    new Map([[2, { messages }]]),
+  );
+  checkThat(
+    "only text channels can be searched in",
+    directory.channels.every((entry) => entry.name !== "Lobby"),
+  );
+  checkThat(
+    "an author read from history is offered even while offline",
+    directory.users.some((entry) => entry.id === guest.id),
+  );
+
+  const built = buildSearchRequest(parseSearchInput("in:general from:Pablo has:image hola"), directory, {
+    sort: "relevance",
+  });
+  checkThat("names resolve to the ids the server matches on", built.request.channelIds?.[0] === 2);
+  checkThat("an author resolves too", built.request.authorIds?.[0] === admin.id);
+  checkThat("has: survives", built.request.has?.[0] === "image");
+  checkThat("the words are what is left", built.request.query === "hola");
+  checkThat("nothing was left unresolved", built.unresolved.length === 0);
+
+  const unknown = buildSearchRequest(parseSearchInput("from:Nobody hi"), directory, { sort: "newest" });
+  checkThat("a name nobody holds is reported, not dropped", unknown.unresolved.length === 1);
+
+  const nothing = buildSearchRequest(parseSearchInput("   "), directory, { sort: "newest" });
+  checkThat("an empty line is not a search", nothing.empty);
+
+  // before: and after: exclude the day they name; during: is that day alone.
+  const around = buildSearchRequest(parseSearchInput("after:2026-08-31 x"), directory, { sort: "newest" });
+  checkThat(
+    "after: a day starts the next one",
+    around.request.after === parseDateSpan("2026-08-31")!.end,
+  );
+
+  checkThat("quotes hold a phrase together", searchTerms('"two words" three').length === 2);
+
+  const marked = splitHighlights("Un CAFÉ con leche", ["cafe"]);
+  checkThat(
+    "a match is found through case and accent",
+    marked.some((part) => part.match && part.value === "CAFÉ"),
+  );
+  checkThat(
+    "and the text either side survives intact",
+    marked.map((part) => part.value).join("") === "Un CAFÉ con leche",
+  );
 }
 
 console.log("\nmulti-language (i18n) verification");
