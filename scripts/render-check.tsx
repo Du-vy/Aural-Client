@@ -115,7 +115,7 @@ function render(name: string, element: React.ReactElement, expected: string[] = 
     act(() => {
       root.render(element);
     });
-    const html = container.innerHTML;
+    const html = container.innerHTML.length > 0 ? container.innerHTML : document.body.innerHTML;
     if (html.length === 0) throw new Error("rendered nothing");
     for (const needle of expected) {
       if (!html.includes(needle)) throw new Error(`rendered without ${JSON.stringify(needle)}`);

@@ -461,6 +461,8 @@ export const es: TranslationSchema = {
         previewTitle: "Vista Previa en Tiempo Real",
         importSuccess: "¡Tema importado correctamente!",
         importError: "No se pudo importar el archivo de tema.",
+        exportSuccess: "¡Tema exportado correctamente!",
+        exportError: "No se pudo exportar el archivo de tema.",
         renamePrompt: "Introduce el nuevo nombre para el tema:",
         themeDark: "Oscuro (Predeterminado)",
         themeOled: "Medianoche OLED",

@@ -10,6 +10,7 @@ import {
   readActiveBackground,
   writeActiveBackground,
   type ThemeColors,
+  type AuralTheme,
 } from "@/lib/theme";
 import {
   readDensity,
@@ -1332,6 +1333,17 @@ function AppearancePage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const handleExport = async (themeToExport: AuralTheme) => {
+    try {
+      const saved = await exportThemeToFile(themeToExport);
+      if (saved) {
+        showFeedback(`${t("dialogs.userSettings.appearance.exportSuccess")} (${themeToExport.name})`, "success");
+      }
+    } catch {
+      showFeedback(t("dialogs.userSettings.appearance.exportError"), "error");
+    }
+  };
+
   const handleBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1583,7 +1595,7 @@ function AppearancePage() {
                       className="iconbtn"
                       style={{ width: 22, height: 22 }}
                       title={t("dialogs.userSettings.appearance.exportTheme")}
-                      onClick={() => exportThemeToFile(item)}
+                      onClick={() => void handleExport(item)}
                     >
                       <DownloadIcon size={12} />
                     </button>
@@ -1630,7 +1642,7 @@ function AppearancePage() {
             type="button"
             className="btn btn--ghost"
             style={{ padding: "4px 10px", fontSize: 12 }}
-            onClick={() => exportThemeToFile(activeTheme)}
+            onClick={() => void handleExport(activeTheme)}
           >
             <DownloadIcon size={14} />
             {t("dialogs.userSettings.appearance.exportTheme")}

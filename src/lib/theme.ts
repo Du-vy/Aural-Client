@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { saveTextFile } from "./open";
 
 export interface ThemeColors {
   bgRail: string;
@@ -537,7 +538,7 @@ export function resetToDefaultTheme(): void {
 /* Import & Export                                                            */
 /* -------------------------------------------------------------------------- */
 
-export function exportThemeToFile(theme: AuralTheme): void {
+export async function exportThemeToFile(theme: AuralTheme): Promise<boolean> {
   const exportData: ThemeExportFile = {
     version: 1,
     type: "aural-theme",
@@ -552,17 +553,13 @@ export function exportThemeToFile(theme: AuralTheme): void {
   };
 
   const json = JSON.stringify(exportData, null, 2);
-  const blob = new Blob([json], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
   const filename = `${theme.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}.auraltheme.json`;
 
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  return await saveTextFile(filename, json, {
+    mimeType: "application/json",
+    filterName: "Aural Theme (*.auraltheme.json, *.json)",
+    filterExtensions: ["json", "auraltheme"],
+  });
 }
 
 export async function importThemeFromFile(file: File): Promise<AuralTheme> {

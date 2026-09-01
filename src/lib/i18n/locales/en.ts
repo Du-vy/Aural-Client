@@ -464,6 +464,8 @@ export const en = {
         previewTitle: "Live Chat Preview",
         importSuccess: "Theme imported successfully!",
         importError: "Failed to import theme file.",
+        exportSuccess: "Theme exported successfully!",
+        exportError: "Failed to export theme file.",
         renamePrompt: "Enter the new theme name:",
         themeDark: "Dark (Default)",
         themeOled: "Midnight OLED",

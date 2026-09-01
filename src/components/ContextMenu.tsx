@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 export interface MenuItem {
   id: string;
@@ -77,7 +78,9 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     };
   }, [onClose]);
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       ref={rootRef}
       className="menu"
@@ -89,7 +92,8 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
       onContextMenu={(e) => e.preventDefault()}
     >
       <MenuList items={items} onClose={onClose} />
-    </div>
+    </div>,
+    document.body
   );
 }
 

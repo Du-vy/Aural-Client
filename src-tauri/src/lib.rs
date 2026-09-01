@@ -36,10 +36,36 @@ fn open_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn save_file(
+    default_name: String,
+    content: String,
+    filter_name: Option<String>,
+    filter_extensions: Option<Vec<String>>,
+) -> Result<bool, String> {
+    let mut dialog = rfd::AsyncFileDialog::new().set_file_name(&default_name);
+    if let (Some(name), Some(exts)) = (filter_name.as_deref(), filter_extensions.as_ref()) {
+        if !name.is_empty() && !exts.is_empty() {
+            let str_exts: Vec<&str> = exts.iter().map(|s| s.as_str()).collect();
+            dialog = dialog.add_filter(name, &str_exts);
+        }
+    }
+    let file = dialog.save_file().await;
+    if let Some(handle) = file {
+        handle
+            .write(content.as_bytes())
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![open_url])
+        .invoke_handler(tauri::generate_handler![open_url, save_file])
         .run(tauri::generate_context!())
         .expect("failed to start the Aural window");
 }
