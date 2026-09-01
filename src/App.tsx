@@ -17,26 +17,29 @@ export function App() {
 
   const connected = status === "connected" || status === "reconnecting";
 
-  if (!connected) {
-    return <ConnectView />;
-  }
-
   return (
     <>
-      <ServerView onAddServer={() => setShowConnect(true)} />
-      {showConnect ? (
-        <div style={{ position: "fixed", inset: 0, zIndex: 90, background: "var(--bg-main)" }}>
-          <button
-            className="iconbtn"
-            onClick={() => setShowConnect(false)}
-            aria-label="Back to the server"
-            style={{ position: "absolute", top: 14, right: 16, zIndex: 1 }}
-          >
-            <CloseIcon size={20} />
-          </button>
-          <ConnectView />
-        </div>
-      ) : null}
+      <div className="app-custom-bg" aria-hidden="true" />
+      {!connected ? (
+        <ConnectView />
+      ) : (
+        <>
+          <ServerView onAddServer={() => setShowConnect(true)} />
+          {showConnect ? (
+            <div style={{ position: "fixed", inset: 0, zIndex: 90, background: "var(--bg-main)" }}>
+              <button
+                className="iconbtn"
+                onClick={() => setShowConnect(false)}
+                aria-label="Back to the server"
+                style={{ position: "absolute", top: 14, right: 16, zIndex: 1 }}
+              >
+                <CloseIcon size={20} />
+              </button>
+              <ConnectView />
+            </div>
+          ) : null}
+        </>
+      )}
     </>
   );
 }

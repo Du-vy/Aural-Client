@@ -193,4 +193,36 @@ export function isDomainTrusted(domain: string): boolean {
   return list.some((trusted) => normalized === trusted || normalized.endsWith(`.${trusted}`));
 }
 
+export type MessageDensity = "cozy" | "compact";
+const DENSITY_KEY = "aural.density.v1";
+
+export function readDensity(): MessageDensity {
+  try {
+    const raw = localStorage.getItem(DENSITY_KEY);
+    return raw === "compact" ? "compact" : "cozy";
+  } catch {
+    return "cozy";
+  }
+}
+
+export function writeDensity(density: MessageDensity): void {
+  try {
+    localStorage.setItem(DENSITY_KEY, density);
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-density", density);
+    }
+  } catch {
+    // Storage is unavailable
+  }
+}
+
+export function initDensity(): MessageDensity {
+  const density = readDensity();
+  if (typeof document !== "undefined") {
+    document.documentElement.setAttribute("data-density", density);
+  }
+  return density;
+}
+
+
 

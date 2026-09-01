@@ -2,8 +2,14 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
+import { initTheme } from "./lib/theme";
+import { initDensity } from "./lib/storage";
 import "./styles/theme.css";
 import "./styles/app.css";
+
+// Initialize client theme and message density immediately before rendering
+initTheme();
+initDensity();
 
 // Suppress the default browser context menu across the app except on text inputs
 window.addEventListener("contextmenu", (event) => {
