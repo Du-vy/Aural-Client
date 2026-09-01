@@ -1118,7 +1118,11 @@
 .image-crop-overlay--banner {
   border-radius: var(--radius, 8px);
   width: 90%;
-  height: 140px;
+  /* 3:1, which is the shape the banner is saved at (960x320). A fixed height
+     here made the mask a different shape at every window width, so what came
+     out was never quite what the mask showed. */
+  aspect-ratio: 3 / 1;
+  max-height: 100%;
   margin: auto;
 }
 

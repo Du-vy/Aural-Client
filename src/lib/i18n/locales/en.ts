@@ -6,6 +6,7 @@
 export const en = {
   common: {
     save: "Save Changes",
+    saved: "Saved",
     cancel: "Cancel",
     delete: "Delete",
     edit: "Edit",
@@ -288,6 +289,10 @@ export const en = {
     gifNotice: "Animated GIF detected. Uploading directly to preserve all animations.",
     gifPreserved: "All GIF animations will be preserved on the server.",
     reset: "Reset position",
+    zoomIn: "Zoom in",
+    zoomOut: "Zoom out",
+    uploadOriginalGif: "Upload original GIF (animated)",
+    cropStatic: "Crop as still image (WebP)",
     fileTooLarge: "The selected file exceeds the maximum allowed size of {max}.",
   },
   userPanel: {
@@ -619,10 +624,12 @@ export const en = {
         klipyDesc: "KLIPY powers GIF and Sticker search throughout your server channels. Obtain a free API key from the KLIPY Partner Panel.",
         klipyKeyLabel: "KLIPY API Key",
         klipyKeyPlaceholder: "Enter your 64-character Klipy API key",
+        klipyKeyStored: "A key is stored — enter a new one to replace it",
         klipyPortalLink: "Visit KLIPY Partner Portal",
         klipyActive: "Active & Connected",
         klipyInactive: "Not Configured",
         saveKey: "Save Integration Key",
+        removeKey: "Remove Key",
         saved: "Saved!",
         createWebhook: "New Webhook",
         empty: "No webhooks configured.",

@@ -119,7 +119,12 @@ export interface ServerInfo {
   guestsAllowed: boolean;
   voiceMode: VoiceMode;
   uploads: UploadLimits;
-  klipyApiKey?: string;
+  /**
+   * Whether this server will proxy GIF and sticker lookups. The credential
+   * behind it is the operator's and never reaches a client: this preview is
+   * unauthenticated, so anything in it is public.
+   */
+  klipyEnabled?: boolean;
 }
 
 /**

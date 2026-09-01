@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { useSession } from "@/store/session";
-import type { UserStatus } from "@/lib/protocol";
+import { describeError, type UserStatus } from "@/lib/protocol";
 import { Avatar } from "./Avatar";
 import { CheckIcon, GearIcon, SparklesIcon } from "./Icons";
 
 interface StatusPopoverProps {
   onClose(): void;
   onOpenSettings(): void;
-  anchorRef?: React.RefObject<HTMLElement | null>;
 }
 
 type PresenceStatus = "online" | "idle" | "dnd" | "invisible";
@@ -55,6 +54,7 @@ export function StatusPopover({ onClose, onOpenSettings }: StatusPopoverProps) {
 
   const [customStatus, setCustomStatus] = useState(self?.customStatus ?? "");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [editingCustom, setEditingCustom] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -85,9 +85,12 @@ export function StatusPopover({ onClose, onOpenSettings }: StatusPopoverProps) {
   async function handleSelectStatus(status: PresenceStatus) {
     if (busy) return;
     setBusy(true);
+    setError(null);
     try {
       await setStatus(status);
       onClose();
+    } catch (caught) {
+      setError(describeError(caught));
     } finally {
       setBusy(false);
     }
@@ -97,9 +100,12 @@ export function StatusPopover({ onClose, onOpenSettings }: StatusPopoverProps) {
     e.preventDefault();
     if (busy) return;
     setBusy(true);
+    setError(null);
     try {
       await updateProfile({ customStatus: customStatus.trim() });
       setEditingCustom(false);
+    } catch (caught) {
+      setError(describeError(caught));
     } finally {
       setBusy(false);
     }
@@ -108,10 +114,13 @@ export function StatusPopover({ onClose, onOpenSettings }: StatusPopoverProps) {
   async function handleClearCustomStatus() {
     if (busy) return;
     setBusy(true);
+    setError(null);
     try {
       await updateProfile({ customStatus: "" });
       setCustomStatus("");
       setEditingCustom(false);
+    } catch (caught) {
+      setError(describeError(caught));
     } finally {
       setBusy(false);
     }
@@ -136,6 +145,8 @@ export function StatusPopover({ onClose, onOpenSettings }: StatusPopoverProps) {
             </span>
           </div>
         </div>
+
+        {error ? <div className="alert alert--danger">{error}</div> : null}
 
         {/* Custom status field */}
         <div className="status-popover__custom-status">

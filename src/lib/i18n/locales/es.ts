@@ -3,6 +3,7 @@ import type { TranslationSchema } from "./en";
 export const es: TranslationSchema = {
   common: {
     save: "Guardar Cambios",
+    saved: "Guardado",
     cancel: "Cancelar",
     delete: "Eliminar",
     edit: "Editar",
@@ -285,6 +286,10 @@ export const es: TranslationSchema = {
     gifNotice: "GIF animado detectado. Se subirá directamente para conservar todas las animaciones.",
     gifPreserved: "Todas las animaciones del GIF se conservarán tal cual en el servidor.",
     reset: "Restablecer posición",
+    zoomIn: "Acercar",
+    zoomOut: "Alejar",
+    uploadOriginalGif: "Subir GIF original (animado)",
+    cropStatic: "Recortar como imagen fija (WebP)",
     fileTooLarge: "El archivo seleccionado supera el límite máximo permitido de {max}.",
   },
   userPanel: {
@@ -616,10 +621,12 @@ export const es: TranslationSchema = {
         klipyDesc: "KLIPY permite buscar y enviar GIFs y Stickers en todos los canales. Puedes obtener una clave de API gratuita en el Panel de Socios de KLIPY.",
         klipyKeyLabel: "Clave de API de KLIPY",
         klipyKeyPlaceholder: "Introduce tu API Key de 64 caracteres de Klipy",
+        klipyKeyStored: "Hay una clave guardada — introduce otra para reemplazarla",
         klipyPortalLink: "Ir al Panel de Socios de KLIPY",
         klipyActive: "Activo y Conectado",
         klipyInactive: "No configurado",
         saveKey: "Guardar Clave de Integración",
+        removeKey: "Quitar Clave",
         saved: "¡Guardado!",
         createWebhook: "Nuevo Webhook",
         empty: "No hay integraciones ni webhooks configurados.",

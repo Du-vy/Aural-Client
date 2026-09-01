@@ -71,9 +71,18 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
     setZoom((prev) => Math.max(0.2, Math.min(4, Number((prev + delta).toFixed(3)))));
   };
 
+  // Confirming is what closes the dialog, but not every path gets there: a
+  // canvas that will not give a context, or a blob that never arrives, both
+  // return without it. Clearing the flag here is what stops those leaving the
+  // dialog open with every button disabled.
+  const finish = (result: File) => {
+    setProcessing(false);
+    onConfirm(result);
+  };
+
   const handleApplyCropped = async () => {
     if (!imgRef.current || !containerRef.current) {
-      onConfirm(file);
+      finish(file);
       return;
     }
     setProcessing(true);
@@ -94,7 +103,7 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
       const ctx = canvas.getContext("2d");
 
       if (!ctx) {
-        onConfirm(file);
+        finish(file);
         return;
       }
 
@@ -126,7 +135,7 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
       canvas.toBlob(
         (blob) => {
           if (!blob) {
-            onConfirm(file);
+            finish(file);
             return;
           }
           const outputExt = file.type === "image/png" ? "png" : "webp";
@@ -135,13 +144,13 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
             type: outputType,
             lastModified: Date.now(),
           });
-          onConfirm(croppedFile);
+          finish(croppedFile);
         },
         file.type === "image/png" ? "image/png" : "image/webp",
         0.92,
       );
     } catch {
-      onConfirm(file);
+      finish(file);
     }
   };
 
@@ -196,7 +205,7 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
             type="button"
             className="btn btn--sm btn--ghost"
             onClick={() => setZoom((prev) => Math.max(0.2, Number((prev - 0.15).toFixed(2))))}
-            title="Zoom Out"
+            title={t("crop.zoomOut")}
           >
             −
           </button>
@@ -213,7 +222,7 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
             type="button"
             className="btn btn--sm btn--ghost"
             onClick={() => setZoom((prev) => Math.min(4, Number((prev + 0.15).toFixed(2))))}
-            title="Zoom In"
+            title={t("crop.zoomIn")}
           >
             +
           </button>
@@ -254,7 +263,7 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
               disabled={processing}
             >
               <UploadIcon size={16} />
-              <span>Subir GIF Original (Animado)</span>
+              <span>{t("crop.uploadOriginalGif")}</span>
             </button>
           ) : null}
 
@@ -265,7 +274,7 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
             disabled={processing}
           >
             <CheckIcon size={16} />
-            <span>{processing ? t("common.loading") : isGif ? "Recortar Estático (WebP)" : t("common.save")}</span>
+            <span>{processing ? t("common.loading") : isGif ? t("crop.cropStatic") : t("common.save")}</span>
           </button>
         </div>
       </div>

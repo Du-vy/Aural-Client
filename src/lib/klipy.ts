@@ -1,9 +1,19 @@
 /**
- * KLIPY API client for GIFs and Stickers.
+ * GIFs and stickers, fetched through the connected Aural server rather than
+ * from api.klipy.com directly.
  *
- * Direct integration with api.klipy.com. Includes in-memory caching
- * to respect the 100 requests/hour limit for development API keys.
+ * The credential is the operator's, and Klipy carries it in the request path,
+ * so a client that held it would leak it into every proxy log between here and
+ * there. The server keeps it and answers these calls under it, which also means
+ * one cache in front of one key serves the whole room: a Klipy key is rated by
+ * the hour, not by the member.
+ *
+ * The shapes below are Klipy's own, unchanged — the proxy hands its answer back
+ * untouched, so it is invisible to this module beyond the address.
  */
+
+import { useSession } from "@/store/session";
+import { AuralError, type ProtocolError } from "./protocol";
 
 export interface KlipyMediaFormat {
   url: string;
@@ -44,7 +54,12 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
-const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+/**
+ * A short cache in front of the server's own longer one. This is only about
+ * saving a round trip while somebody flicks between tabs; the cache that keeps
+ * the server inside its Klipy allowance lives on the server.
+ */
+const CACHE_TTL_MS = 5 * 60 * 1000;
 const cache = new Map<string, CacheEntry<unknown>>();
 
 function getCached<T>(key: string): T | null {
@@ -61,107 +76,101 @@ function setCached<T>(key: string, data: T): void {
   cache.set(key, { data, timestamp: Date.now() });
 }
 
-const BASE_URL = "https://api.klipy.com/api/v1";
-
-/**
- * Fetches GIF categories for the initial category card grid.
- */
-export async function getGifCategories(apiKey: string): Promise<KlipyCategory[]> {
-  const cacheKey = `categories:${apiKey}`;
-  const cached = getCached<KlipyCategory[]>(cacheKey);
-  if (cached) return cached;
-
-  const url = `${BASE_URL}/${encodeURIComponent(apiKey)}/gifs/categories`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`KLIPY API error: ${response.status}`);
+/** Thrown when the picker is opened against a server that cannot answer. */
+export class KlipyUnavailable extends Error {
+  constructor() {
+    super("This server has no Klipy integration configured.");
+    this.name = "KlipyUnavailable";
   }
-  const result = await response.json();
-  const categories: KlipyCategory[] = result?.data?.categories ?? [];
-  setCached(cacheKey, categories);
-  return categories;
+}
+
+/** The proxy endpoint for one lookup on the connected server. */
+function endpoint(kind: "gifs" | "stickers", action: string, params: Record<string, string>): string {
+  const { address } = useSession.getState();
+  if (!address) throw new KlipyUnavailable();
+
+  const scheme = address.secure ? "https" : "http";
+  const host = address.host.includes(":") && !address.host.startsWith("[")
+    ? `[${address.host}]`
+    : address.host;
+
+  const query = new URLSearchParams(params).toString();
+  return `${scheme}://${host}:${address.port}/klipy/${kind}/${action}${query ? `?${query}` : ""}`;
 }
 
 /**
- * Fetches trending GIFs.
+ * Runs one lookup, caching the parsed result under the request that produced it.
+ *
+ * A failure is not cached: unlike a result, it says nothing about the query, and
+ * remembering it would keep a picker empty long after the server recovered.
  */
-export async function getTrendingGifs(apiKey: string, limit = 30): Promise<KlipyMediaItem[]> {
-  const cacheKey = `gifs:trending:${apiKey}:${limit}`;
-  const cached = getCached<KlipyMediaItem[]>(cacheKey);
+async function lookup<T>(
+  kind: "gifs" | "stickers",
+  action: string,
+  params: Record<string, string>,
+  pick: (body: unknown) => T,
+): Promise<T> {
+  const cacheKey = `${kind}/${action}?${new URLSearchParams(params).toString()}`;
+  const cached = getCached<T>(cacheKey);
   if (cached) return cached;
 
-  const url = `${BASE_URL}/${encodeURIComponent(apiKey)}/gifs/trending?limit=${limit}`;
-  const response = await fetch(url);
+  const { token } = useSession.getState();
+  if (!token) throw new KlipyUnavailable();
+
+  const response = await fetch(endpoint(kind, action, params), {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(10_000),
+  });
+
   if (!response.ok) {
-    throw new Error(`KLIPY API error: ${response.status}`);
+    const raw = await response.text();
+    try {
+      const body = JSON.parse(raw) as { error?: ProtocolError };
+      if (body.error?.code) throw new AuralError(body.error);
+    } catch (caught) {
+      if (caught instanceof AuralError) throw caught;
+    }
+    throw new Error(`The server answered ${response.status}.`);
   }
-  const result = await response.json();
-  const items: KlipyMediaItem[] = result?.data?.data ?? [];
-  setCached(cacheKey, items);
-  return items;
+
+  const picked = pick(await response.json());
+  setCached(cacheKey, picked);
+  return picked;
 }
 
-/**
- * Searches GIFs by term.
- */
-export async function searchGifs(apiKey: string, query: string, limit = 30): Promise<KlipyMediaItem[]> {
+/** The list of items Klipy wraps in its envelope, whatever the collection. */
+function itemsOf(body: unknown): KlipyMediaItem[] {
+  return (body as { data?: { data?: KlipyMediaItem[] } })?.data?.data ?? [];
+}
+
+/** Fetches GIF categories for the initial category card grid. */
+export function getGifCategories(): Promise<KlipyCategory[]> {
+  return lookup("gifs", "categories", {}, (body) =>
+    (body as { data?: { categories?: KlipyCategory[] } })?.data?.categories ?? []);
+}
+
+/** Fetches trending GIFs. */
+export function getTrendingGifs(limit = 30): Promise<KlipyMediaItem[]> {
+  return lookup("gifs", "trending", { limit: String(limit) }, itemsOf);
+}
+
+/** Searches GIFs by term. */
+export function searchGifs(query: string, limit = 30): Promise<KlipyMediaItem[]> {
   const trimmed = query.trim().toLowerCase();
-  if (!trimmed) return getTrendingGifs(apiKey, limit);
-
-  const cacheKey = `gifs:search:${apiKey}:${trimmed}:${limit}`;
-  const cached = getCached<KlipyMediaItem[]>(cacheKey);
-  if (cached) return cached;
-
-  const url = `${BASE_URL}/${encodeURIComponent(apiKey)}/gifs/search?q=${encodeURIComponent(trimmed)}&limit=${limit}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`KLIPY API error: ${response.status}`);
-  }
-  const result = await response.json();
-  const items: KlipyMediaItem[] = result?.data?.data ?? [];
-  setCached(cacheKey, items);
-  return items;
+  if (!trimmed) return getTrendingGifs(limit);
+  return lookup("gifs", "search", { q: trimmed, limit: String(limit) }, itemsOf);
 }
 
-/**
- * Fetches trending stickers.
- */
-export async function getTrendingStickers(apiKey: string, limit = 30): Promise<KlipyMediaItem[]> {
-  const cacheKey = `stickers:trending:${apiKey}:${limit}`;
-  const cached = getCached<KlipyMediaItem[]>(cacheKey);
-  if (cached) return cached;
-
-  const url = `${BASE_URL}/${encodeURIComponent(apiKey)}/stickers/trending?limit=${limit}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`KLIPY API error: ${response.status}`);
-  }
-  const result = await response.json();
-  const items: KlipyMediaItem[] = result?.data?.data ?? [];
-  setCached(cacheKey, items);
-  return items;
+/** Fetches trending stickers. */
+export function getTrendingStickers(limit = 30): Promise<KlipyMediaItem[]> {
+  return lookup("stickers", "trending", { limit: String(limit) }, itemsOf);
 }
 
-/**
- * Searches stickers by term.
- */
-export async function searchStickers(apiKey: string, query: string, limit = 30): Promise<KlipyMediaItem[]> {
+/** Searches stickers by term. */
+export function searchStickers(query: string, limit = 30): Promise<KlipyMediaItem[]> {
   const trimmed = query.trim().toLowerCase();
-  if (!trimmed) return getTrendingStickers(apiKey, limit);
-
-  const cacheKey = `stickers:search:${apiKey}:${trimmed}:${limit}`;
-  const cached = getCached<KlipyMediaItem[]>(cacheKey);
-  if (cached) return cached;
-
-  const url = `${BASE_URL}/${encodeURIComponent(apiKey)}/stickers/search?q=${encodeURIComponent(trimmed)}&limit=${limit}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`KLIPY API error: ${response.status}`);
-  }
-  const result = await response.json();
-  const items: KlipyMediaItem[] = result?.data?.data ?? [];
-  setCached(cacheKey, items);
-  return items;
+  if (!trimmed) return getTrendingStickers(limit);
+  return lookup("stickers", "search", { q: trimmed, limit: String(limit) }, itemsOf);
 }
 
 /**

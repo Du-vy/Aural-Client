@@ -371,7 +371,7 @@ function ProfilePage() {
       </header>
 
       {error ? <div className="alert alert--danger">{error}</div> : null}
-      {saved ? <div className="alert alert--info">{t("common.save")}</div> : null}
+      {saved ? <div className="alert alert--info">{t("common.saved")}</div> : null}
       {uploadProgress !== null ? (
         <div className="alert alert--info">
           {t("common.loading")} {Math.round(uploadProgress * 100)}%

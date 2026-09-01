@@ -16,7 +16,7 @@ import {
   type EmojiEntry,
   type SkinToneKey,
 } from "@/lib/emoji-catalogue";
-import { getTwemojiUrl } from "@/lib/twemoji";
+import { getTwemojiFallbackUrl, getTwemojiUrl } from "@/lib/twemoji";
 import {
   getGifCategories,
   getMediaPreviewUrl,
@@ -85,8 +85,9 @@ export function EmojiPicker({
     imgUrl?: string;
   } | null>(null);
 
-  // KLIPY State
-  const klipyApiKey = server?.klipyApiKey?.trim() || "";
+  // KLIPY State. The credential lives on the server, which proxies the
+  // lookups; all a client needs to know is whether it will answer.
+  const klipyEnabled = server?.klipyEnabled ?? false;
   const [categories, setCategories] = useState<KlipyCategory[]>([]);
   const [gifs, setGifs] = useState<KlipyMediaItem[]>([]);
   const [stickers, setStickers] = useState<KlipyMediaItem[]>([]);
@@ -167,55 +168,61 @@ export function EmojiPicker({
 
   // Load GIF categories when GIF tab is active
   useEffect(() => {
-    if (tab === "gifs" && klipyApiKey && categories.length === 0) {
-      getGifCategories(klipyApiKey)
+    if (tab === "gifs" && klipyEnabled && categories.length === 0) {
+      getGifCategories()
         .then((cats) => setCategories(cats))
         .catch(() => setCategories([]));
     }
-  }, [tab, klipyApiKey, categories.length]);
+  }, [tab, klipyEnabled, categories.length]);
 
   // Fetch GIFs (trending or search) with debounce
   useEffect(() => {
-    if (tab !== "gifs" || !klipyApiKey) return;
+    if (tab !== "gifs" || !klipyEnabled) return;
     const trimmed = query.trim();
     if (!trimmed) {
+      // Clearing the box cancels the search it was typing, and with it the
+      // spinner that search had put up.
       setGifs([]);
+      setLoadingMedia(false);
       return;
     }
 
     setLoadingMedia(true);
+    let current = true;
     const timer = setTimeout(() => {
-      searchGifs(klipyApiKey, trimmed)
-        .then((items) => setGifs(items))
-        .catch(() => setGifs([]))
-        .finally(() => setLoadingMedia(false));
+      searchGifs(trimmed)
+        .then((items) => current && setGifs(items))
+        .catch(() => current && setGifs([]))
+        .finally(() => current && setLoadingMedia(false));
     }, 280);
 
-    return () => clearTimeout(timer);
-  }, [tab, query, klipyApiKey]);
+    return () => {
+      // A reply that arrives after the query moved on describes the old one.
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [tab, query, klipyEnabled]);
 
   // Fetch Stickers with debounce
   useEffect(() => {
-    if (tab !== "stickers" || !klipyApiKey) return;
+    if (tab !== "stickers" || !klipyEnabled) return;
     setLoadingMedia(true);
     const trimmed = query.trim();
 
+    let current = true;
     const timer = setTimeout(() => {
-      if (!trimmed) {
-        getTrendingStickers(klipyApiKey)
-          .then((items) => setStickers(items))
-          .catch(() => setStickers([]))
-          .finally(() => setLoadingMedia(false));
-      } else {
-        searchStickers(klipyApiKey, trimmed)
-          .then((items) => setStickers(items))
-          .catch(() => setStickers([]))
-          .finally(() => setLoadingMedia(false));
-      }
+      const wanted = trimmed ? searchStickers(trimmed) : getTrendingStickers();
+      wanted
+        .then((items) => current && setStickers(items))
+        .catch(() => current && setStickers([]))
+        .finally(() => current && setLoadingMedia(false));
     }, 280);
 
-    return () => clearTimeout(timer);
-  }, [tab, query, klipyApiKey]);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [tab, query, klipyEnabled]);
 
   const results = useMemo(() => (tab === "emojis" ? searchEmoji(query) : []), [query, tab]);
   const searching = query.trim() !== "";
@@ -430,7 +437,7 @@ export function EmojiPicker({
         {/* GIF TAB */}
         {tab === "gifs" && (
           <div className="picker__body picker__body--gifs" ref={scroller}>
-            {!klipyApiKey ? (
+            {!klipyEnabled ? (
               <div className="picker__notice">
                 <div className="picker__notice-icon">
                   <GifIcon size={32} />
@@ -518,7 +525,7 @@ export function EmojiPicker({
         {/* STICKERS TAB */}
         {tab === "stickers" && (
           <div className="picker__body picker__body--stickers" ref={scroller}>
-            {!klipyApiKey ? (
+            {!klipyEnabled ? (
               <div className="picker__notice">
                 <div className="picker__notice-icon">
                   <GifIcon size={32} />
@@ -640,9 +647,19 @@ export function EmojiPicker({
                               height={22}
                               loading="lazy"
                               draggable={false}
-                              onError={(e) => {
-                                // Fallback to Unicode character text if CDN has issue
-                                const target = e.currentTarget;
+                              onError={(event) => {
+                                const target = event.currentTarget;
+                                // Twemoji spells a few joined emoji without
+                                // their variation selectors, so that spelling
+                                // is the second guess before giving up.
+                                const fallback = getTwemojiFallbackUrl(character);
+                                if (!target.dataset.retried && target.src !== fallback) {
+                                  target.dataset.retried = "1";
+                                  target.src = fallback;
+                                  return;
+                                }
+                                // Neither name is there: show the system glyph
+                                // rather than a broken image.
                                 target.style.display = "none";
                                 if (target.parentElement) {
                                   target.parentElement.textContent = character;

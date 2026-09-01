@@ -580,10 +580,10 @@ export async function importThemeFromFile(file: File): Promise<AuralTheme> {
         }
 
         if (!isValidTheme(candidate)) {
-          throw new Error("El archivo no contiene un tema de Aural válido");
+          throw new Error("themeImport.invalid");
         }
 
-        const candTheme = candidate as AuralTheme;
+        const candTheme = withoutRemoteBackground(candidate as AuralTheme);
         // Assign a new custom id so it doesn't overwrite accidentally
         const importedTheme: AuralTheme = {
           ...candTheme,
@@ -596,10 +596,10 @@ export async function importThemeFromFile(file: File): Promise<AuralTheme> {
         setActiveTheme(importedTheme.id);
         resolve(importedTheme);
       } catch (err) {
-        reject(err instanceof Error ? err : new Error("Error al procesar el archivo"));
+        reject(err instanceof Error ? err : new Error("themeImport.unreadable"));
       }
     };
-    reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+    reader.onerror = () => reject(new Error("themeImport.unreadable"));
     reader.readAsText(file);
   });
 }
@@ -608,17 +608,73 @@ export async function importThemeFromFile(file: File): Promise<AuralTheme> {
 /* Validation                                                                 */
 /* -------------------------------------------------------------------------- */
 
+/** Every colour applyTheme sets. A theme missing one cannot be applied whole. */
+const COLOR_KEYS: readonly (keyof ThemeColors)[] = [
+  "bgRail", "bgSidebar", "bgMain", "bgRaised", "bgOverlay", "bgInput",
+  "text", "textMuted", "textDim",
+  "accent", "accentHover", "danger", "border",
+];
+
+/**
+ * A CSS colour, as narrowly as is worth checking here.
+ *
+ * The point is not to reimplement the CSS parser: it is that a theme file
+ * arrives from wherever the person who shared it got it, and every one of these
+ * strings is written straight into a custom property. Something that is not a
+ * colour reaches the page as `url(...)`, which would fetch it.
+ */
+const CSS_COLOR =
+  /^(#[0-9a-f]{3,8}|(rgb|hsl)a?\([0-9a-z%.,\/\s+-]*\)|[a-z]+)$/i;
+
+function isColor(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 64 && CSS_COLOR.test(value.trim());
+}
+
+/**
+ * Whether a parsed file is a theme this client can apply.
+ *
+ * It checks every colour rather than a sample of three. A theme that passes
+ * with nine of thirteen leaves applyTheme writing `undefined` into the rest,
+ * which the CSS engine discards — so the missing half stays whatever the last
+ * theme set, and the result is neither theme.
+ */
 function isValidTheme(value: unknown): value is AuralTheme {
   if (typeof value !== "object" || value === null) return false;
   const cand = value as Record<string, unknown>;
   if (typeof cand.id !== "string" || typeof cand.name !== "string") return false;
   if (!cand.colors || typeof cand.colors !== "object") return false;
+
   const colors = cand.colors as Record<string, unknown>;
-  return (
-    typeof colors.bgMain === "string" &&
-    typeof colors.bgSidebar === "string" &&
-    typeof colors.accent === "string"
-  );
+  if (!COLOR_KEYS.every((key) => isColor(colors[key]))) return false;
+
+  if (cand.fontSize !== undefined) {
+    if (typeof cand.fontSize !== "number" || !Number.isFinite(cand.fontSize)) return false;
+    if (cand.fontSize < 10 || cand.fontSize > 28) return false;
+  }
+  if (cand.fontFamily !== undefined) {
+    if (typeof cand.fontFamily !== "string" || cand.fontFamily.length > 200) return false;
+  }
+  if (cand.background !== undefined) {
+    if (typeof cand.background !== "object" || cand.background === null) return false;
+    const bg = cand.background as Record<string, unknown>;
+    if (typeof bg.imageUrl !== "string") return false;
+  }
+  return true;
+}
+
+/**
+ * Strips the part of an imported theme that would reach outside this machine.
+ *
+ * A background is written into `url("...")`, so a remote one has every person
+ * who applies the theme fetch it — a beacon for whoever wrote the file, dressed
+ * as a wallpaper. Typing that URL in yourself is your own business; inheriting
+ * it from a file somebody sent you is not, so an import keeps only a background
+ * that is already embedded in the file.
+ */
+function withoutRemoteBackground(theme: AuralTheme): AuralTheme {
+  const url = theme.background?.imageUrl ?? "";
+  if (url === "" || url.startsWith("data:image/")) return theme;
+  return { ...theme, background: { ...theme.background!, imageUrl: "" } };
 }
 
 /* -------------------------------------------------------------------------- */

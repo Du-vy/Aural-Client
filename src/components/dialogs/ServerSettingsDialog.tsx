@@ -830,27 +830,27 @@ function ServerIntegrationsPage() {
   const updateServer = useSession((state) => state.updateServer);
   const permissions = useMyPermissions();
 
-  const [klipyKey, setKlipyKey] = useState(server?.klipyApiKey ?? "");
+  // The key is write-only: the server tells us whether one is stored, never
+  // what it is, so the field starts empty and saving replaces whatever is
+  // there. A secret that could be read back out of a settings screen would be
+  // a secret anyone who reaches this screen has.
+  const [klipyKey, setKlipyKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const allowed = has(permissions, Perm.ManageServer);
-  const isConfigured = Boolean(server?.klipyApiKey && server.klipyApiKey.trim().length > 0);
-  const isDirty = klipyKey.trim() !== (server?.klipyApiKey ?? "");
+  const isConfigured = server?.klipyEnabled ?? false;
+  const isDirty = klipyKey.trim() !== "";
 
-  useEffect(() => {
-    setKlipyKey(server?.klipyApiKey ?? "");
-  }, [server?.klipyApiKey]);
-
-  async function handleSave(e?: FormEvent) {
-    if (e) e.preventDefault();
-    if (!allowed || busy || !isDirty) return;
+  async function submitKey(value: string) {
+    if (!allowed || busy) return;
     setBusy(true);
     setError(null);
     setSaved(false);
     try {
-      await updateServer({ klipyApiKey: klipyKey.trim() });
+      await updateServer({ klipyApiKey: value });
+      setKlipyKey("");
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (caught) {
@@ -858,6 +858,18 @@ function ServerIntegrationsPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleSave(e?: FormEvent) {
+    if (e) e.preventDefault();
+    if (!isDirty) return;
+    await submitKey(klipyKey.trim());
+  }
+
+  // Removing is its own action rather than saving an empty field: with nothing
+  // shown to clear, an empty box means "leave it alone", not "delete it".
+  async function handleRemove() {
+    await submitKey("");
   }
 
   return (
@@ -924,7 +936,11 @@ function ServerIntegrationsPage() {
               style={{ width: "100%", fontFamily: "monospace", fontSize: 13 }}
               value={klipyKey}
               onChange={(e) => setKlipyKey(e.target.value)}
-              placeholder={t("dialogs.serverSettings.integrations.klipyKeyPlaceholder")}
+              placeholder={
+                isConfigured
+                  ? t("dialogs.serverSettings.integrations.klipyKeyStored")
+                  : t("dialogs.serverSettings.integrations.klipyKeyPlaceholder")
+              }
               disabled={!allowed || busy}
               autoComplete="off"
               spellCheck={false}
@@ -949,7 +965,17 @@ function ServerIntegrationsPage() {
           )}
 
           {allowed && (
-            <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              {isConfigured && (
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => void handleRemove()}
+                  disabled={busy}
+                >
+                  {t("dialogs.serverSettings.integrations.removeKey")}
+                </button>
+              )}
               <button
                 type="submit"
                 className="btn btn--primary"

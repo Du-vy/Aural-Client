@@ -74,11 +74,7 @@ export function isMarkdown(attachment: Attachment): boolean {
  */
 export function attachmentUrl(address: ServerAddress | null, attachment: Attachment): string {
   if (!address) return attachment.url;
-  const scheme = address.secure ? "https" : "http";
-  const host = address.host.includes(":") && !address.host.startsWith("[")
-    ? `[${address.host}]`
-    : address.host;
-  return `${scheme}://${host}:${address.port}${attachment.url}`;
+  return `${origin(address)}${attachment.url}`;
 }
 
 /**
@@ -129,13 +125,18 @@ export interface RunningUpload {
   cancel(): void;
 }
 
-/** The endpoint one file is posted to. */
-function uploadEndpoint(address: ServerAddress, channelId: number): string {
+/** The scheme, host and port of a server, with IPv6 bracketed. */
+function origin(address: ServerAddress): string {
   const scheme = address.secure ? "https" : "http";
   const host = address.host.includes(":") && !address.host.startsWith("[")
     ? `[${address.host}]`
     : address.host;
-  return `${scheme}://${host}:${address.port}/upload?channel=${channelId}`;
+  return `${scheme}://${host}:${address.port}`;
+}
+
+/** The endpoint one file is posted to. */
+function uploadEndpoint(address: ServerAddress, channelId: number): string {
+  return `${origin(address)}/upload?channel=${channelId}`;
 }
 
 /**
@@ -151,91 +152,14 @@ function uploadEndpoint(address: ServerAddress, channelId: number): string {
  * courtesy the browser can afford.
  */
 export function uploadFile(options: UploadOptions): RunningUpload {
-  if (typeof XMLHttpRequest === "undefined") {
-    return uploadWithFetch(options);
-  }
-
   const { address, token, channelId, file, onProgress } = options;
-
-  const request = new XMLHttpRequest();
-  const url = uploadEndpoint(address, channelId);
-
-  const done = new Promise<Attachment>((resolve, reject) => {
-    request.open("POST", url, true);
-    request.setRequestHeader("Authorization", `Bearer ${token}`);
-    // The boundary has to be the one the browser generates, so Content-Type is
-    // deliberately not set here: setting it would send a boundary that does not
-    // match the body.
-    request.responseType = "text";
-
-    request.upload.onprogress = (event) => {
-      if (event.lengthComputable && event.total > 0) {
-        onProgress?.(event.loaded / event.total);
-      }
-    };
-
-    request.onload = () => {
-      if (request.status === 201) {
-        try {
-          resolve(JSON.parse(request.responseText) as Attachment);
-        } catch {
-          reject(new Error("The server accepted the file but described it oddly."));
-        }
-        return;
-      }
-      reject(errorFromBody(request.responseText, request.status));
-    };
-
-    request.onerror = () => reject(new Error("The file could not be sent."));
-    request.onabort = () => reject(new UploadCancelled());
-    request.ontimeout = () => reject(new Error("The upload timed out."));
-
-    const body = new FormData();
-    body.append("file", file, file.name);
-    request.send(body);
+  return post<Attachment>({
+    url: uploadEndpoint(address, channelId),
+    token,
+    file,
+    onProgress,
+    accepts: (status) => status === 201,
   });
-
-  return { done, cancel: () => request.abort() };
-}
-
-/** The fetch path, for anywhere XMLHttpRequest does not exist. */
-function uploadWithFetch(options: UploadOptions): RunningUpload {
-  const { address, token, channelId, file } = options;
-  const controller = new AbortController();
-
-  const body = new FormData();
-  body.append("file", file, file.name);
-
-  const done = (async () => {
-    let response: Response;
-    try {
-      response = await fetch(uploadEndpoint(address, channelId), {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body,
-        signal: controller.signal,
-      });
-    } catch (error) {
-      if (controller.signal.aborted) throw new UploadCancelled();
-      throw new Error("The file could not be sent.");
-    }
-
-    if (response.status !== 201) {
-      const raw = await response.text();
-      throw errorFromBody(raw, response.status);
-    }
-    return (await response.json()) as Attachment;
-  })();
-
-  return { done, cancel: () => controller.abort() };
-}
-
-/** Thrown when an upload was cancelled deliberately, which is not a failure. */
-export class UploadCancelled extends Error {
-  constructor() {
-    super("Upload cancelled.");
-    this.name = "UploadCancelled";
-  }
 }
 
 export interface MediaUploadOptions {
@@ -256,11 +180,7 @@ export interface RunningMediaUpload {
 }
 
 function mediaUploadEndpoint(address: ServerAddress, type: "avatar" | "banner"): string {
-  const scheme = address.secure ? "https" : "http";
-  const host = address.host.includes(":") && !address.host.startsWith("[")
-    ? `[${address.host}]`
-    : address.host;
-  return `${scheme}://${host}:${address.port}/upload/${type}`;
+  return `${origin(address)}/upload/${type}`;
 }
 
 export function uploadAvatar(options: MediaUploadOptions): RunningMediaUpload {
@@ -273,41 +193,75 @@ export function uploadBanner(options: MediaUploadOptions): RunningMediaUpload {
 
 function uploadMediaFile(options: MediaUploadOptions, type: "avatar" | "banner"): RunningMediaUpload {
   const { address, token, file, onProgress } = options;
-  const url = mediaUploadEndpoint(address, type);
+  return post<MediaUploadResult>({
+    url: mediaUploadEndpoint(address, type),
+    token,
+    file,
+    onProgress,
+    accepts: (status) => status >= 200 && status < 300,
+  });
+}
+
+interface PostOptions {
+  url: string;
+  token: string;
+  file: File;
+  onProgress?(fraction: number): void;
+  /** Which status the endpoint answers with when it worked. */
+  accepts(status: number): boolean;
+}
+
+/**
+ * Posts one file and reads back the JSON the endpoint answers with.
+ *
+ * XMLHttpRequest rather than fetch, for the one thing fetch still cannot do:
+ * report how far a request body has been sent. Without that a large file is a
+ * spinner for a minute, which is indistinguishable from a client that hung.
+ *
+ * Where there is no XMLHttpRequest at all — outside a browser, which is where
+ * the end-to-end check runs — it falls back to fetch and simply reports no
+ * progress. The upload is the part that has to work everywhere; the bar is a
+ * courtesy the browser can afford.
+ */
+function post<T>(options: PostOptions): { done: Promise<T>; cancel(): void } {
+  const { url, token, file, onProgress, accepts } = options;
+
+  const body = () => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    return form;
+  };
 
   if (typeof XMLHttpRequest === "undefined") {
     const controller = new AbortController();
-    const body = new FormData();
-    body.append("file", file, file.name);
-
     const done = (async () => {
       let response: Response;
       try {
         response = await fetch(url, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
-          body,
+          body: body(),
           signal: controller.signal,
         });
       } catch {
         if (controller.signal.aborted) throw new UploadCancelled();
         throw new Error("The file could not be sent.");
       }
-
-      if (response.status < 200 || response.status >= 300) {
-        const raw = await response.text();
-        throw errorFromBody(raw, response.status);
+      if (!accepts(response.status)) {
+        throw errorFromBody(await response.text(), response.status);
       }
-      return (await response.json()) as MediaUploadResult;
+      return (await response.json()) as T;
     })();
-
     return { done, cancel: () => controller.abort() };
   }
 
   const request = new XMLHttpRequest();
-  const done = new Promise<MediaUploadResult>((resolve, reject) => {
+  const done = new Promise<T>((resolve, reject) => {
     request.open("POST", url, true);
     request.setRequestHeader("Authorization", `Bearer ${token}`);
+    // The boundary has to be the one the browser generates, so Content-Type is
+    // deliberately not set here: setting it would send a boundary that does not
+    // match the body.
     request.responseType = "text";
 
     request.upload.onprogress = (event) => {
@@ -317,9 +271,9 @@ function uploadMediaFile(options: MediaUploadOptions, type: "avatar" | "banner")
     };
 
     request.onload = () => {
-      if (request.status >= 200 && request.status < 300) {
+      if (accepts(request.status)) {
         try {
-          resolve(JSON.parse(request.responseText) as MediaUploadResult);
+          resolve(JSON.parse(request.responseText) as T);
         } catch {
           reject(new Error("The server accepted the file but described it oddly."));
         }
@@ -332,12 +286,18 @@ function uploadMediaFile(options: MediaUploadOptions, type: "avatar" | "banner")
     request.onabort = () => reject(new UploadCancelled());
     request.ontimeout = () => reject(new Error("The upload timed out."));
 
-    const body = new FormData();
-    body.append("file", file, file.name);
-    request.send(body);
+    request.send(body());
   });
 
   return { done, cancel: () => request.abort() };
+}
+
+/** Thrown when an upload was cancelled deliberately, which is not a failure. */
+export class UploadCancelled extends Error {
+  constructor() {
+    super("Upload cancelled.");
+    this.name = "UploadCancelled";
+  }
 }
 
 /**

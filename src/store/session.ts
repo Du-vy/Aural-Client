@@ -374,7 +374,16 @@ export const useSession = create<SessionState>((set, get) => {
       case Ev.UserUpdated: {
         const { user } = payload as UserEvent;
         const users = new Map(state.users);
-        users.set(user.id, user);
+        // This map holds who is connected, and nobody else: a genuinely
+        // offline user never reaches it. So an entry that looks offline could
+        // only ever be somebody hiding, which is exactly what it would give
+        // away. A server that masks presence properly never sends one; this is
+        // what keeps an older or patched one from undoing the hiding.
+        if (user.id !== state.self?.id && (user.status === "offline" || !user.online)) {
+          users.delete(user.id);
+        } else {
+          users.set(user.id, user);
+        }
         set({
           users,
           self: state.self?.id === user.id ? user : state.self,
@@ -766,7 +775,15 @@ export const useSession = create<SessionState>((set, get) => {
     },
 
     async updateProfile(patch) {
-      await requireGateway().request(Op.UserUpdate, patch);
+      // A picture is removed by sending an empty string, never null: the server
+      // decodes a JSON null into the same absent field as a missing key, so a
+      // null would silently leave the picture exactly where it was.
+      const request = {
+        ...patch,
+        ...(patch.avatar === null ? { avatar: "" } : {}),
+        ...(patch.banner === null ? { banner: "" } : {}),
+      };
+      await requireGateway().request(Op.UserUpdate, request);
       const { savedId, self } = get();
       if (patch.nickname && savedId && (patch.userId === undefined || patch.userId === self?.id)) {
         set({ saved: upsertServer({ id: savedId, nickname: patch.nickname }) });
