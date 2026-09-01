@@ -56,7 +56,12 @@ import {
   parseSearchInput,
   type SearchToken,
 } from "@/lib/search";
-import { uploadFile, type RunningUpload } from "@/lib/uploads";
+import {
+  uploadFile,
+  uploadAvatar as uploadAvatarRequest,
+  uploadBanner as uploadBannerRequest,
+  type RunningUpload,
+} from "@/lib/uploads";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting";
 
@@ -201,6 +206,17 @@ interface SessionState {
   leaveChannel(): Promise<void>;
   moveUser(userId: number, channelId: number | null): Promise<void>;
   setNickname(nickname: string, userId?: number): Promise<void>;
+  setStatus(status: "online" | "idle" | "dnd" | "invisible"): Promise<void>;
+  updateProfile(patch: {
+    nickname?: string;
+    status?: string;
+    customStatus?: string;
+    avatar?: string | null;
+    banner?: string | null;
+    userId?: number;
+  }): Promise<void>;
+  uploadAvatar(file: File, onProgress?: (fraction: number) => void): Promise<{ url: string }>;
+  uploadBanner(file: File, onProgress?: (fraction: number) => void): Promise<{ url: string }>;
   kickUser(userId: number, reason?: string): Promise<void>;
 
   register(username: string, password: string): Promise<void>;
@@ -743,6 +759,34 @@ export const useSession = create<SessionState>((set, get) => {
       if (savedId && (userId === undefined || userId === self?.id)) {
         set({ saved: upsertServer({ id: savedId, nickname }) });
       }
+    },
+
+    async setStatus(status) {
+      await requireGateway().request(Op.UserUpdate, { status });
+    },
+
+    async updateProfile(patch) {
+      await requireGateway().request(Op.UserUpdate, patch);
+      const { savedId, self } = get();
+      if (patch.nickname && savedId && (patch.userId === undefined || patch.userId === self?.id)) {
+        set({ saved: upsertServer({ id: savedId, nickname: patch.nickname }) });
+      }
+    },
+
+    async uploadAvatar(file, onProgress) {
+      const { address, token } = get();
+      if (!address || !token) throw new Error("Not connected.");
+      const upload = uploadAvatarRequest({ address, token, file, onProgress });
+      const res = await upload.done;
+      return { url: res.url };
+    },
+
+    async uploadBanner(file, onProgress) {
+      const { address, token } = get();
+      if (!address || !token) throw new Error("Not connected.");
+      const upload = uploadBannerRequest({ address, token, file, onProgress });
+      const res = await upload.done;
+      return { url: res.url };
     },
 
     async kickUser(userId, reason) {

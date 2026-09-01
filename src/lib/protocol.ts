@@ -131,11 +131,15 @@ export interface ServerInfo {
 export interface UploadLimits {
   enabled: boolean;
   maxFileBytes: string;
+  maxAvatarBytes?: string;
+  maxBannerBytes?: string;
   /** "0" means the only ceiling is the server's disk. */
   maxTotalBytes: string;
   usedBytes: string;
   maxPerMessage: number;
 }
+
+export type UserStatus = "online" | "idle" | "dnd" | "offline" | "invisible";
 
 export interface User {
   id: number;
@@ -147,6 +151,10 @@ export interface User {
   /** null when the user is in no voice channel. */
   channelId: number | null;
   online: boolean;
+  status?: UserStatus;
+  customStatus?: string;
+  avatar?: string | null;
+  banner?: string | null;
 }
 
 /** Permission masks travel as decimal strings so 64 bits survive JavaScript. */
@@ -279,6 +287,10 @@ export interface ServerUpdateRequest {
 export interface UserUpdateRequest {
   userId?: number;
   nickname?: string;
+  status?: string;
+  customStatus?: string;
+  avatar?: string | null;
+  banner?: string | null;
 }
 
 export interface UserMoveRequest {

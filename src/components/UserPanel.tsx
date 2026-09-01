@@ -5,13 +5,14 @@ import { GearIcon, HangUpIcon, LogOutIcon } from "./Icons";
 
 interface UserPanelProps {
   onOpenAccount(): void;
+  onOpenStatus?(): void;
 }
 
 /**
- * The bottom-left panel: who you are on this server, whether you are in a voice
- * channel, and the way out of both.
+ * The bottom-left panel: who you are on this server, your current status/presence,
+ * whether you are in a voice channel, and the way out of both.
  */
-export function UserPanel({ onOpenAccount }: UserPanelProps) {
+export function UserPanel({ onOpenAccount, onOpenStatus }: UserPanelProps) {
   const { t } = useTranslation();
   const self = useSession((state) => state.self);
   const channels = useSession((state) => state.channels);
@@ -23,19 +24,32 @@ export function UserPanel({ onOpenAccount }: UserPanelProps) {
 
   const channel = self.channelId === null ? null : channels.get(self.channelId);
 
+  const statusLabel =
+    self.status === "idle"
+      ? t("status.idle")
+      : self.status === "dnd"
+        ? t("status.dnd")
+        : self.status === "invisible"
+          ? t("status.invisible")
+          : t("status.online");
+
   const state =
     status === "reconnecting"
       ? t("connect.reconnecting")
       : channel
         ? channel.name
-        : self.registered
-          ? `@${self.username}`
-          : `${t("common.guest")}`;
+        : self.customStatus
+          ? self.customStatus
+          : statusLabel;
 
   return (
     <div className="userpanel">
-      <button className="userpanel__identity" onClick={onOpenAccount} title={t("dialogs.account.title")}>
-        <Avatar user={self} size="md" online={status === "connected"} />
+      <button
+        className="userpanel__identity"
+        onClick={onOpenStatus ?? onOpenAccount}
+        title={t("status.changeStatus")}
+      >
+        <Avatar user={self} size="md" status={self.status || (status === "connected" ? "online" : "offline")} showStatus />
         <span className="userpanel__body">
           <span className="userpanel__name">{self.nickname}</span>
           <span className="userpanel__status">{state}</span>

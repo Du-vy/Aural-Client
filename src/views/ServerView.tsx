@@ -26,6 +26,7 @@ import { MemberList } from "@/components/MemberList";
 import { SearchBar } from "@/components/SearchBar";
 import { SearchResults } from "@/components/SearchResults";
 import { UserPanel } from "@/components/UserPanel";
+import { StatusPopover } from "@/components/StatusPopover";
 import { UserSettingsDialog } from "@/components/dialogs/UserSettingsDialog";
 import { ChannelDialog } from "@/components/dialogs/ChannelDialog";
 import { ConfirmDialog } from "@/components/dialogs/ConfirmDialog";
@@ -94,6 +95,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   const permissions = useMyPermissions();
 
   const [dialog, setDialog] = useState<Dialog>({ kind: "none" });
+  const [statusOpen, setStatusOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [membersOpen, setMembersOpen] = useState(() =>
@@ -461,7 +463,10 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           }}
         />
 
-        <UserPanel onOpenAccount={() => setDialog({ kind: "account" })} />
+        <UserPanel
+          onOpenAccount={() => setDialog({ kind: "account" })}
+          onOpenStatus={() => setStatusOpen(true)}
+        />
 
         <div
           className="sidebar__resizer"
@@ -574,6 +579,16 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           y={contextMenu.y}
           items={contextMenuItems}
           onClose={() => setContextMenu(null)}
+        />
+      ) : null}
+
+      {statusOpen ? (
+        <StatusPopover
+          onClose={() => setStatusOpen(false)}
+          onOpenSettings={() => {
+            setStatusOpen(false);
+            setDialog({ kind: "account" });
+          }}
         />
       ) : null}
 

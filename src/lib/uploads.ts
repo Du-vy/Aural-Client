@@ -238,6 +238,108 @@ export class UploadCancelled extends Error {
   }
 }
 
+export interface MediaUploadOptions {
+  address: ServerAddress;
+  token: string;
+  file: File;
+  onProgress?(fraction: number): void;
+}
+
+export interface MediaUploadResult {
+  url: string;
+  user?: import("./protocol").User;
+}
+
+export interface RunningMediaUpload {
+  done: Promise<MediaUploadResult>;
+  cancel(): void;
+}
+
+function mediaUploadEndpoint(address: ServerAddress, type: "avatar" | "banner"): string {
+  const scheme = address.secure ? "https" : "http";
+  const host = address.host.includes(":") && !address.host.startsWith("[")
+    ? `[${address.host}]`
+    : address.host;
+  return `${scheme}://${host}:${address.port}/upload/${type}`;
+}
+
+export function uploadAvatar(options: MediaUploadOptions): RunningMediaUpload {
+  return uploadMediaFile(options, "avatar");
+}
+
+export function uploadBanner(options: MediaUploadOptions): RunningMediaUpload {
+  return uploadMediaFile(options, "banner");
+}
+
+function uploadMediaFile(options: MediaUploadOptions, type: "avatar" | "banner"): RunningMediaUpload {
+  const { address, token, file, onProgress } = options;
+  const url = mediaUploadEndpoint(address, type);
+
+  if (typeof XMLHttpRequest === "undefined") {
+    const controller = new AbortController();
+    const body = new FormData();
+    body.append("file", file, file.name);
+
+    const done = (async () => {
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body,
+          signal: controller.signal,
+        });
+      } catch {
+        if (controller.signal.aborted) throw new UploadCancelled();
+        throw new Error("The file could not be sent.");
+      }
+
+      if (response.status < 200 || response.status >= 300) {
+        const raw = await response.text();
+        throw errorFromBody(raw, response.status);
+      }
+      return (await response.json()) as MediaUploadResult;
+    })();
+
+    return { done, cancel: () => controller.abort() };
+  }
+
+  const request = new XMLHttpRequest();
+  const done = new Promise<MediaUploadResult>((resolve, reject) => {
+    request.open("POST", url, true);
+    request.setRequestHeader("Authorization", `Bearer ${token}`);
+    request.responseType = "text";
+
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        onProgress?.(event.loaded / event.total);
+      }
+    };
+
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) {
+        try {
+          resolve(JSON.parse(request.responseText) as MediaUploadResult);
+        } catch {
+          reject(new Error("The server accepted the file but described it oddly."));
+        }
+        return;
+      }
+      reject(errorFromBody(request.responseText, request.status));
+    };
+
+    request.onerror = () => reject(new Error("The file could not be sent."));
+    request.onabort = () => reject(new UploadCancelled());
+    request.ontimeout = () => reject(new Error("The upload timed out."));
+
+    const body = new FormData();
+    body.append("file", file, file.name);
+    request.send(body);
+  });
+
+  return { done, cancel: () => request.abort() };
+}
+
 /**
  * Turns a failed upload into the same error type the WebSocket raises, so one
  * table of error codes covers both halves of the protocol.

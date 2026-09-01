@@ -5,7 +5,7 @@ import { Perm, has } from "@/lib/permissions";
 import { describeError } from "@/lib/protocol";
 import { useSession } from "@/store/session";
 import { assignableRoles, outranks, useMyPermissions } from "@/store/selectors";
-import { Avatar } from "../Avatar";
+import { Avatar, resolveAvatarUrl } from "../Avatar";
 import { Modal } from "../Modal";
 import { ConfirmDialog } from "./ConfirmDialog";
 
@@ -23,6 +23,7 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
   const self = useSession((state) => state.self);
   const roles = useSession((state) => state.roles);
   const channels = useSession((state) => state.channels);
+  const address = useSession((state) => state.address);
   const setRoleMembership = useSession((state) => state.setRoleMembership);
   const moveUser = useSession((state) => state.moveUser);
   const kickUser = useSession((state) => state.kickUser);
@@ -43,6 +44,7 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
 
   if (!user || !self) return null;
 
+  const bannerSrc = resolveAvatarUrl(user.banner, address);
   const isSelf = user.id === self.id;
   const canModerate = outranks(self, user, roles);
   const held = user.roles
@@ -64,18 +66,31 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
 
   return (
     <Modal title={user.nickname} subtitle={user.registered ? `@${user.username}` : t("common.guest")} onClose={onClose}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Avatar user={user} size="md" online={user.online} />
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {held.map((role) => (
-            <span
-              key={role!.id}
-              className="tag"
-              style={role!.color ? { color: role!.color, background: `${role!.color}22` } : undefined}
-            >
-              {role!.name}
-            </span>
-          ))}
+      {bannerSrc ? (
+        <div
+          className="member-dialog-banner"
+          style={{ backgroundImage: `url("${bannerSrc}")`, backgroundSize: "cover", backgroundPosition: "center" }}
+        />
+      ) : null}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: bannerSrc ? -20 : 0, position: "relative", zIndex: 1 }}>
+        <Avatar user={user} size="lg" status={user.status} showStatus />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+          {user.customStatus ? (
+            <div className="member-dialog-custom-status">
+              💬 {user.customStatus}
+            </div>
+          ) : null}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {held.map((role) => (
+              <span
+                key={role!.id}
+                className="tag"
+                style={role!.color ? { color: role!.color, background: `${role!.color}22` } : undefined}
+              >
+                {role!.name}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -44,13 +44,19 @@ export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProp
                     }
                   }}
                 >
-                  <Avatar user={user} size="md" online />
+                  <Avatar user={user} size="md" status={user.status} showStatus />
                   <span className="member__body">
                     <span className="member__name" style={{ color: color || undefined }}>
                       {user.nickname}
                     </span>
                     <span className="member__meta">
-                      {channel ? channel.name : user.registered ? t("common.member") : t("common.guest")}
+                      {channel
+                        ? channel.name
+                        : user.customStatus
+                          ? user.customStatus
+                          : user.registered
+                            ? t("common.member")
+                            : t("common.guest")}
                     </span>
                   </span>
                 </button>
