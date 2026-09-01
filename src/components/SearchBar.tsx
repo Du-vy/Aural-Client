@@ -89,7 +89,7 @@ export function SearchBar() {
 
   const [focused, setFocused] = useState(false);
   const [caret, setCaret] = useState(0);
-  const [highlighted, setHighlighted] = useState(0);
+  const [highlighted, setHighlighted] = useState(-1);
   /** Written by the accept path, applied once React has rendered the new text. */
   const pendingCaret = useRef<number | null>(null);
 
@@ -110,9 +110,9 @@ export function SearchBar() {
     [active, directory, users, roles, language],
   );
 
-  // A new set of suggestions starts at the top, never on whichever row the
-  // previous one happened to leave highlighted.
-  useEffect(() => setHighlighted(0), [suggestions.items]);
+  // A new set of suggestions starts unhighlighted so typing and pressing Enter
+  // runs the search unless an arrow key was deliberately pressed to choose a row.
+  useEffect(() => setHighlighted(-1), [suggestions.items]);
 
   // Asked for from elsewhere: the shortcut that opens search, or a click on
   // the button that does. The text is selected so typing replaces the old query.
@@ -138,47 +138,58 @@ export function SearchBar() {
     const next = replaceTokenAt(search.input, caret, suggestion.insert);
     setSearchInput(next.input);
     pendingCaret.current = next.caret;
+    setHighlighted(-1);
     box.current?.focus();
   }
 
   function submit() {
     setFocused(false);
+    setHighlighted(-1);
     box.current?.blur();
     void runSearch({ input: search.input });
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Escape") {
-      if (showSuggestions) setFocused(false);
-      else {
+      if (showSuggestions) {
+        setFocused(false);
+        setHighlighted(-1);
+      } else {
         closeSearch();
         box.current?.blur();
       }
       return;
     }
-    if (!showSuggestions) {
-      if (event.key === "Enter") {
-        event.preventDefault();
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (showSuggestions && highlighted >= 0 && suggestions.items[highlighted]) {
+        accept(suggestions.items[highlighted]!);
+      } else {
         submit();
       }
       return;
     }
 
+    if (event.key === "Tab") {
+      if (showSuggestions && suggestions.items.length > 0) {
+        event.preventDefault();
+        const chosen = highlighted >= 0 ? suggestions.items[highlighted] : suggestions.items[0];
+        if (chosen) accept(chosen);
+      }
+      return;
+    }
+
+    if (!showSuggestions) return;
+
     switch (event.key) {
       case "ArrowDown":
         event.preventDefault();
-        setHighlighted((at) => (at + 1) % suggestions.items.length);
+        setHighlighted((at) => (at + 1 >= suggestions.items.length ? 0 : at + 1));
         return;
       case "ArrowUp":
         event.preventDefault();
-        setHighlighted((at) => (at - 1 + suggestions.items.length) % suggestions.items.length);
-        return;
-      case "Tab":
-      case "Enter":
-        // Accepting continues the line rather than running the search: a
-        // suggestion is offered precisely because the query is unfinished.
-        event.preventDefault();
-        accept(suggestions.items[highlighted]!);
+        setHighlighted((at) => (at <= 0 ? suggestions.items.length - 1 : at - 1));
         return;
     }
   }

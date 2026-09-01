@@ -12,7 +12,7 @@ import { useMemo } from "react";
 import { useTranslation } from "@/lib/i18n";
 import type { Message, Role, SearchSort, User } from "@/lib/protocol";
 import { parseSearchInput, searchTerms, splitHighlights, writeFilter } from "@/lib/search";
-import { formatFull, formatTime } from "@/lib/time";
+import { formatDateTime, formatFull } from "@/lib/time";
 import { SEARCH_PAGE_SIZE, useSession, type MessageSearchHit } from "@/store/session";
 import { colorRoleOf } from "@/store/selectors";
 import { Avatar } from "./Avatar";
@@ -20,6 +20,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CloseIcon,
+  FolderIcon,
   HashIcon,
   JumpIcon,
   PaperclipIcon,
@@ -111,17 +112,24 @@ export function SearchResults() {
           <Placeholder title={t("results.none")} body={t("results.noneHint")} />
         ) : null}
 
-        {search.hits.map((hit) => (
-          <Hit
-            key={hit.message.id}
-            hit={hit}
-            terms={terms}
-            channelName={channels.get(hit.message.channelId)?.name ?? t("results.deletedChannel")}
-            users={users}
-            roles={roles}
-            onJump={() => void jumpToMessage(hit.message.channelId, hit.message.id)}
-          />
-        ))}
+        {search.hits.map((hit) => {
+          const channel = channels.get(hit.message.channelId);
+          const channelName = channel?.name ?? t("results.deletedChannel");
+          const parentCategory = channel?.parentId ? channels.get(channel.parentId) : undefined;
+
+          return (
+            <Hit
+              key={hit.message.id}
+              hit={hit}
+              terms={terms}
+              channelName={channelName}
+              categoryName={parentCategory?.name}
+              users={users}
+              roles={roles}
+              onJump={() => void jumpToMessage(hit.message.channelId, hit.message.id)}
+            />
+          );
+        })}
       </div>
 
       {pages > 1 ? (
@@ -169,24 +177,41 @@ interface HitProps {
   hit: MessageSearchHit;
   terms: readonly string[];
   channelName: string;
+  categoryName?: string;
   users: ReadonlyMap<number, User>;
   roles: ReadonlyMap<number, Role>;
   onJump(): void;
 }
 
-function Hit({ hit, terms, channelName, users, roles, onJump }: HitProps) {
+function Hit({ hit, terms, channelName, categoryName, users, roles, onJump }: HitProps) {
   const { t } = useTranslation();
 
   return (
-    <article className="hit">
+    <article
+      className="hit"
+      onClick={(e) => {
+        const target = e.target as HTMLElement;
+        if (target.closest("button") || target.closest("a") || target.closest("mark")) return;
+        onJump();
+      }}
+    >
       <header className="hit__head">
-        <span className="hit__channel">
+        <span className="hit__channel" title={channelName}>
           <HashIcon size={13} />
-          {channelName}
+          <span className="hit__channel-name">{channelName}</span>
+          {categoryName ? (
+            <span className="hit__category" title={categoryName}>
+              <FolderIcon size={12} />
+              <span>{categoryName}</span>
+            </span>
+          ) : null}
         </span>
         <button
           className="hit__jump"
-          onClick={onJump}
+          onClick={(e) => {
+            e.stopPropagation();
+            onJump();
+          }}
           title={t("results.jump")}
           aria-label={t("results.jumpAria", { channel: channelName })}
         >
@@ -240,7 +265,7 @@ function HitMessage({ message, users, roles, terms, match = false }: HitMessageP
             {message.author}
           </span>
           <time className="hit__time" title={formatFull(message.createdAt)}>
-            {formatTime(message.createdAt)}
+            {formatDateTime(message.createdAt)}
           </time>
         </div>
         {message.content ? (

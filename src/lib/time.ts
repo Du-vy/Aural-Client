@@ -25,6 +25,13 @@ export function formatTime(seconds: number): string {
   });
 }
 
+/** A compact date and time formatted in viewer's locale (e.g., 28/08/2026 10:13). */
+export function formatDateTime(seconds: number): string {
+  const lang = getLanguage();
+  const date = new Date(seconds * MS);
+  return `${date.toLocaleDateString(lang, { day: "2-digit", month: "2-digit", year: "numeric" })} ${date.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })}`;
+}
+
 /** A full date and time, for the tooltip on a timestamp. */
 export function formatFull(seconds: number): string {
   const lang = getLanguage();
