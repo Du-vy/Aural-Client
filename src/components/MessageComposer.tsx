@@ -1,6 +1,8 @@
 import {
+  forwardRef,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
   type ClipboardEvent,
@@ -68,15 +70,23 @@ interface MessageComposerProps {
 
 let localIdSeq = 0;
 
-export function MessageComposer({
-  channelId,
-  channelName,
-  disabledReason,
-  canAttach,
-  limits,
-  onSend,
-  onUpload,
-}: MessageComposerProps) {
+export interface MessageComposerHandle {
+  addFiles(files: FileList | File[]): void;
+}
+
+export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposerProps>(
+  function MessageComposer(
+    {
+      channelId,
+      channelName,
+      disabledReason,
+      canAttach,
+      limits,
+      onSend,
+      onUpload,
+    },
+    ref,
+  ) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -227,6 +237,14 @@ export function MessageComposer({
       setPending((current) => [...current, ...accepted]);
     },
     [uploadsEnabled, pending.length, maxPerMessage, maxFileBytes, onUpload, patchPending, t],
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      addFiles,
+    }),
+    [addFiles],
   );
 
   function removePending(localId: string) {
@@ -445,4 +463,4 @@ export function MessageComposer({
       ) : null}
     </form>
   );
-}
+});

@@ -20,7 +20,8 @@
         "minHeight": 500,
         "resizable": true,
         "theme": "Dark",
-        "backgroundColor": "#22242b"
+        "backgroundColor": "#22242b",
+        "dragDropEnabled": false
       }
     ],
     "security": {

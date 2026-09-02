@@ -1,11 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 
 import { Perm, has } from "@/lib/permissions";
 import type { Channel, User } from "@/lib/protocol";
 import { EMPTY_HISTORY, useSession } from "@/store/session";
 import { useChannelPermissions } from "@/store/selectors";
-import { MessageComposer } from "./MessageComposer";
+import { MessageComposer, type MessageComposerHandle } from "./MessageComposer";
 import { MessageList } from "./MessageList";
+import { UploadCloudIcon } from "./Icons";
+import { formatBytes, parseBytes } from "@/lib/uploads";
 
 import { useTranslation } from "@/lib/i18n";
 
@@ -45,14 +47,84 @@ export function ChatPanel({
   const canAttach = has(permissions, Perm.AttachFiles);
   const canManageMessages = has(permissions, Perm.ManageMessages);
 
+  const composerRef = useRef<MessageComposerHandle>(null);
+  const [dragDepth, setDragDepth] = useState(0);
+
   // History is fetched the first time a channel is opened and then kept, so
   // switching back and forth does not re-fetch what is already held.
   useEffect(() => {
     void openChannel(channel.id);
   }, [channel.id, openChannel]);
 
+  useEffect(() => {
+    setDragDepth(0);
+  }, [channel.id]);
+
+  function carriesFiles(event: DragEvent): boolean {
+    return [...(event.dataTransfer?.types ?? [])].includes("Files");
+  }
+
+  function handleDragEnter(event: DragEvent) {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    setDragDepth((d) => d + 1);
+  }
+
+  function handleDragOver(event: DragEvent) {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    const uploadsAllowed = canAttach && (server?.uploads?.enabled ?? false);
+    event.dataTransfer.dropEffect = uploadsAllowed ? "copy" : "none";
+  }
+
+  function handleDragLeave(event: DragEvent) {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    setDragDepth((d) => Math.max(0, d - 1));
+  }
+
+  function handleDrop(event: DragEvent) {
+    setDragDepth(0);
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    const uploadsAllowed = canAttach && (server?.uploads?.enabled ?? false);
+    if (!uploadsAllowed) return;
+    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+      composerRef.current?.addFiles(event.dataTransfer.files);
+    }
+  }
+
+  const isDraggingFiles = dragDepth > 0;
+  const maxBytes = parseBytes(server?.uploads?.maxFileBytes);
+
   return (
-    <div className="chatpanel">
+    <div
+      className="chatpanel"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDraggingFiles ? (
+        <div className="chatpanel__drop-overlay" aria-hidden="true">
+          <div className="chatpanel__drop-card">
+            <div className="chatpanel__drop-icon">
+              <UploadCloudIcon size={44} />
+            </div>
+            <h3 className="chatpanel__drop-title">
+              {canAttach
+                ? t("attachments.dropHere", { channel: channel.name })
+                : t("attachments.notAllowed")}
+            </h3>
+            {canAttach && maxBytes > 0 ? (
+              <p className="chatpanel__drop-hint">
+                {t("attachments.maxFileSize", { limit: formatBytes(maxBytes) })}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <MessageList
         channelName={channel.name}
         messages={history.messages}
@@ -76,6 +148,7 @@ export function ChatPanel({
       />
 
       <MessageComposer
+        ref={composerRef}
         channelId={channel.id}
         channelName={channel.name}
         disabledReason={canSend ? null : t("chat.messageDisabledPlaceholder")}
@@ -87,4 +160,5 @@ export function ChatPanel({
     </div>
   );
 }
+
 

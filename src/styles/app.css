@@ -468,6 +468,7 @@
 
 .category {
   margin-top: 14px;
+  position: relative;
 }
 
 .category:first-child {
@@ -507,6 +508,7 @@
 }
 
 .channel {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -517,6 +519,9 @@
   color: var(--text-dim);
   text-align: left;
   transition: background var(--speed) ease, color var(--speed) ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: element;
 }
 
 .channel:hover {
@@ -576,6 +581,119 @@
 
 .channel__action:hover {
   color: var(--text);
+}
+
+/* --- channel & category drag-and-drop ------------------------------------- */
+
+.channel--dragging {
+  opacity: 0.35;
+  cursor: grabbing !important;
+}
+
+.category--dragging {
+  opacity: 0.35;
+}
+
+.category__header-wrap {
+  position: relative;
+  width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: element;
+}
+
+.category__header-wrap:hover .category__header {
+  color: var(--text);
+}
+
+.channel:focus-visible,
+.category__header-wrap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.category--drop-target {
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  outline: 1.5px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+.category--drop-target .category__header {
+  color: var(--accent);
+}
+
+.channel__drop-line,
+.category__drop-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(18, 184, 160, 0.7);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.channel__drop-line::before,
+.category__drop-line::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(18, 184, 160, 0.9);
+}
+
+.channel__drop-line--before,
+.category__drop-line--before {
+  top: -1px;
+}
+
+.channel__drop-line--after,
+.category__drop-line--after {
+  bottom: -1px;
+}
+
+/*
+ * The zone sticks to the foot of the tree rather than sitting above it. It
+ * only exists while something is being dragged, and appearing at the top would
+ * shove every row — including the one under the pointer — down the moment the
+ * drag began.
+ */
+.sidebar__root-dropzone {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-top: 10px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: var(--bg-sidebar);
+  transition:
+    border-color var(--speed) ease,
+    background var(--speed) ease,
+    color var(--speed) ease,
+    box-shadow var(--speed) ease;
+  cursor: pointer;
+}
+
+.sidebar__root-dropzone:hover,
+.sidebar__root-dropzone--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: 0 0 12px rgba(18, 184, 160, 0.2);
 }
 
 .occupants {
@@ -2564,6 +2682,83 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  position: relative;
+}
+
+.chatpanel__drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 20, 26, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 24px;
+  pointer-events: none;
+  animation: dropOverlayFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dropOverlayFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.chatpanel__drop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 36px 48px;
+  border-radius: var(--radius-lg);
+  border: 2px dashed var(--accent);
+  background: rgba(22, 24, 32, 0.88);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 28px rgba(18, 184, 160, 0.22);
+  max-width: 460px;
+  width: 100%;
+}
+
+.chatpanel__drop-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-bottom: 16px;
+  box-shadow: 0 0 20px rgba(18, 184, 160, 0.3);
+  animation: dropIconBounce 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes dropIconBounce {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-8px);
+  }
+}
+
+.chatpanel__drop-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 8px 0;
+}
+
+.chatpanel__drop-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
 }
 
 .chat {

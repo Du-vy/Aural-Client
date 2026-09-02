@@ -123,6 +123,26 @@ export function ServerView({ onAddServer }: ServerViewProps) {
     setSelectedChannelId(firstText?.id ?? null);
   }, [channels, selectedChannelId]);
 
+  // Prevent accidental file drop on unhandled window areas from navigating away
+  useEffect(() => {
+    function onWindowDragOver(event: globalThis.DragEvent) {
+      if (event.dataTransfer?.types.includes("Files")) {
+        event.preventDefault();
+      }
+    }
+    function onWindowDrop(event: globalThis.DragEvent) {
+      if (event.dataTransfer?.types.includes("Files")) {
+        event.preventDefault();
+      }
+    }
+    window.addEventListener("dragover", onWindowDragOver);
+    window.addEventListener("drop", onWindowDrop);
+    return () => {
+      window.removeEventListener("dragover", onWindowDragOver);
+      window.removeEventListener("drop", onWindowDrop);
+    };
+  }, []);
+
   // A jump names the channel it is going to, so following one is how a search
   // result opens somewhere other than where the reader already is. The message
   // list does the rest once that channel is on screen.

@@ -24,13 +24,13 @@ import {
   type ChannelDeletedEvent,
   type ChannelEvent,
   type ChannelType,
+  type ChannelUpdateRequest,
   type Message,
   type MessageDeletedEvent,
   type MessageEvent,
   type MessageHistoryResult,
   type MessageSearchHit,
   type MessageSearchResult,
-  type Overwrite,
   type Ready,
   type Role,
   type RoleDeletedEvent,
@@ -239,13 +239,7 @@ interface SessionState {
     parentId?: number | null;
     userLimit?: number;
   }): Promise<void>;
-  updateChannel(input: {
-    channelId: number;
-    name?: string;
-    topic?: string;
-    userLimit?: number;
-    overwrites?: Overwrite[];
-  }): Promise<void>;
+  updateChannel(input: ChannelUpdateRequest): Promise<void>;
   deleteChannel(channelId: number): Promise<void>;
 
   /** Loads the newest page of a channel, or does nothing if already held. */
