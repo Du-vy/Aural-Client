@@ -1,10 +1,12 @@
 /**
  * The two ends of the local audio path: the microphone that is sent, and the
- * speakers everybody else is played through.
+ * speakers everybody else is played through — plus the monitor, which joins
+ * the one to the other so that a microphone can be tested without a call and
+ * somebody on the far end to ask.
  *
- * Neither knows anything about the network. The engine wires the microphone's
- * outbound track into a peer connection and hands arriving streams to the
- * playback, and that is the whole of the contact between them.
+ * None of them knows anything about the network. The engine wires the
+ * microphone's outbound track into a peer connection and hands arriving
+ * streams to the playback, and that is the whole of the contact between them.
  */
 
 import {
@@ -532,7 +534,7 @@ export class Playback {
       element.setAttribute("data-aural-voice", String(userId));
       this.mount().appendChild(element);
       this.elements.set(userId, element);
-      void this.applySink(element);
+      void applySink(element, this.sinkId);
     }
     if (element.srcObject !== stream) {
       element.srcObject = stream;
@@ -577,7 +579,7 @@ export class Playback {
   /** Points playback at an output device, where the browser allows it. */
   async setOutputDevice(deviceId: string): Promise<void> {
     this.sinkId = deviceId;
-    await Promise.all([...this.elements.values()].map((element) => this.applySink(element)));
+    await Promise.all([...this.elements.values()].map((element) => applySink(element, deviceId)));
   }
 
   close(): void {
@@ -599,18 +601,6 @@ export class Playback {
     for (const [userId, element] of this.elements) this.apply(userId, element);
   }
 
-  private async applySink(element: HTMLAudioElement): Promise<void> {
-    const withSink = element as HTMLAudioElement & { setSinkId?(id: string): Promise<void> };
-    if (typeof withSink.setSinkId !== "function") return;
-    try {
-      await withSink.setSinkId(this.sinkId);
-    } catch {
-      // Firefox and older WebKit do not implement this, and a device can be
-      // unplugged between being chosen and being used. Either way the default
-      // output is the right thing to fall back to.
-    }
-  }
-
   private mount(): HTMLElement {
     if (!this.container) {
       this.container = document.createElement("div");
@@ -619,6 +609,96 @@ export class Playback {
       document.body.appendChild(this.container);
     }
     return this.container;
+  }
+}
+
+/**
+ * Points one element at an output device, where the browser allows it.
+ *
+ * Firefox and older WebKit do not implement this, and a device can be
+ * unplugged between being chosen and being used. Either way the default output
+ * is the right thing to fall back to, so a refusal is not worth reporting.
+ */
+async function applySink(element: HTMLAudioElement, deviceId: string): Promise<void> {
+  const withSink = element as HTMLAudioElement & { setSinkId?(id: string): Promise<void> };
+  if (typeof withSink.setSinkId !== "function") return;
+  try {
+    await withSink.setSinkId(deviceId);
+  } catch {
+    // Nothing to do: the default output is already what is playing.
+  }
+}
+
+/**
+ * Your own microphone, played back to you.
+ *
+ * A meter only says that something arrived. Hearing yourself says what it
+ * sounds like after the gain, the gate and the suppressor have had their turn,
+ * and whether the headphones you picked are really where it comes out — which
+ * is the difference between testing a microphone and looking at a picture of
+ * one.
+ *
+ * It plays through an `<audio>` element for the same reason everybody else
+ * does: an element carries a volume and an output device of its own, so the
+ * playback follows the two settings sitting directly above it.
+ */
+export class Monitor {
+  private element: HTMLAudioElement | null = null;
+  private volume = 1;
+  private sinkId = "";
+
+  /**
+   * Starts playing a stream back, replacing whatever was playing before.
+   *
+   * The stream worth passing is the one that would be sent rather than the one
+   * the operating system produced, so that what is heard is what the far end
+   * would have heard.
+   */
+  play(stream: MediaStream): void {
+    const element = this.element ?? this.create();
+    if (element.srcObject !== stream) element.srcObject = stream;
+    element.volume = this.volume;
+    // Autoplay is refused until the page has had a gesture. Starting a test is
+    // one, so this succeeds where it matters, and a refusal is silence rather
+    // than a fault worth reporting.
+    void element.play().catch(() => {});
+  }
+
+  /** Sets the playback volume, as a percentage. */
+  setVolume(percent: number): void {
+    // An element cannot play louder than the signal it was given, so the
+    // amplifying half of the slider is not something this can honour.
+    this.volume = Math.min(1, Math.max(0, percent) / 100);
+    if (this.element) this.element.volume = this.volume;
+  }
+
+  /** Points the playback at an output device, where the browser allows it. */
+  async setOutputDevice(deviceId: string): Promise<void> {
+    this.sinkId = deviceId;
+    if (this.element) await applySink(this.element, deviceId);
+  }
+
+  /** Stops playing and takes the element back out of the page. */
+  stop(): void {
+    const element = this.element;
+    if (!element) return;
+    this.element = null;
+    element.pause();
+    element.srcObject = null;
+    element.remove();
+  }
+
+  private create(): HTMLAudioElement {
+    const element = document.createElement("audio");
+    element.autoplay = true;
+    // As with playback of everybody else, this is not meant to be seen or
+    // operated directly; the test above it is the interface.
+    element.setAttribute("data-aural-voice-monitor", "");
+    element.style.display = "none";
+    document.body.appendChild(element);
+    this.element = element;
+    void applySink(element, this.sinkId);
+    return element;
   }
 }
 
