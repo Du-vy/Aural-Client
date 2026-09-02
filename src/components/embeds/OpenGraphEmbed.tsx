@@ -48,6 +48,7 @@ export function OpenGraphEmbed({ url, onOpenLink }: OpenGraphEmbedProps) {
                   src={data.authorIcon || data.favicon}
                   alt=""
                   className={data.authorIcon ? "msg-embed__og-author-avatar" : "msg-embed__og-favicon"}
+                  referrerPolicy="no-referrer"
                   aria-hidden="true"
                 />
               )}
@@ -152,7 +153,12 @@ export function OpenGraphEmbed({ url, onOpenLink }: OpenGraphEmbedProps) {
         {(data.siteName || data.timestamp) && (
           <footer className="msg-embed__og-footer">
             {data.favicon && (
-              <img src={data.favicon} alt="" className="msg-embed__og-footer-icon" />
+              <img
+                src={data.favicon}
+                alt=""
+                className="msg-embed__og-footer-icon"
+                referrerPolicy="no-referrer"
+              />
             )}
             {data.siteName && <span>{data.siteName}</span>}
             {data.siteName && data.timestamp && <span>•</span>}

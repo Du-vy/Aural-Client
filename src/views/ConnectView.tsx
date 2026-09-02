@@ -107,8 +107,8 @@ export function ConnectView() {
                 >
                   <span className="saved__badge">{server.name.slice(0, 2).toUpperCase()}</span>
                   <span className="saved__body">
-                    <span className="saved__name">{server.name}</span>
-                    <span className="saved__address">{server.id}</span>
+                    <span className="saved__name" title={server.name}>{server.name}</span>
+                    <span className="saved__address" title={server.address || server.id}>{server.address || server.id}</span>
                   </span>
                 </button>
                 <button

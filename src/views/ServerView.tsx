@@ -61,7 +61,7 @@ type Dialog =
       initialType?: ChannelType;
       editChannelId?: number;
     }
-  | { kind: "member"; userId: number }
+  | { kind: "member"; userId: number; anchorRect?: DOMRect }
   | { kind: "nickname"; userId: number }
   | { kind: "confirmDeleteChannel"; channel: Channel }
   | { kind: "confirmKick"; userId: number };
@@ -311,7 +311,12 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           id: "profile",
           label: t("contextMenu.profile"),
           icon: <UserIcon size={16} />,
-          onClick: () => setDialog({ kind: "member", userId: u.id }),
+          onClick: () =>
+            setDialog({
+              kind: "member",
+              userId: u.id,
+              anchorRect: new DOMRect(contextMenu.x, contextMenu.y, 0, 0),
+            }),
         },
       ];
 
@@ -503,7 +508,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
             setDrawerOpen(false);
           }}
           onCreateChannel={(parentId) => setDialog({ kind: "channel", parentId })}
-          onOpenMember={(userId) => setDialog({ kind: "member", userId })}
+          onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
           onDeleteChannel={(channel) => setDialog({ kind: "confirmDeleteChannel", channel })}
           onContextMenuChannel={(e, channel) => {
             setContextMenu({ kind: "channel", x: e.clientX, y: e.clientY, channel });
@@ -583,7 +588,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           <ChatPanel
             key={selected.id}
             channel={selected}
-            onOpenMember={(userId) => setDialog({ kind: "member", userId })}
+            onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
             onContextMenuMember={(e, user) => {
               setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
             }}
@@ -614,7 +619,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         <SearchResults />
       ) : (
         <MemberList
-          onOpenMember={(userId) => setDialog({ kind: "member", userId })}
+          onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
           onContextMenuMember={(e, user) => {
             setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
           }}
@@ -662,7 +667,11 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         />
       ) : null}
       {dialog.kind === "member" ? (
-        <MemberDialog userId={dialog.userId} onClose={() => setDialog({ kind: "none" })} />
+        <MemberDialog
+          userId={dialog.userId}
+          anchorRect={dialog.anchorRect}
+          onClose={() => setDialog({ kind: "none" })}
+        />
       ) : null}
       {dialog.kind === "nickname" ? (
         <NicknameDialog userId={dialog.userId} onClose={() => setDialog({ kind: "none" })} />

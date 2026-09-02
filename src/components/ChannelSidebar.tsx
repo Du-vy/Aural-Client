@@ -28,7 +28,7 @@ interface ChannelSidebarProps {
   selectedChannelId: number | null;
   onSelectChannel(channelId: number): void;
   onCreateChannel(parentId: number | null): void;
-  onOpenMember(userId: number): void;
+  onOpenMember(userId: number, anchorRect?: DOMRect): void;
   onDeleteChannel?(channel: Channel): void;
   onContextMenuChannel?(event: React.MouseEvent, channel: Channel): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
@@ -745,7 +745,7 @@ interface ChannelRowProps {
   onSelect(): void;
   onJoin(): void;
   onDelete(): void;
-  onOpenMember(userId: number): void;
+  onOpenMember(userId: number, anchorRect?: DOMRect): void;
   onContextMenuChannel?(event: React.MouseEvent, channel: Channel): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
   isDragging?: boolean;
@@ -894,7 +894,7 @@ interface OccupantProps {
   user: User;
   self: User | null;
   roles: ReadonlyMap<number, Role>;
-  onOpenMember(userId: number): void;
+  onOpenMember(userId: number, anchorRect?: DOMRect): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
 }
 
@@ -922,7 +922,7 @@ function Occupant({ user, self, roles, onOpenMember, onContextMenuMember }: Occu
   return (
     <button
       className={classes.join(" ")}
-      onClick={() => onOpenMember(user.id)}
+      onClick={(e) => onOpenMember(user.id, e.currentTarget.getBoundingClientRect())}
       onContextMenu={(event) => {
         if (onContextMenuMember) {
           event.preventDefault();

@@ -13,7 +13,7 @@ import { useTranslation } from "@/lib/i18n";
 
 interface ChatPanelProps {
   channel: Channel;
-  onOpenMember?(userId: number): void;
+  onOpenMember?(userId: number, anchorRect?: DOMRect): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
 }
 

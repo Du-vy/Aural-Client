@@ -55,7 +55,9 @@ export function UserPanel({ onOpenAccount, onOpenStatus }: UserPanelProps) {
         <Avatar user={self} size="md" status={self.status || (status === "connected" ? "online" : "offline")} showStatus />
         <span className="userpanel__body">
           <span className="userpanel__name">{self.nickname}</span>
-          <span className="userpanel__status">{state}</span>
+          <span className="userpanel__status" title={typeof state === "string" ? state : undefined}>
+            {state}
+          </span>
         </span>
       </button>
 

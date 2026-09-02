@@ -191,6 +191,7 @@ function ProfilePage() {
   const { t } = useTranslation();
   const self = useSession((state) => state.self);
   const server = useSession((state) => state.server);
+  const roles = useSession((state) => state.roles);
   const address = useSession((state) => state.address);
   const setNickname = useSession((state) => state.setNickname);
   const setStatus = useSession((state) => state.setStatus);
@@ -222,6 +223,10 @@ function ProfilePage() {
   const maxBannerBytes = parseBytes(server?.uploads?.maxBannerBytes) || 16 * 1024 * 1024;
 
   const bannerSrc = resolveAvatarUrl(bannerUrlInput || self?.banner, address);
+  const heldRoles = (self?.roles ?? [])
+    .map((id) => roles.get(id))
+    .filter((role) => role !== undefined)
+    .sort((a, b) => b.position - a.position);
   const isNicknameDirty = nickname.trim() !== (self?.nickname ?? "") && nickname.trim() !== "";
   const isCustomStatusDirty = customStatus.trim() !== (self?.customStatus ?? "");
 
@@ -684,21 +689,29 @@ function ProfilePage() {
           <div className="profile-card-preview">
             <div
               className="profile-card-preview__banner"
-              style={bannerSrc ? { backgroundImage: `url("${bannerSrc}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+              style={
+                bannerSrc
+                  ? { backgroundImage: `url("${bannerSrc}")` }
+                  : {
+                      background: `linear-gradient(135deg, var(--accent, #5865F2) 0%, #0b5c51 100%)`,
+                    }
+              }
             />
             <div className="profile-card-preview__avatar-row">
-              {self ? (
-                <Avatar
-                  user={{
-                    ...self,
-                    avatar: avatarUrlInput || self.avatar,
-                    status: selectedStatus,
-                  }}
-                  size="lg"
-                  status={selectedStatus}
-                  showStatus
-                />
-              ) : null}
+              <div className="profile-card-preview__avatar-wrap">
+                {self ? (
+                  <Avatar
+                    user={{
+                      ...self,
+                      avatar: avatarUrlInput || self.avatar,
+                      status: selectedStatus,
+                    }}
+                    size="xl"
+                    status={selectedStatus}
+                    showStatus
+                  />
+                ) : null}
+              </div>
             </div>
             <div className="profile-card-preview__body">
               <div className="profile-card-preview__name">
@@ -709,12 +722,13 @@ function ProfilePage() {
               </div>
               {customStatus ? (
                 <div className="profile-card-preview__status-text">
-                  💬 {customStatus}
+                  <span>💬</span>
+                  <span>{customStatus}</span>
                 </div>
               ) : null}
+            </div>
 
-              <div className="profile-card-preview__divider" />
-
+            <div className="profile-card-preview__inner">
               <div className="profile-card-preview__section">
                 <span className="profile-card-preview__label">
                   {server?.name ? server.name : "Server"}
@@ -722,6 +736,43 @@ function ProfilePage() {
                 <span className="profile-card-preview__value">
                   {self?.registered ? t("dialogs.member.registeredUser") : t("dialogs.member.guestUser")}
                 </span>
+              </div>
+
+              <div className="profile-card-preview__divider" />
+
+              <div className="profile-card-preview__section">
+                <span className="profile-card-preview__label">
+                  {t("contextMenu.roles")}
+                </span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                  {heldRoles.length > 0 ? (
+                    heldRoles.map((role) => (
+                      <span
+                        key={role!.id}
+                        className="discord-role-pill"
+                        style={
+                          role!.color
+                            ? {
+                                color: role!.color,
+                                backgroundColor: `${role!.color}18`,
+                                borderColor: `${role!.color}33`,
+                              }
+                            : undefined
+                        }
+                      >
+                        <span
+                          className="discord-role-pill__dot"
+                          style={{ backgroundColor: role!.color || "var(--text-dim)" }}
+                        />
+                        <span>{role!.name}</span>
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                      {t("dialogs.member.noRoles")}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>

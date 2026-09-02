@@ -7,7 +7,7 @@ import type { User } from "@/lib/protocol";
 import { Avatar } from "./Avatar";
 
 interface MemberListProps {
-  onOpenMember(userId: number): void;
+  onOpenMember(userId: number, anchorRect?: DOMRect): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
 }
 
@@ -35,7 +35,7 @@ export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProp
                 <button
                   key={user.id}
                   className="member"
-                  onClick={() => onOpenMember(user.id)}
+                  onClick={(e) => onOpenMember(user.id, e.currentTarget.getBoundingClientRect())}
                   onContextMenu={(event) => {
                     if (onContextMenuMember) {
                       event.preventDefault();
@@ -49,15 +49,20 @@ export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProp
                     <span className="member__name" style={{ color: color || undefined }}>
                       {user.nickname}
                     </span>
-                    <span className="member__meta">
-                      {channel
+                    {(() => {
+                      const meta = channel
                         ? channel.name
                         : user.customStatus
                           ? user.customStatus
                           : user.registered
                             ? t("common.member")
-                            : t("common.guest")}
-                    </span>
+                            : t("common.guest");
+                      return (
+                        <span className="member__meta" title={typeof meta === "string" ? meta : undefined}>
+                          {meta}
+                        </span>
+                      );
+                    })()}
                   </span>
                 </button>
               );

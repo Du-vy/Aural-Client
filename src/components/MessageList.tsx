@@ -80,7 +80,7 @@ interface MessageListProps {
   onReturnToPresent(): void;
   onEdit(messageId: number, content: string): void;
   onDelete(messageId: number): void;
-  onOpenMember?(userId: number): void;
+  onOpenMember?(userId: number, anchorRect?: DOMRect): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
 }
 
@@ -381,7 +381,7 @@ interface MessageRowProps {
   onCancelEdit(): void;
   onSubmitEdit(content: string): void;
   onDelete(event: React.MouseEvent): void;
-  onOpenMember?(userId: number): void;
+  onOpenMember?(userId: number, anchorRect?: DOMRect): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
   onOpenLink(url: string): void;
   onContextMenu?(event: React.MouseEvent): void;
@@ -422,7 +422,7 @@ function MessageRow({
             <button
               type="button"
               className="msg__avatar-btn"
-              onClick={() => onOpenMember?.(author.id)}
+              onClick={(e) => onOpenMember?.(author.id, e.currentTarget.getBoundingClientRect())}
               onContextMenu={(event) => {
                 if (onContextMenuMember) {
                   event.preventDefault();
@@ -453,7 +453,7 @@ function MessageRow({
               <button
                 type="button"
                 className="msg__author-btn"
-                onClick={() => onOpenMember?.(author.id)}
+                onClick={(e) => onOpenMember?.(author.id, e.currentTarget.getBoundingClientRect())}
                 onContextMenu={(event) => {
                   if (onContextMenuMember) {
                     event.preventDefault();

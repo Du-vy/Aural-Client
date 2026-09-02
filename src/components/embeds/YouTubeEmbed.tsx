@@ -61,6 +61,7 @@ export function YouTubeEmbed({ url, videoId, startTime, onOpenLink }: YouTubeEmb
             title={title || "YouTube video"}
             className="msg-embed__yt-iframe"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerPolicy="strict-origin-when-cross-origin"
             allowFullScreen
           />
         ) : (
@@ -74,6 +75,7 @@ export function YouTubeEmbed({ url, videoId, startTime, onOpenLink }: YouTubeEmb
               src={thumbnail}
               alt={title || "YouTube thumbnail"}
               className="msg-embed__yt-thumb"
+              referrerPolicy="no-referrer"
               loading="lazy"
             />
             <div className="msg-embed__yt-play-overlay">
