@@ -397,8 +397,9 @@ mute and deafen for yourself and for others, speaking indicators in the channel
 tree, and a voice page in server settings for administrators.
 
 **Later** — screen sharing, a global push-to-talk hotkey in the native shell,
-multiple simultaneous server connections, and Aural Hub for finding public
-servers.
+multiple simultaneous server connections — [`docs/MULTI-SERVER.md`](docs/MULTI-SERVER.md)
+records where that stands, what already generalises, and the memory budget that
+decides the rest — and Aural Hub for finding public servers.
 
 ## License
 

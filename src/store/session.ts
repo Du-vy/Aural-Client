@@ -74,6 +74,7 @@ export type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecti
  * at all rather than an empty one.
  */
 export interface ChannelHistory {
+  /** The window held, oldest first, never longer than `CHANNEL_WINDOW`. */
   messages: Message[];
   /** Whether older messages remain before the oldest one held. */
   hasMore: boolean;
@@ -96,6 +97,20 @@ export const EMPTY_HISTORY: ChannelHistory = {
   loading: false,
   error: null,
 };
+
+/**
+ * How many messages one channel keeps.
+ *
+ * Without a bound the two ordinary ways of using a chat client both grow the
+ * array forever: reading backwards through a busy channel, and leaving a busy
+ * one open. Every message held is also a row rendered, so the cost is paid
+ * twice. Four pages is wide enough that neither end is ever one scroll from
+ * the other, which is what stops a reader bouncing between them.
+ *
+ * What this does not bound is the number of channels holding a window, nor the
+ * number of connections holding channels. `docs/MULTI-SERVER.md` has both.
+ */
+export const CHANNEL_WINDOW = 200;
 
 /** How many results one page of the search panel holds. */
 export const SEARCH_PAGE_SIZE = 25;
@@ -407,6 +422,27 @@ function mergeMessages(...runs: Message[][]): Message[] {
   return [...byId.values()].sort((a, b) => a.id - b.id);
 }
 
+/**
+ * Cuts a run of messages down to the window, dropping from whichever end the
+ * reader is furthest from: `keep` names the end to hold on to.
+ *
+ * A trim raises the flag for the end it cut, because downstream a message let
+ * go and a message never fetched are the same thing — there is more that way,
+ * and reaching it costs a request. That the flags are the patch rather than
+ * something set beside it is deliberate: spreading the result last is what
+ * makes a trim override the page's own account of where the channel ends,
+ * which after a cut is no longer the client's.
+ */
+export function clampWindow(
+  messages: Message[],
+  keep: "newest" | "oldest",
+): Partial<ChannelHistory> & { messages: Message[] } {
+  if (messages.length <= CHANNEL_WINDOW) return { messages };
+  return keep === "newest"
+    ? { messages: messages.slice(-CHANNEL_WINDOW), hasMore: true }
+    : { messages: messages.slice(0, CHANNEL_WINDOW), hasMoreAfter: true };
+}
+
 export const useSession = create<SessionState>((set, get) => {
   /** Replaces everything the client knows, from a ready snapshot. */
   function applySnapshot(ready: Ready): void {
@@ -580,7 +616,7 @@ export const useSession = create<SessionState>((set, get) => {
         const history = new Map(state.history);
         history.set(message.channelId, {
           ...current,
-          messages: [...current.messages, message],
+          ...clampWindow([...current.messages, message], "newest"),
         });
         set({ history });
         return;
@@ -1086,11 +1122,11 @@ export const useSession = create<SessionState>((set, get) => {
         // so the two are merged rather than one replacing the other.
         const held = get().history.get(channelId)?.messages ?? [];
         patchHistory(channelId, {
-          messages: mergeMessages(page.messages, held),
           hasMore: page.hasMore,
           hasMoreAfter: false,
           loading: false,
           error: null,
+          ...clampWindow(mergeMessages(page.messages, held), "newest"),
         });
       } catch (error) {
         patchHistory(channelId, { loading: false, error: describeError(error) });
@@ -1110,13 +1146,14 @@ export const useSession = create<SessionState>((set, get) => {
           before: oldest.id,
         });
         const held = get().history.get(channelId)?.messages ?? [];
-        // hasMoreAfter is left alone: this page says nothing about the end of
-        // the channel the reader is not at.
+        // hasMoreAfter is left to the trim: this page says nothing about the
+        // end of the channel the reader is not at, but cutting the window back
+        // to size is what can put that end out of reach.
         patchHistory(channelId, {
-          messages: mergeMessages(page.messages, held),
           hasMore: page.hasMore,
           loading: false,
           error: null,
+          ...clampWindow(mergeMessages(page.messages, held), "oldest"),
         });
       } catch (error) {
         patchHistory(channelId, { loading: false, error: describeError(error) });
@@ -1137,10 +1174,10 @@ export const useSession = create<SessionState>((set, get) => {
         });
         const held = get().history.get(channelId)?.messages ?? [];
         patchHistory(channelId, {
-          messages: mergeMessages(held, page.messages),
           hasMoreAfter: page.hasMoreAfter,
           loading: false,
           error: null,
+          ...clampWindow(mergeMessages(held, page.messages), "newest"),
         });
       } catch (error) {
         patchHistory(channelId, { loading: false, error: describeError(error) });

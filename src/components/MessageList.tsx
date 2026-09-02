@@ -110,8 +110,11 @@ export function MessageList({
   const bottom = useRef<HTMLDivElement>(null);
   /** Whether the reader is at the bottom, and so wants to follow along. */
   const following = useRef(true);
-  /** Scroll height before an older page is prepended, to hold the position. */
-  const anchor = useRef<{ height: number; top: number } | null>(null);
+  /**
+   * The row the view is held against while the reader is away from the bottom,
+   * and how far below the top of the scroller it sits.
+   */
+  const anchor = useRef<{ id: number; offset: number } | null>(null);
   /** The row a jump landed on, marked until the reader looks somewhere else. */
   const [landed, setLanded] = useState<number | null>(null);
 
@@ -126,7 +129,6 @@ export function MessageList({
 
   const rows = useMemo(() => buildRows(messages), [messages]);
   const newest = messages.at(-1)?.id ?? 0;
-  const oldest = messages[0]?.id ?? 0;
 
   function requestDelete(message: Message, shiftKey = false) {
     if (shiftKey) {
@@ -161,29 +163,82 @@ export function MessageList({
     const row = scroller.current?.querySelector(`[data-message="${jump.messageId}"]`);
     if (!row) return;
     following.current = false;
+    anchor.current = null;
     row.scrollIntoView({ block: "center" });
     setLanded(jump.messageId);
     onJumpDone(jump.nonce);
   }, [jump, messages, onJumpDone]);
 
-  // Prepending a page must not move what the reader is looking at, so the
-  // scroll position is restored by the amount the content grew.
+  // The window moves at both ends — an older page arriving at the top, a trim
+  // dropping the far end to keep the window bounded — and either one carries
+  // the conversation out from under a reader who is not at the bottom. So the
+  // row they were looking at is put back where it was, rather than the scroll
+  // position being reasoned about from how much the content grew: that sum is
+  // wrong the moment a page arrives at one end and a trim leaves from the
+  // other, which is the ordinary case now.
   useLayoutEffect(() => {
     const node = scroller.current;
     const held = anchor.current;
     if (!node || !held) return;
-    anchor.current = null;
-    node.scrollTop = held.top + (node.scrollHeight - held.height);
-  }, [oldest]);
+
+    const row = node.querySelector<HTMLElement>(`[data-message="${held.id}"]`);
+    if (row === null) {
+      // The row itself is gone, so there is nothing to hold to. Only a jump or
+      // a return to the present replaces the window wholesale, and both mean
+      // to move the view anyway.
+      anchor.current = null;
+      return;
+    }
+    const now = row.getBoundingClientRect().top - node.getBoundingClientRect().top;
+    node.scrollTop += now - held.offset;
+  }, [messages]);
+
+  /**
+   * Remembers the topmost row still on screen and where it sits.
+   *
+   * Rows are laid out in order, so the first one reaching past the top of the
+   * viewport is found by halving rather than by walking: this runs on scroll,
+   * and a full window is a couple of hundred rows.
+   */
+  function takeAnchor() {
+    const node = scroller.current;
+    if (!node) return;
+    const rows = node.querySelectorAll<HTMLElement>("[data-message]");
+    const top = node.getBoundingClientRect().top;
+
+    let low = 0;
+    let high = rows.length - 1;
+    let found: HTMLElement | null = null;
+    while (low <= high) {
+      const middle = (low + high) >> 1;
+      const row = rows[middle]!;
+      if (row.getBoundingClientRect().bottom >= top) {
+        found = row;
+        high = middle - 1;
+      } else {
+        low = middle + 1;
+      }
+    }
+    anchor.current =
+      found === null
+        ? null
+        : {
+            id: Number(found.dataset.message),
+            offset: found.getBoundingClientRect().top - top,
+          };
+  }
 
   function handleScroll() {
     const node = scroller.current;
     if (!node) return;
     const fromBottom = node.scrollHeight - node.scrollTop - node.clientHeight;
     following.current = fromBottom < 80;
+    // A reader at the bottom needs no anchor: being at the bottom is one, and
+    // is the one the effect above keeps them on.
+    if (following.current) anchor.current = null;
+    else takeAnchor();
 
     if (node.scrollTop < 120 && hasMore && !loading) {
-      anchor.current = { height: node.scrollHeight, top: node.scrollTop };
       onLoadOlder();
     }
     // Reading past the end of a window jumped into walks it forward, which is

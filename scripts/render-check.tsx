@@ -53,7 +53,7 @@ const {
 } = await import("@/lib/search");
 const { addTrustedDomain, isDomainTrusted } = await import("@/lib/storage");
 const { Perm, format } = await import("@/lib/permissions");
-const { useSession, EMPTY_SEARCH } = await import("@/store/session");
+const { useSession, EMPTY_SEARCH, CHANNEL_WINDOW, clampWindow } = await import("@/store/session");
 const { setLanguage, getLanguage, t, SUPPORTED_LANGUAGES } = await import("@/lib/i18n");
 
 type Attachment = import("@/lib/protocol").Attachment;
@@ -1053,6 +1053,57 @@ for (const lang of SUPPORTED_LANGUAGES) {
 }
 // Reset back to English
 setLanguage("en");
+
+console.log("\nchannel window");
+
+{
+  // A channel holds at most CHANNEL_WINDOW messages, and a trim has to say
+  // which end it cut or the view draws a gap as if it were an unbroken run.
+  const run = (from: number, count: number): Message[] =>
+    Array.from({ length: count }, (_, index) => ({
+      id: from + index,
+      channelId: 1,
+      userId: 1,
+      author: "Pablo",
+      content: `message ${from + index}`,
+      createdAt: nowSeconds - (count - index),
+      editedAt: null,
+    }));
+
+  const short = run(1, CHANNEL_WINDOW);
+  const kept = clampWindow(short, "newest");
+  checkThat("a run at the window is left alone", kept.messages === short);
+  checkThat(
+    "and claims nothing about either end",
+    kept.hasMore === undefined && kept.hasMoreAfter === undefined,
+  );
+
+  const over = run(1, CHANNEL_WINDOW + 50);
+  const newest = clampWindow(over, "newest");
+  checkThat("a trim leaves exactly the window", newest.messages.length === CHANNEL_WINDOW);
+  checkThat("keeping the newest end drops the oldest", newest.messages[0]?.id === 51);
+  checkThat("and the newest message survives it", newest.messages.at(-1)?.id === CHANNEL_WINDOW + 50);
+  checkThat("cutting the old end says there is more before", newest.hasMore === true);
+  checkThat("and says nothing about the end it kept", newest.hasMoreAfter === undefined);
+
+  const oldest = clampWindow(over, "oldest");
+  checkThat("keeping the oldest end drops the newest", oldest.messages.at(-1)?.id === CHANNEL_WINDOW);
+  checkThat("and the oldest message survives it", oldest.messages[0]?.id === 1);
+  checkThat("cutting the new end says there is more after", oldest.hasMoreAfter === true);
+  checkThat(
+    "which is what leaves an arriving message for the walk back",
+    oldest.hasMore === undefined,
+  );
+
+  // Spreading the trim last is what makes it win over the page's own account
+  // of the channel, which after a cut is no longer this client's to give.
+  const patch = { hasMore: false, hasMoreAfter: false, ...clampWindow(over, "newest") };
+  checkThat("a trim overrides a page that said there was nothing before", patch.hasMore === true);
+  checkThat(
+    "and leaves the end it did not cut as the page reported it",
+    patch.hasMoreAfter === false,
+  );
+}
 
 
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);
