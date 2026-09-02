@@ -1,0 +1,368 @@
+/* The message list, one message, and the composer. */
+
+/* --- chat ------------------------------------------------------------------ */
+
+.chatpanel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.chatpanel__drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 20, 26, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 24px;
+  pointer-events: none;
+  animation: dropOverlayFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dropOverlayFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.chatpanel__drop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 36px 48px;
+  border-radius: var(--radius-lg);
+  border: 2px dashed var(--accent);
+  background: rgba(22, 24, 32, 0.88);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 28px rgba(18, 184, 160, 0.22);
+  max-width: 460px;
+  width: 100%;
+}
+
+.chatpanel__drop-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-bottom: 16px;
+  box-shadow: 0 0 20px rgba(18, 184, 160, 0.3);
+  animation: dropIconBounce 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes dropIconBounce {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-8px);
+  }
+}
+
+.chatpanel__drop-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 8px 0;
+}
+
+.chatpanel__drop-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.chat {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  padding: 8px 0 16px;
+}
+
+.chat__start {
+  padding: 32px 20px 16px;
+}
+
+.chat__start-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  color: var(--text-dim);
+}
+
+.chat__start-title {
+  font-size: calc(20px * var(--font-scale, 1));
+  margin-bottom: 4px;
+}
+
+.chat__start-body {
+  font-size: var(--font-size-msg, 14px);
+  color: var(--text-muted);
+}
+
+.chat__older {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+
+.chat__error {
+  margin: 8px 20px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sub, 13px);
+  background: var(--danger-soft);
+  color: var(--danger-hover);
+}
+
+.chat__day {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 20px 8px;
+  font-size: var(--font-size-caption, 11px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.chat__day::before,
+.chat__day::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* --- one message ----------------------------------------------------------- */
+
+.msg {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: flex-start;
+  padding: 1px 16px 1px 0;
+  position: relative;
+}
+
+.msg--first {
+  margin-top: 14px;
+}
+
+.msg:hover {
+  background: var(--hover);
+}
+
+.msg__gutter {
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+}
+
+/* The clock only appears on hover, so a block of messages reads as prose
+   rather than as a column of timestamps. */
+.msg__inline-time {
+  font-size: 10px;
+  line-height: 21px;
+  color: var(--text-dim);
+  opacity: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.msg:hover .msg__inline-time {
+  opacity: 1;
+}
+
+.msg__avatar-offline {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.msg__avatar-btn {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform var(--speed) ease, filter var(--speed) ease;
+}
+
+.msg__avatar-btn:hover {
+  filter: brightness(1.15);
+  transform: scale(1.05);
+}
+
+.msg__body {
+  min-width: 0;
+}
+
+.msg__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 1px;
+}
+
+.msg__author {
+  font-size: var(--font-size-msg, 14px);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.msg__author-btn {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--font-size-msg, 14px);
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  line-height: inherit;
+}
+
+.msg__author-btn:hover {
+  text-decoration: underline;
+}
+
+.msg__time {
+  font-size: var(--font-size-caption, 11px);
+  color: var(--text-dim);
+}
+
+.msg__content {
+  font-size: var(--font-size-msg, 14px);
+  line-height: 1.45;
+  color: var(--text);
+  /* Messages keep their line breaks, and a long unbroken string must not push
+     the layout sideways. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.msg__edited {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.msg__edit {
+  padding: 2px 0 4px;
+}
+
+.msg__edit-input {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+  font-size: var(--font-size-msg, 14px);
+  line-height: 1.45;
+}
+
+.msg__actions {
+  display: none;
+  gap: 2px;
+  align-self: flex-start;
+  margin-top: -10px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-raised);
+}
+
+.msg:hover .msg__actions,
+.msg:focus-within .msg__actions {
+  display: flex;
+}
+
+/* --- composer -------------------------------------------------------------- */
+
+.composer {
+  flex-shrink: 0;
+  padding: 0 16px 20px;
+}
+
+.composer--disabled {
+  padding-bottom: 16px;
+}
+
+.composer__notice {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: var(--font-size-sub, 13px);
+  text-align: center;
+  color: var(--text-dim);
+  background: var(--bg-input);
+}
+
+.composer__error {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--danger-hover);
+}
+
+.composer__box {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--bg-input);
+}
+
+.composer__input {
+  flex: 1;
+  min-width: 0;
+  max-height: 320px;
+  border: 0;
+  background: none;
+  resize: none;
+  font: inherit;
+  font-size: var(--font-size-msg, 14px);
+  line-height: 1.45;
+  color: var(--text);
+  outline: none;
+}
+
+.composer__input::placeholder {
+  color: var(--text-dim);
+}
+
+.composer__count {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.composer__count--over {
+  color: var(--danger);
+}
+

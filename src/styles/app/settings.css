@@ -1,0 +1,519 @@
+/* The settings modal: its sidebar, its content column, and the form primitives inside. */
+
+/* ==========================================================================
+   Discord-Style Settings Modal & Controls
+   ========================================================================== */
+
+.settings-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg-scrim);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fade var(--speed) ease;
+}
+
+.settings-shell {
+  width: min(1200px, 94vw);
+  height: min(880px, 92vh);
+  display: flex;
+  background: var(--bg-main);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+  position: relative;
+}
+
+/* --- Settings Left Sidebar --- */
+
+.settings-sidebar {
+  width: 250px;
+  min-width: 250px;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 12px 16px 20px;
+  overflow-y: auto;
+}
+
+.settings-user-header,
+.settings-server-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px 16px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-server-header__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--text-inverse);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.settings-user-header__info,
+.settings-server-header__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.settings-user-header__name,
+.settings-server-header__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-user-header__sub,
+.settings-server-header__sub {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.settings-sidebar__nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.settings-sidebar__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-sidebar__heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  padding: 6px 10px 4px;
+}
+
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--speed) ease;
+}
+
+.settings-nav-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.settings-nav-item--active {
+  background: var(--selected);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.settings-nav-item--danger {
+  color: var(--danger);
+}
+
+.settings-nav-item--danger:hover {
+  background: var(--danger-soft);
+  color: var(--danger-hover);
+}
+
+.settings-nav-item__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.settings-nav-item--active .settings-nav-item__icon {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.settings-nav-item__label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-nav-item__badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.settings-nav-item__badge--soon {
+  background: rgba(224, 160, 48, 0.15);
+  color: var(--warning);
+  border: 1px solid rgba(224, 160, 48, 0.3);
+}
+
+.settings-nav-item__badge--beta {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.settings-sidebar__footer {
+  padding-top: 14px;
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-sidebar__footer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-sidebar__version-wrap {
+  padding: 4px 10px;
+}
+
+.settings-sidebar__version {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* --- Settings Main Content --- */
+
+.settings-content {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding: 36px 48px 0 48px;
+  position: relative;
+  background: var(--bg-main);
+}
+
+.settings-content__inner {
+  width: 100%;
+  max-width: 740px;
+  margin: 0 auto;
+}
+
+.settings-content__spacer {
+  height: 64px;
+  min-height: 64px;
+  width: 100%;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn var(--speed) ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settings-section__header {
+  margin-bottom: 20px;
+}
+
+.settings-section__title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.settings-section__desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* --- Close Button Top Right --- */
+
+.settings-close-wrap {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 10;
+}
+
+.settings-close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--speed) ease;
+}
+
+.settings-close-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+  border-color: var(--text-muted);
+  transform: scale(1.05);
+}
+
+.settings-close-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+/* --- Cards & Form Components --- */
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-card--highlight {
+  background: var(--bg-overlay);
+  border-color: var(--border-strong);
+}
+
+.settings-card__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.settings-card__subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.45;
+}
+
+.settings-card__icon-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.settings-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-row__info {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- Discord-Style Toggle Switch --- */
+
+.settings-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.settings-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.settings-switch__slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  transition: all var(--speed) ease;
+  border-radius: var(--radius-full);
+}
+
+.settings-switch__slider::before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--text-muted);
+  transition: all var(--speed) ease;
+  border-radius: 50%;
+}
+
+.settings-switch input:checked + .settings-switch__slider {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+.settings-switch input:checked + .settings-switch__slider::before {
+  transform: translateX(20px);
+  background-color: var(--text-inverse);
+}
+
+/* --- Radio Cards --- */
+
+.settings-radio-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.settings-radio-card {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--speed) ease;
+  user-select: none;
+}
+
+.settings-radio-card:hover {
+  background: var(--hover);
+  border-color: var(--border-strong);
+}
+
+.settings-radio-card:has(input:checked),
+.settings-radio-card--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.settings-radio-card input {
+  margin-top: 2px;
+  margin-right: 10px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.settings-radio-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-radio-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.settings-radio-card .settings-card__subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 0;
+  line-height: 1.35;
+}
+
+/* --- Sliders --- */
+
+.slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* --- Mic Test Bar --- */
+
+.mic-test-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mic-meter-bar {
+  flex: 1;
+  height: 20px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  position: relative;
+}
+
+.mic-meter-bar__fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 60ms linear, background 120ms ease;
+}
+
+.mic-meter-bar__threshold {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text-dim);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+

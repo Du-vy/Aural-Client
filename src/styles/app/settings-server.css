@@ -1,0 +1,204 @@
+/* Server settings: the role manager, stats, member management and the unsaved bar. */
+
+/* --- Server Settings Elements --- */
+
+.server-icon-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  background: var(--accent);
+  color: var(--text-inverse);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.server-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.server-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.server-info-row:last-child {
+  border-bottom: none;
+}
+
+.server-info-label {
+  color: var(--text-muted);
+}
+
+.server-info-value {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* --- Role Manager Split Layout --- */
+
+.settings-role-manager {
+  display: grid;
+  grid-template-columns: minmax(160px, 210px) minmax(0, 1fr);
+  gap: 16px;
+  min-height: 420px;
+}
+
+.settings-role-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-role-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  max-height: 380px;
+}
+
+.settings-role-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- Stats Grid --- */
+
+.settings-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.settings-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 24px 16px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--accent);
+}
+
+.settings-stat-card__count {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.settings-stat-card__label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* --- Member Management in Settings --- */
+
+.settings-member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 450px;
+  overflow-y: auto;
+}
+
+.settings-member-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+}
+
+.settings-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.settings-badge--soon {
+  background: rgba(224, 160, 48, 0.15);
+  color: var(--warning);
+  border: 1px solid rgba(224, 160, 48, 0.3);
+}
+
+/* --- Floating Unsaved Bar --- */
+
+.settings-unsaved-bar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(680px, 90%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-overlay);
+  animation: slideUp var(--speed) ease;
+  z-index: 20;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.settings-unsaved-bar__text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.settings-unsaved-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* --- Responsive Adaptations --- */
+
+@media (max-width: 860px) {
+  .settings-scrim {
+    padding: 0;
+  }
+  .settings-shell {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    border: none;
+  }
+  .settings-sidebar {
+    width: 200px;
+    min-width: 200px;
+  }
+  .settings-grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .settings-content {
+    padding: 24px 20px 0 20px;
+  }
+}

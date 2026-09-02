@@ -1,0 +1,445 @@
+/* The application shell: the server rail, the channel sidebar and its drag-and-drop. */
+
+/* --- application shell ---------------------------------------------------- */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr);
+  height: 100%;
+  background: var(--bg-main);
+}
+
+.app--with-members {
+  grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr) var(--members-width);
+}
+
+/* Search takes the same column the member list does, and takes more of it:
+   a result carries three messages where a member carries a name. */
+.app--with-search {
+  grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr) var(--search-width);
+}
+
+/* --- server rail ---------------------------------------------------------- */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  background: var(--bg-rail);
+  overflow-y: auto;
+}
+
+.rail__item {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  transition: border-radius var(--speed) ease, background var(--speed) ease, color var(--speed) ease;
+}
+
+.rail__item:hover {
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
+.rail__item--active {
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
+.rail__item--active::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  width: 4px;
+  height: 28px;
+  border-radius: 0 4px 4px 0;
+  background: var(--text);
+}
+
+.rail__divider {
+  width: 32px;
+  height: 1px;
+  background: var(--border-strong);
+  margin: 2px 0;
+}
+
+/* --- channel sidebar ------------------------------------------------------ */
+
+.sidebar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-sidebar);
+}
+
+.sidebar__resizer {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 10;
+  user-select: none;
+  background: transparent;
+  transition: background var(--speed) ease;
+}
+
+.sidebar__resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+}
+
+.sidebar__resizer:hover,
+.app--resizing-sidebar .sidebar__resizer {
+  background: var(--accent);
+}
+
+.app--resizing-sidebar {
+  user-select: none;
+  cursor: col-resize;
+}
+
+.sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 16px;
+  height: 50px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
+}
+
+.sidebar__name {
+  font-size: var(--font-size-title, 15px);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar__tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  min-height: 0;
+}
+
+.category {
+  margin-top: 14px;
+  position: relative;
+}
+
+.category:first-child {
+  margin-top: 2px;
+}
+
+.category__header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 4px 4px 2px;
+  font-size: var(--font-size-caption, 11px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  transition: color var(--speed) ease;
+}
+
+.category__header:hover {
+  color: var(--text);
+}
+
+.category__caret {
+  transition: transform var(--speed) ease;
+}
+
+.category__caret--collapsed {
+  transform: rotate(-90deg);
+}
+
+.category__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 6px 8px;
+  margin-top: 1px;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  text-align: left;
+  transition: background var(--speed) ease, color var(--speed) ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: element;
+}
+
+.channel:hover {
+  background: var(--hover);
+  color: var(--text-muted);
+}
+
+.channel--active {
+  background: var(--selected);
+  color: var(--text);
+}
+
+.channel--joined {
+  color: var(--text);
+}
+
+.channel__icon {
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
+.channel__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-msg, 14px);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel__count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.channel__actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--speed) ease;
+}
+
+.channel:hover .channel__actions,
+.channel__actions:focus-within {
+  opacity: 1;
+}
+
+.channel__action {
+  display: grid;
+  place-items: center;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+}
+
+.channel__action:hover {
+  color: var(--text);
+}
+
+/* --- channel & category drag-and-drop ------------------------------------- */
+
+.channel--dragging {
+  opacity: 0.35;
+  cursor: grabbing !important;
+}
+
+.category--dragging {
+  opacity: 0.35;
+}
+
+.category__header-wrap {
+  position: relative;
+  width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: element;
+}
+
+.category__header-wrap:hover .category__header {
+  color: var(--text);
+}
+
+.channel:focus-visible,
+.category__header-wrap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.category--drop-target {
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  outline: 1.5px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+.category--drop-target .category__header {
+  color: var(--accent);
+}
+
+.channel__drop-line,
+.category__drop-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(18, 184, 160, 0.7);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.channel__drop-line::before,
+.category__drop-line::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(18, 184, 160, 0.9);
+}
+
+.channel__drop-line--before,
+.category__drop-line--before {
+  top: -1px;
+}
+
+.channel__drop-line--after,
+.category__drop-line--after {
+  bottom: -1px;
+}
+
+/*
+ * The zone sticks to the foot of the tree rather than sitting above it. It
+ * only exists while something is being dragged, and appearing at the top would
+ * shove every row — including the one under the pointer — down the moment the
+ * drag began.
+ */
+.sidebar__root-dropzone {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-top: 10px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: var(--bg-sidebar);
+  transition:
+    border-color var(--speed) ease,
+    background var(--speed) ease,
+    color var(--speed) ease,
+    box-shadow var(--speed) ease;
+  cursor: pointer;
+}
+
+.sidebar__root-dropzone:hover,
+.sidebar__root-dropzone--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: 0 0 12px rgba(18, 184, 160, 0.2);
+}
+
+.occupants {
+  margin: 1px 0 2px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.occupant {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  transition: background var(--speed) ease;
+}
+
+.occupant:hover {
+  background: var(--hover);
+}
+
+.occupant__name {
+  font-size: var(--font-size-sub, 13px);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.occupant--self .occupant__name {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.occupant__flags {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  color: var(--text-dim);
+}
+
+.occupant__flag {
+  display: grid;
+  place-items: center;
+}
+
+.occupant__flag--danger {
+  color: var(--danger);
+}
+
+/*
+ * Speaking is drawn on the avatar rather than on the row, because a row that
+ * changes colour every time somebody says a word is a sidebar that never sits
+ * still. A ring on the picture reads at a glance and moves nothing.
+ */
+.occupant .avatar {
+  box-shadow: 0 0 0 0 transparent;
+  transition: box-shadow 90ms ease;
+}
+
+.occupant--speaking .avatar {
+  box-shadow: 0 0 0 2px var(--online, #23a55a);
+}
+
+.occupant--muted .occupant__name {
+  opacity: 0.65;
+}
+

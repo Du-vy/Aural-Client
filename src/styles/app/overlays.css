@@ -1,0 +1,380 @@
+/* Context menus, modals, confirmations and the role editor. */
+
+/* --- context & dropdown menu ---------------------------------------------- */
+
+.menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 190px;
+  max-width: 280px;
+  padding: 5px;
+  border-radius: var(--radius);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-overlay);
+  user-select: none;
+  animation: menu-appear 80ms ease-out;
+}
+
+@keyframes menu-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.menu--submenu {
+  position: absolute;
+  top: -6px;
+  left: 100%;
+  margin-left: 4px;
+}
+
+.menu--submenu-left {
+  left: auto;
+  right: 100%;
+  margin-left: 0;
+  margin-right: 4px;
+}
+
+.menu__item-wrapper {
+  position: relative;
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  text-align: left;
+  transition: background var(--speed) ease, color var(--speed) ease;
+}
+
+.menu__item:hover:not(:disabled),
+.menu__item--active {
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
+.menu__item--danger:hover:not(:disabled) {
+  background: var(--danger);
+  color: #fff;
+}
+
+.menu__item--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.menu__icon {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.menu__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu__arrow {
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0.7;
+  margin-left: 4px;
+}
+
+.menu__checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.menu__checkbox--checked {
+  border-color: currentColor;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.menu__item:hover:not(:disabled) .menu__checkbox--checked {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.menu__divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
+}
+
+/* --- modal ---------------------------------------------------------------- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: var(--bg-scrim);
+  animation: fade var(--speed) ease;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.modal {
+  width: 100%;
+  max-width: 460px;
+  max-height: min(86vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-main);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+
+.scrim--drawer,
+.scrim--members {
+  display: none;
+}
+
+.modal--wide {
+  max-width: 640px;
+}
+
+.modal__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 20px 12px;
+}
+
+.modal__heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.modal__title {
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+
+.modal__subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+.modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 20px;
+  background: var(--bg-sidebar);
+  border-top: 1px solid var(--border);
+}
+
+/* --- confirmation & previews ---------------------------------------------- */
+
+.msg-preview {
+  margin-top: 10px;
+  background: var(--bg-rail);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  overflow: hidden;
+}
+
+.msg--preview {
+  padding: 0;
+  background: transparent !important;
+}
+
+.confirm-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.confirm-tip__tag {
+  color: #23a55a;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+  transition: color var(--speed) ease, border-color var(--speed) ease;
+}
+
+.tab:hover {
+  color: var(--text-muted);
+}
+
+.tab--active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+/* --- role editor ---------------------------------------------------------- */
+
+.rolegrid {
+  display: grid;
+  grid-template-columns: minmax(150px, 200px) minmax(0, 1fr);
+  gap: 16px;
+  min-height: 320px;
+}
+
+.rolelist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.rolelist__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-size: 14px;
+  transition: background var(--speed) ease;
+}
+
+.rolelist__item:hover {
+  background: var(--hover);
+}
+
+.rolelist__item--active {
+  background: var(--selected);
+}
+
+.rolelist__swatch {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.rolelist__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.permlist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.perm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  transition: background var(--speed) ease;
+}
+
+.perm:hover {
+  background: var(--hover);
+}
+
+.perm input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.perm__name {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.perm__help {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.perm--locked {
+  opacity: 0.45;
+}
+
+/* --- responsive ----------------------------------------------------------- */
+
+.drawer-toggle {
+  display: none;
+}
+

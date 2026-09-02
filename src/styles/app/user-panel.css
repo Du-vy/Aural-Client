@@ -1,0 +1,212 @@
+/* The user panel at the foot of the sidebar, and avatars wherever they appear. */
+
+/* --- user panel ----------------------------------------------------------- */
+
+.userpanel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: 54px;
+  padding: 0 10px;
+  background: var(--bg-rail);
+}
+
+.userpanel__identity {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background var(--speed) ease;
+}
+
+.userpanel__identity:hover {
+  background: var(--hover);
+}
+
+.userpanel__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.25;
+}
+
+.userpanel__name {
+  display: block;
+  font-size: var(--font-size-sub, 13.5px);
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.userpanel__status {
+  display: block;
+  font-size: var(--font-size-caption, 11px);
+  line-height: 1.2;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.userpanel__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.iconbtn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  transition: background var(--speed) ease, color var(--speed) ease;
+}
+
+.iconbtn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.iconbtn[aria-pressed="true"] {
+  color: var(--text);
+}
+
+.iconbtn--danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  color: var(--danger-hover);
+}
+
+/* --- avatars -------------------------------------------------------------- */
+
+.avatar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  font-weight: 600;
+  color: var(--text);
+  user-select: none;
+  overflow: visible;
+}
+
+.avatar--xs {
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
+}
+
+.avatar--sm {
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
+}
+
+.avatar--md {
+  width: 34px;
+  height: 34px;
+  font-size: 13px;
+}
+
+.avatar--lg {
+  width: 52px;
+  height: 52px;
+  font-size: 20px;
+}
+
+.avatar--xl {
+  width: 80px;
+  height: 80px;
+  font-size: 32px;
+}
+
+.avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+.avatar__initials {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.avatar__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--online, #23a55a);
+}
+
+.avatar__badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-sidebar, #1e1f22);
+  padding: 2px;
+  z-index: 2;
+  box-shadow: 0 0 0 2px var(--bg-sidebar, #1e1f22);
+}
+
+.avatar--xs .avatar__badge {
+  width: 8px;
+  height: 8px;
+  padding: 1px;
+}
+
+.avatar--sm .avatar__badge {
+  width: 10px;
+  height: 10px;
+  padding: 1px;
+}
+
+.avatar--md .avatar__badge {
+  width: 13px;
+  height: 13px;
+  padding: 1.5px;
+}
+
+.avatar--lg .avatar__badge {
+  width: 18px;
+  height: 18px;
+  padding: 2px;
+}
+
+.avatar--xl .avatar__badge {
+  width: 24px;
+  height: 24px;
+  padding: 3px;
+}
+
+.avatar__badge-icon {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+

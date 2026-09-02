@@ -1,0 +1,618 @@
+/* Status popover and grid, the crop dialog, and the profile card the member dialog shows. */
+
+/* --- Status Popover --- */
+.status-popover-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 990;
+  background: transparent;
+}
+
+.status-popover {
+  position: fixed;
+  left: 80px;
+  bottom: 60px;
+  width: 290px;
+  background: var(--bg-overlay, #2b2d31);
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-overlay, 0 12px 32px rgba(0, 0, 0, 0.45));
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1000;
+  backdrop-filter: blur(16px);
+  animation: scaleIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.status-popover__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 2px;
+}
+
+.status-popover__user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.status-popover__nickname {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text, #f2f3f5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-popover__username {
+  font-size: 12px;
+  color: var(--text-muted, #949ba4);
+}
+
+.status-popover__custom-status {
+  margin-top: 2px;
+}
+
+.status-popover__custom-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-raised, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+  color: var(--text-muted, #949ba4);
+  font-size: 13px;
+  text-align: left;
+  transition: all var(--speed, 0.15s) ease;
+}
+
+.status-popover__custom-btn:hover {
+  background: var(--hover, rgba(255, 255, 255, 0.08));
+  color: var(--text, #f2f3f5);
+  border-color: var(--accent, #5865f2);
+}
+
+.status-popover__custom-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.status-popover__custom-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.status-popover__custom-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.status-popover__divider {
+  height: 1px;
+  background: var(--border, rgba(255, 255, 255, 0.08));
+  margin: 2px 0;
+}
+
+.status-popover__options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.status-popover__option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 6px);
+  border: none;
+  background: transparent;
+  color: var(--text, #f2f3f5);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--speed, 0.15s) ease;
+}
+
+.status-popover__option:hover {
+  background: var(--hover, rgba(255, 255, 255, 0.08));
+}
+
+.status-popover__option--active {
+  background: var(--selected, rgba(88, 101, 242, 0.15));
+}
+
+.status-popover__option-dot-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.status-popover__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-popover__option-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.status-popover__option-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.status-popover__option-desc {
+  font-size: 11px;
+  color: var(--text-dim, #80848e);
+}
+
+.status-popover__option-check {
+  color: var(--accent, #5865f2);
+  flex-shrink: 0;
+}
+
+.status-popover__footer-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--text-muted, #949ba4);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--speed, 0.15s) ease;
+}
+
+.status-popover__footer-btn:hover {
+  background: var(--hover, rgba(255, 255, 255, 0.08));
+  color: var(--text, #f2f3f5);
+}
+
+/* --- Status Grid Options in User Settings --- */
+.status-grid-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .status-grid-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+.status-card-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius, 8px);
+  background: var(--bg-raised, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--speed, 0.15s) ease;
+}
+
+.status-card-opt:hover {
+  background: var(--hover, rgba(255, 255, 255, 0.06));
+  border-color: var(--border-strong, rgba(255, 255, 255, 0.15));
+}
+
+.status-card-opt--active {
+  background: var(--selected, rgba(88, 101, 242, 0.15));
+  border-color: var(--accent, #5865f2);
+}
+
+.status-card-opt__dot-wrap {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.status-card-opt__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.status-card-opt__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text, #f2f3f5);
+}
+
+.status-card-opt__desc {
+  font-size: 11px;
+  color: var(--text-dim, #80848e);
+}
+
+/* --- Image Crop Dialog --- */
+.image-crop-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.image-crop-viewport {
+  position: relative;
+  width: 100%;
+  height: 260px;
+  background: #0f1012;
+  border-radius: var(--radius, 8px);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.image-crop-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  pointer-events: auto;
+  transition: transform 0.05s ease-out;
+}
+
+.image-crop-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 2px dashed rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+}
+
+.image-crop-overlay--avatar {
+  border-radius: 50%;
+  width: 190px;
+  height: 190px;
+  margin: auto;
+}
+
+.image-crop-overlay--banner {
+  border-radius: var(--radius, 8px);
+  width: 90%;
+  /* 3:1, which is the shape the banner is saved at (960x320). A fixed height
+     here made the mask a different shape at every window width, so what came
+     out was never quite what the mask showed. */
+  aspect-ratio: 3 / 1;
+  max-height: 100%;
+  margin: auto;
+}
+
+.image-crop-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+}
+
+.image-crop-zoom-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.image-crop-slider {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.image-crop-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* --- Discord-Style Profile Card & Member Dialog --- */
+
+.scrim--popout {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: transparent;
+}
+
+.member-profile-modal,
+.member-profile-popout {
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  max-height: min(90vh, 760px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-overlay, #232428);
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.08));
+  border-radius: 16px;
+  box-shadow: var(--shadow-overlay, 0 16px 40px rgba(0, 0, 0, 0.55));
+  overflow: hidden;
+  position: fixed;
+  z-index: 1000;
+  animation: modal-pop 0.12s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.profile-card__banner {
+  height: 135px;
+  width: 100%;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  flex-shrink: 0;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  background-color: var(--bg-rail, #18191c);
+}
+
+.profile-card__close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f2f3f5;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: background 0.15s ease, transform 0.15s ease, color 0.15s ease;
+}
+
+.profile-card__close-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  color: #ffffff;
+  transform: scale(1.08);
+}
+
+.profile-card__avatar-row {
+  padding: 0 16px;
+  margin-top: -46px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  position: relative;
+  z-index: 2;
+}
+
+.profile-card__avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  border-radius: 50%;
+  box-shadow: 0 0 0 6px var(--bg-overlay, #232428);
+  background: var(--bg-overlay, #232428);
+}
+
+.profile-card__avatar-wrap .avatar__badge {
+  box-shadow: 0 0 0 3px var(--bg-overlay, #232428);
+  background: var(--bg-overlay, #232428);
+}
+
+.profile-card__badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  background: var(--bg-base, #111214);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.profile-card__badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.profile-card__copy-id {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.profile-card__copy-id:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.profile-card__identity {
+  padding: 12px 16px 0 16px;
+}
+
+.profile-card__name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text, #fff);
+  line-height: 1.25;
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-card__username {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dim, #949ba4);
+  margin-top: 2px;
+}
+
+.profile-card__custom-status {
+  margin-top: 10px;
+  font-size: 13.5px;
+  color: var(--text-muted, #dbdee1);
+  line-height: 1.4;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  word-break: break-word;
+}
+
+.profile-card__inner {
+  background: var(--bg-main, #111214);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 14px;
+  margin: 12px 16px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  max-height: calc(90vh - 260px);
+}
+
+.profile-card__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-card__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim, #949ba4);
+}
+
+.profile-card__divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 2px 0;
+}
+
+/* Discord Role Pills */
+.discord-role-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.discord-role-pill__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.discord-role-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.discord-role-add-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.profile-card__role-manage-box {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.profile-input-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
