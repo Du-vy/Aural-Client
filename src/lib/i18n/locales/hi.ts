@@ -37,6 +37,7 @@ export const hi: TranslationSchema = {
     connectButton: "कनेक्ट करें",
     connecting: "कनेक्ट हो रहा है...",
     reconnecting: "पुनः कनेक्ट हो रहा है...",
+    retryingIn: "कनेक्शन टूट गया। {seconds}s में पुनः प्रयास ({attempt}/{total})।",
     savedServers: "सहेजे गए सर्वर",
     savedEmpty: "अभी तक कोई सर्वर सहेजा नहीं गया है। कनेक्ट करने के लिए ऊपर पता दर्ज करें।",
     removeSaved: "सहेजे गए से हटाएं",

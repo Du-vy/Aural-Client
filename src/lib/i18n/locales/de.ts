@@ -37,6 +37,7 @@ export const de: TranslationSchema = {
     connectButton: "Verbinden",
     connecting: "Verbindung wird hergestellt...",
     reconnecting: "Verbindung wird wiederhergestellt...",
+    retryingIn: "Verbindung verloren. Neuer Versuch in {seconds}s ({attempt}/{total}).",
     savedServers: "Gespeicherte Server",
     savedEmpty: "Noch keine Server gespeichert. Gib oben eine Adresse ein.",
     removeSaved: "Aus gespeicherten entfernen",

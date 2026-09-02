@@ -37,6 +37,7 @@ export const pt: TranslationSchema = {
     connectButton: "Conectar",
     connecting: "Conectando...",
     reconnecting: "Reconectando...",
+    retryingIn: "Ligação perdida. A tentar de novo em {seconds}s ({attempt}/{total}).",
     savedServers: "Servidores Salvos",
     savedEmpty: "Nenhum servidor salvo. Digite um endereço acima para conectar.",
     removeSaved: "Remover dos salvos",

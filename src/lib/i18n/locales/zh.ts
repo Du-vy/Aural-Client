@@ -37,6 +37,7 @@ export const zh: TranslationSchema = {
     connectButton: "连接",
     connecting: "正在连接...",
     reconnecting: "正在重新连接...",
+    retryingIn: "连接已断开。将在 {seconds} 秒后重试（{attempt}/{total}）。",
     savedServers: "已保存的服务器",
     savedEmpty: "暂无已保存的服务器。在上方输入地址以连接。",
     removeSaved: "从已保存中移除",

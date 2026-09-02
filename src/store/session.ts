@@ -12,6 +12,7 @@ import { create } from "zustand";
 
 import { parseAddress, type ServerAddress } from "@/lib/address";
 import { Gateway, closeMessage, type CloseInfo } from "@/lib/gateway";
+import { t } from "@/lib/i18n";
 import {
   AuralError,
   Ev,
@@ -299,7 +300,14 @@ interface SessionState {
 }
 
 /** How many times an unexpected drop is retried before giving up. */
-const MAX_RECONNECT_ATTEMPTS = 5;
+const MAX_RECONNECT_ATTEMPTS = 8;
+/**
+ * The backoff ceiling. A server that is coming back — a home machine
+ * rebooting, an address that has just rotated — is usually gone for tens of
+ * seconds, not for one, so the wait is allowed to grow well past the first
+ * retry before the attempts run out.
+ */
+const RECONNECT_MAX_DELAY_MS = 30_000;
 
 /**
  * Reconnect bookkeeping lives outside the store: it is machinery, not state
@@ -308,17 +316,69 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
 let lastOptions: ConnectOptions | null = null;
+/**
+ * The channel to re-enter once a dropped connection comes back.
+ *
+ * Channel membership is not persisted by the server — a user is in a channel
+ * for as long as their connection lasts — so a reconnected session arrives
+ * sitting nowhere. Remembering it here is what makes a dropped call resume
+ * instead of quietly ending.
+ */
+let resumeChannelId: number | null = null;
 /** Guards against a stale socket writing over a newer connection's state. */
 let connectionEpoch = 0;
+/**
+ * The connection a retry has already been programmed for.
+ *
+ * One lost connection can report itself twice — the socket closes, and the
+ * request that was in flight on it then rejects — and both reports are honest.
+ * Counting the attempt once per connection is what keeps a single drop from
+ * spending two of them.
+ */
+let scheduledEpoch = 0;
 /** Distinguishes one jump from the next, including a repeat of the same one. */
 let jumpNonce = 1;
 
-function cancelReconnect(): void {
+/**
+ * Clears a pending retry without forgetting how many have been made.
+ *
+ * This is what a reconnect attempt itself uses. Forgetting the count here is
+ * what would flatten the backoff to its first step and put the attempt ceiling
+ * out of reach, since every retry runs through connect().
+ */
+function clearReconnectTimer(): void {
   if (reconnectTimer !== null) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
+}
+
+/** Ends the backoff: no retry pending, and the next drop starts over. */
+function cancelReconnect(): void {
+  clearReconnectTimer();
   reconnectAttempt = 0;
+  scheduledEpoch = 0;
+}
+
+/**
+ * Whether an authentication failure is one that retrying cannot fix.
+ *
+ * A full server or an internal error is worth coming back to; a refused
+ * credential or a closed door is not, and hammering it would only turn a clear
+ * message into eight of them.
+ */
+function isPermanentAuthFailure(error: unknown): boolean {
+  if (!(error instanceof AuralError)) return false;
+  switch (error.code) {
+    case "invalid_credentials":
+    case "guests_disabled":
+    case "registration_closed":
+    case "unauthorized":
+    case "forbidden":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function indexById<T extends { id: number }>(items: T[]): Map<number, T> {
@@ -579,46 +639,72 @@ export const useSession = create<SessionState>((set, get) => {
     }
   }
 
-  function handleClose(epoch: number, info: CloseInfo): void {
+  /**
+   * Drops everything this connection held and returns to the connect screen.
+   *
+   * `wasConnected` decides where the message goes: a session that was up
+   * reports what ended it as a notice over the connect screen, while one that
+   * never came up reports it as the error of the attempt.
+   */
+  function endSession(message: string, wasConnected: boolean): void {
+    cancelReconnect();
+    resumeChannelId = null;
+    set({
+      status: "idle",
+      notice: wasConnected ? message : null,
+      error: wasConnected ? null : message,
+      gateway: null,
+      token: null,
+      server: null,
+      self: null,
+      users: new Map(),
+      channels: new Map(),
+      roles: new Map(),
+      history: new Map(),
+      search: EMPTY_SEARCH,
+      jump: null,
+    });
+  }
+
+  /**
+   * Programs the next retry, or ends the session when there will not be one.
+   *
+   * Every way of losing a connection arrives here, including the one where no
+   * socket ever opened: a server that has not finished restarting refuses the
+   * connection rather than closing it, and refusal is the case reconnecting
+   * exists for. Routing only genuine closes here is what would make the retry
+   * chain stop on the first attempt, precisely when the server is still down.
+   */
+  function scheduleReconnect(epoch: number, message: string, wasConnected: boolean): void {
     if (epoch !== connectionEpoch) return;
+    // The socket closing and the request on it rejecting are one drop reported
+    // twice. The first report is the one that counts.
+    if (epoch === scheduledEpoch) return;
 
-    const state = get();
-    const wasConnected = state.status === "connected";
-    set({ gateway: null });
-    // Signalling travels on the socket that just went, so nothing about the
-    // media session can be recovered without a new one. It is torn down here
-    // rather than left to time out.
-    useVoice.getState().detach();
-
-    // A deliberate close, a kick, or a displacement: do not fight it.
-    const permanent = info.code === 1000 || info.code === 1008;
-    if (permanent || !lastOptions || reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
-      set({
-        status: "idle",
-        notice: wasConnected ? closeMessage(info.code, info.reason) : null,
-        error: wasConnected ? null : closeMessage(info.code, info.reason),
-        token: null,
-        server: null,
-        self: null,
-        users: new Map(),
-        channels: new Map(),
-        roles: new Map(),
-        history: new Map(),
-        search: EMPTY_SEARCH,
-        jump: null,
-      });
-      cancelReconnect();
+    const options = lastOptions;
+    if (!options || reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+      endSession(message, wasConnected);
       return;
     }
 
-    const options = lastOptions;
+    scheduledEpoch = epoch;
     reconnectAttempt += 1;
-    const delay = Math.min(1000 * 2 ** (reconnectAttempt - 1), 16_000);
+    // Jitter spreads the retries of everybody who was on a server when it went
+    // down, so it is not met by the whole room at the same instant.
+    const backoff = Math.min(1000 * 2 ** (reconnectAttempt - 1), RECONNECT_MAX_DELAY_MS);
+    const delay = Math.round(backoff * (0.8 + Math.random() * 0.4));
+
     set({
       status: "reconnecting",
-      notice: `Lost connection. Retrying in ${Math.round(delay / 1000)}s (${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}).`,
+      error: null,
+      notice: t("connect.retryingIn", {
+        seconds: Math.max(1, Math.round(delay / 1000)),
+        attempt: reconnectAttempt,
+        total: MAX_RECONNECT_ATTEMPTS,
+      }),
     });
 
+    clearReconnectTimer();
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       // A reconnect never re-runs a password sign-in; the stored token is what
@@ -626,9 +712,52 @@ export const useSession = create<SessionState>((set, get) => {
       void get()
         .connect({ ...options, credentials: undefined })
         .catch(() => {
-          // connect() has already recorded the failure.
+          // connect() has already routed the failure back here.
         });
     }, delay);
+  }
+
+  function handleClose(epoch: number, info: CloseInfo): void {
+    if (epoch !== connectionEpoch) return;
+
+    const state = get();
+    const wasConnected = state.status === "connected";
+    // Where to come back to. It is read before the teardown, because the
+    // teardown is what forgets it.
+    if (wasConnected && state.self?.channelId != null) {
+      resumeChannelId = state.self.channelId;
+    }
+    set({ gateway: null });
+    // Signalling travels on the socket that just went, so nothing about the
+    // media session can be recovered without a new one. It is torn down here
+    // rather than left to time out.
+    useVoice.getState().detach();
+
+    const message = closeMessage(info.code, info.reason);
+    // A deliberate close, a kick, or a displacement: do not fight it.
+    if (info.code === 1000 || info.code === 1008) {
+      endSession(message, wasConnected);
+      return;
+    }
+    scheduleReconnect(epoch, message, wasConnected);
+  }
+
+  /**
+   * Walks back into the channel a dropped connection was in.
+   *
+   * It is a plain user.move, so everything downstream of one happens as usual:
+   * the server answers with the move event this client already treats as the
+   * one thing that opens audio, so a call resumes without a second path.
+   */
+  async function restoreChannel(epoch: number, channelId: number): Promise<void> {
+    if (epoch !== connectionEpoch) return;
+    if (!get().channels.has(channelId)) return;
+    try {
+      await requireGateway().request(Op.UserMove, { channelId });
+    } catch {
+      // The channel is gone, full, or no longer visible. Coming back to the
+      // server at all was the part worth insisting on.
+    }
   }
 
   /** The gateway of a live connection, or a thrown error explaining why not. */
@@ -660,19 +789,34 @@ export const useSession = create<SessionState>((set, get) => {
 
     async connect(options) {
       const previous = get().gateway;
-      cancelReconnect();
+      // The timer goes, the attempt count stays: this call may well be the
+      // retry that timer was going to make.
+      clearReconnectTimer();
       previous?.close("switching servers");
 
       const epoch = ++connectionEpoch;
-      const isRetry = get().status === "reconnecting";
+      // A retry is any attempt made while a backoff is running, whatever the
+      // store is rendering at the moment.
+      const isRetry = reconnectAttempt > 0;
       set({ status: isRetry ? "reconnecting" : "connecting", error: null, notice: null });
+
+      /**
+       * Reports a failed attempt. During a reconnection it feeds the backoff;
+       * on a first attempt it is the end of it, which is what keeps the
+       * connect screen answering a bad address immediately.
+       */
+      const fail = (message: string, permanent: boolean): Error => {
+        if (isRetry && !permanent) scheduleReconnect(epoch, message, false);
+        else endSession(message, false);
+        return new Error(message);
+      };
 
       let address: ServerAddress;
       try {
         address = parseAddress(options.address);
       } catch (error) {
-        set({ status: "idle", error: error instanceof Error ? error.message : String(error) });
-        throw error;
+        // A malformed address is not something a retry can improve on.
+        throw fail(error instanceof Error ? error.message : String(error), true);
       }
 
       const saved = getServer(address.label);
@@ -688,9 +832,10 @@ export const useSession = create<SessionState>((set, get) => {
           onClose: (info) => handleClose(epoch, info),
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        set({ status: "idle", error: message });
-        throw new Error(message);
+        // A socket that never opened never closes either, so this is the only
+        // report that a server which is still down produces. It is the case
+        // reconnecting is for, so it feeds the backoff rather than ending it.
+        throw fail(error instanceof Error ? error.message : String(error), false);
       }
 
       if (gateway.hello.server.protocolVersion !== PROTOCOL_VERSION) {
@@ -700,8 +845,8 @@ export const useSession = create<SessionState>((set, get) => {
           theirs > PROTOCOL_VERSION
             ? `That server speaks Aural protocol v${theirs}. Update this client.`
             : `That server speaks Aural protocol v${theirs}, which this client no longer supports.`;
-        set({ status: "idle", error: message });
-        throw new Error(message);
+        // Retrying cannot make two versions agree.
+        throw fail(message, true);
       }
 
       // Sign in with credentials when given, otherwise resume the stored token,
@@ -737,9 +882,7 @@ export const useSession = create<SessionState>((set, get) => {
         }
       } catch (error) {
         gateway.close("authentication failed");
-        const message = describeError(error);
-        set({ status: "idle", error: message });
-        throw new Error(message);
+        throw fail(describeError(error), isPermanentAuthFailure(error));
       }
 
       if (epoch !== connectionEpoch) {
@@ -747,6 +890,7 @@ export const useSession = create<SessionState>((set, get) => {
         return;
       }
 
+      // The session is up: the backoff has done its job and starts over.
       cancelReconnect();
       const bookmarks = upsertServer({
         id: address.label,
@@ -769,10 +913,20 @@ export const useSession = create<SessionState>((set, get) => {
         saved: bookmarks,
       });
       applySnapshot(ready);
+
+      // Walk back into the channel the dropped connection was in. The server
+      // holds membership only for the life of a connection, so a reconnected
+      // session always arrives sitting nowhere and has to ask again.
+      const resume = resumeChannelId;
+      resumeChannelId = null;
+      if (resume !== null && ready.user.channelId === null) {
+        void restoreChannel(epoch, resume);
+      }
     },
 
     disconnect() {
       cancelReconnect();
+      resumeChannelId = null;
       lastOptions = null;
       connectionEpoch += 1;
       useVoice.getState().detach();

@@ -40,6 +40,7 @@ export const en = {
     connectButton: "Connect",
     connecting: "Connecting...",
     reconnecting: "Reconnecting...",
+    retryingIn: "Lost connection. Retrying in {seconds}s ({attempt}/{total}).",
     savedServers: "Saved Servers",
     savedEmpty: "No saved servers yet. Enter an address above to connect.",
     removeSaved: "Remove from saved",
