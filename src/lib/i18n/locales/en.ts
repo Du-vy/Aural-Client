@@ -414,6 +414,7 @@ export const en = {
         thresholdDesc: "Speech above the marker opens your microphone.",
         micTestTitle: "Mic Test",
         micTestPrompt: "Having mic trouble? Let's check your audio levels.",
+        micTestListening: "We're listening. Talk and you'll hear yourself played back, just as a channel would hear you. Headphones keep it from echoing.",
         checkMic: "Let's Check",
         stopMic: "Stop Testing",
         qualityTitle: "Audio Quality",

@@ -411,6 +411,7 @@ export const it: TranslationSchema = {
         thresholdDesc: "La voce al di sopra dell'indicatore aprirà il microfono.",
         micTestTitle: "Test microfono",
         micTestPrompt: "Hai problemi con il microfono? Controlliamo i livelli audio.",
+        micTestListening: "Ti stiamo ascoltando. Parla e ti sentirai in tempo reale, proprio come ti sentirebbe un canale. Le cuffie evitano l'eco.",
         checkMic: "Avvia test",
         stopMic: "Interrompi test",
         qualityTitle: "Qualità audio",

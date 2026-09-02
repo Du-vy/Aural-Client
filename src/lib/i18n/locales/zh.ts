@@ -411,6 +411,7 @@ export const zh: TranslationSchema = {
         thresholdDesc: "声音超过标记阈值时将激活麦克风。",
         micTestTitle: "麦克风测试",
         micTestPrompt: "麦克风遇到问题？测试一下您的音频电平。",
+        micTestListening: "正在聆听。说点什么，你会实时听到自己的声音，就像频道里听到的一样。戴上耳机可避免回声。",
         checkMic: "开始测试",
         stopMic: "停止测试",
         qualityTitle: "音频质量",

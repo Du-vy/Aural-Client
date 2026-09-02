@@ -7,6 +7,7 @@ import { useVoice } from "@/store/voice";
 import {
   Microphone,
   MicrophoneError,
+  Monitor,
   type MicrophoneFailure,
   type NoiseSuppression,
 } from "@/lib/voice/audio";
@@ -1069,7 +1070,23 @@ function VoiceAudioPage() {
   const [testError, setTestError] = useState<MicrophoneFailure | null>(null);
   const [testLevel, setTestLevel] = useState(0);
   const [recordingKey, setRecordingKey] = useState(false);
-  const testMic = useRef<Microphone | null>(null);
+  /**
+   * The microphone the test opened, once it is open.
+   *
+   * This is state rather than a ref because everything else the test does —
+   * the meter, the playback, the input gain — has to start the moment it
+   * appears, and a ref changing tells nothing that it did.
+   */
+  const [testMic, setTestMic] = useState<Microphone | null>(null);
+  /**
+   * The speakers the test plays into.
+   *
+   * One for the life of the page rather than one per test: it holds the volume
+   * and the output device between tests, so the settings above it are already
+   * in force by the time there is anything to play.
+   */
+  const monitor = useRef<Monitor | null>(null);
+  monitor.current ??= new Monitor();
 
   // Device names are blank until a microphone has been granted once, so the
   // list is asked for again whenever this page is opened rather than only at
@@ -1085,18 +1102,22 @@ function VoiceAudioPage() {
     return () => setMeterActive(false);
   }, [setMeterActive]);
 
+  const inCall = status === "connected" || status === "connecting" || status === "reconnecting";
+
+  // A call takes the test's place. The button that would stop it is gone by
+  // then, and leaving it running would hold a second microphone open and play
+  // your own voice back over everybody else's.
+  useEffect(() => {
+    if (inCall) setTesting(false);
+  }, [inCall]);
+
   // Outside a call there is no microphone to read, so testing opens one of its
   // own and closes it again on the way out.
   useEffect(() => {
-    if (!testing) {
-      testMic.current?.close();
-      testMic.current = null;
-      setTestLevel(0);
-      return;
-    }
+    if (!testing) return;
 
     let cancelled = false;
-    let stop: (() => void) | null = null;
+    let opened: Microphone | null = null;
 
     void Microphone.open({
       deviceId: prefs.inputDeviceId,
@@ -1109,13 +1130,19 @@ function VoiceAudioPage() {
           mic.close();
           return;
         }
-        testMic.current = mic;
+        opened = mic;
+        // The gate stays open for as long as the test runs, whatever the input
+        // mode says. Push to talk would otherwise make this a test of holding
+        // a key, and a threshold set too high would make it one of silence.
         mic.setOpen(true);
+        // Pressing the button is the gesture a suspended context is waiting
+        // for, but the context is built after the press rather than during it.
+        void mic.resume();
         setTestError(null);
         // Device names arrive with the first grant, so the list is worth
         // asking for again the moment one is given.
         void refreshDevices();
-        stop = mic.onLevel(setTestLevel);
+        setTestMic(mic);
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -1125,11 +1152,51 @@ function VoiceAudioPage() {
 
     return () => {
       cancelled = true;
-      stop?.();
-      testMic.current?.close();
-      testMic.current = null;
+      opened?.close();
+      setTestMic(null);
+      setTestLevel(0);
     };
   }, [testing, prefs.inputDeviceId, prefs.echoCancellation, prefs.noiseSuppression, prefs.autoGainControl, refreshDevices]);
+
+  // The meter reads the microphone the test opened, for as long as it is open.
+  useEffect(() => {
+    if (!testMic) return;
+    return testMic.onLevel(setTestLevel);
+  }, [testMic]);
+
+  // Moving the input slider during a test has to be audible in the test: being
+  // able to hear what a setting does to your voice is the reason for the test.
+  useEffect(() => {
+    testMic?.setInputVolume(prefs.inputVolume);
+  }, [testMic, prefs.inputVolume]);
+
+  // These two are declared before the playback so that they run before it as
+  // well, and the first sound out of it is already at the chosen volume and on
+  // the chosen device rather than correcting itself a moment later.
+  useEffect(() => {
+    monitor.current?.setVolume(prefs.outputVolume);
+  }, [prefs.outputVolume]);
+
+  useEffect(() => {
+    void monitor.current?.setOutputDevice(prefs.outputDeviceId);
+  }, [prefs.outputDeviceId]);
+
+  /*
+   * Hearing yourself is the point of the test.
+   *
+   * A meter answers "is anything arriving", which is the smaller half of the
+   * question. Whether the microphone selected is the one being spoken into,
+   * whether suppression is eating the voice along with the noise, whether the
+   * output device chosen above is where sound actually comes out — none of
+   * those can be read off a bar. What is played is the processed stream, the
+   * one that would have been sent, so this is what the far end would hear.
+   */
+  useEffect(() => {
+    const speakers = monitor.current;
+    if (!testMic || !speakers) return;
+    speakers.play(testMic.stream);
+    return () => speakers.stop();
+  }, [testMic]);
 
   // Capturing a shortcut has to swallow the key it captures, or assigning
   // Escape would close this dialog and assigning Space would press a button.
@@ -1181,7 +1248,6 @@ function VoiceAudioPage() {
     await refreshDevices();
   };
 
-  const inCall = status === "connected" || status === "connecting" || status === "reconnecting";
   const shownLevel = testing ? testLevel : inCall ? level : 0;
   const bitrate = resolveBitrate(prefs, config ?? undefined);
 
@@ -1268,7 +1334,11 @@ function VoiceAudioPage() {
 
       <div className="settings-card" style={{ marginTop: 16 }}>
         <h3 className="settings-card__title">{t("dialogs.userSettings.voice.micTestTitle")}</h3>
-        <p className="settings-card__subtitle">{t("dialogs.userSettings.voice.micTestPrompt")}</p>
+        <p className="settings-card__subtitle">
+          {testing
+            ? t("dialogs.userSettings.voice.micTestListening")
+            : t("dialogs.userSettings.voice.micTestPrompt")}
+        </p>
 
         <div className="mic-test-row" style={{ marginTop: 14 }}>
           {inCall ? null : (
