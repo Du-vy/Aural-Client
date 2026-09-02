@@ -280,6 +280,13 @@ export const zh: TranslationSchema = {
     uploadBanner: "上传横幅",
     removeBanner: "移除横幅",
     orEnterUrl: "或输入图片 URL：",
+    changeBanner: "更换横幅",
+    changeAvatar: "更换头像",
+    interactiveHint: "在预览中直接点击头像或横幅即可快速更换。",
+    identityTitle: "个人资料与视觉",
+    presenceTitle: "在线状态与展示",
+    mediaTabAvatar: "头像",
+    mediaTabBanner: "个人横幅",
   },
   crop: {
     avatarTitle: "裁剪头像",

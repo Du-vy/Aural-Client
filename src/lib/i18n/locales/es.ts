@@ -280,6 +280,13 @@ export const es: TranslationSchema = {
     uploadBanner: "Subir Banner",
     removeBanner: "Quitar Banner",
     orEnterUrl: "O ingresa una URL de imagen:",
+    changeBanner: "Cambiar Banner",
+    changeAvatar: "Cambiar Avatar",
+    interactiveHint: "Haz clic en el avatar o banner de la vista previa para cambiarlos rápidamente.",
+    identityTitle: "Identidad y Aspecto Visual",
+    presenceTitle: "Estado y Presencia",
+    mediaTabAvatar: "Avatar",
+    mediaTabBanner: "Banner de Perfil",
   },
   crop: {
     avatarTitle: "Recortar Avatar",

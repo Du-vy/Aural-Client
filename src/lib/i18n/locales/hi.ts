@@ -280,6 +280,13 @@ export const hi: TranslationSchema = {
     uploadBanner: "बैनर अपलोड करें",
     removeBanner: "बैनर हटाएं",
     orEnterUrl: "या छवि URL दर्ज करें:",
+    changeBanner: "बैनर बदलें",
+    changeAvatar: "अवतार बदलें",
+    interactiveHint: "पूर्वावलोकन में अवतार या बैनर पर क्लिक करके उन्हें तुरंत बदलें।",
+    identityTitle: "प्रोफ़ाइल पहचान",
+    presenceTitle: "स्थिति और उपस्थिति",
+    mediaTabAvatar: "अवतार",
+    mediaTabBanner: "बैनर",
   },
   crop: {
     avatarTitle: "अवतार क्रॉप करें",

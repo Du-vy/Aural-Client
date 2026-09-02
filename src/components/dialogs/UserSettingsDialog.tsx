@@ -34,6 +34,7 @@ import {
 import { Avatar, resolveAvatarUrl } from "../Avatar";
 import { ImageCropDialog } from "./ImageCropDialog";
 import {
+  CameraIcon,
   CheckIcon,
   CopyIcon,
   DownloadIcon,
@@ -208,6 +209,7 @@ function ProfilePage() {
   const [avatarUrlInput, setAvatarUrlInput] = useState(self?.avatar ?? "");
   const [bannerUrlInput, setBannerUrlInput] = useState(self?.banner ?? "");
   const [cropFile, setCropFile] = useState<{ file: File; type: "avatar" | "banner" } | null>(null);
+  const [activeMediaTab, setActiveMediaTab] = useState<"avatar" | "banner">("avatar");
 
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -400,17 +402,220 @@ function ProfilePage() {
         </div>
       ) : null}
 
+      {/* Hidden file inputs for avatar and banner */}
+      <input
+        type="file"
+        ref={avatarInputRef}
+        style={{ display: "none" }}
+        accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp"
+        onChange={(e) => handleFileSelected(e, "avatar")}
+      />
+      <input
+        type="file"
+        ref={bannerInputRef}
+        style={{ display: "none" }}
+        accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp"
+        onChange={(e) => handleFileSelected(e, "banner")}
+      />
+
       <div className="settings-grid-2">
-        {/* Left Column: Form Controls */}
+        {/* Left Column: Form Controls (Streamlined into 2 cohesive cards) */}
         <div className="settings-form">
-          {/* Status Selection Card */}
+          {/* Card 1: Identity & Visual Appearance */}
           <div className="settings-card">
             <h3 className="settings-card__title">
-              {t("status.title")}
+              {t("profile.identityTitle")}
+            </h3>
+            <p className="settings-card__subtitle">
+              {t("dialogs.userSettings.profile.desc")}
+            </p>
+
+            {/* Nickname Input */}
+            <div className="profile-field-group" style={{ marginTop: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <label htmlFor="profile-nickname" className="profile-input-label" style={{ fontWeight: 600, fontSize: 12 }}>
+                  {t("dialogs.userSettings.profile.nickname")}
+                </label>
+                <span style={{ fontSize: 11, color: "var(--text-dim)" }}>
+                  {allowedNickname
+                    ? t("dialogs.userSettings.profile.nicknameHint")
+                    : t("errors.forbidden")}
+                </span>
+              </div>
+
+              <form onSubmit={(e) => void handleSaveNickname(e)} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  id="profile-nickname"
+                  className="input"
+                  value={nickname}
+                  onChange={(e) => {
+                    setNicknameValue(e.target.value);
+                    setSaved(false);
+                  }}
+                  maxLength={32}
+                  disabled={!allowedNickname || busy}
+                  placeholder={self?.nickname}
+                />
+                {isNicknameDirty ? (
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button
+                      type="submit"
+                      className="btn btn--primary btn--sm"
+                      disabled={busy || !allowedNickname}
+                    >
+                      {busy ? t("common.loading") : t("common.save")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => setNicknameValue(self?.nickname ?? "")}
+                      disabled={busy}
+                    >
+                      {t("dialogs.userSettings.reset")}
+                    </button>
+                  </div>
+                ) : null}
+              </form>
+            </div>
+
+            <div className="profile-card-divider" />
+
+            {/* Profile Media Controls (Avatar & Banner Tabs) */}
+            <div className="profile-media-section">
+              <span className="profile-input-label" style={{ fontWeight: 600, fontSize: 12 }}>
+                {t("dialogs.userSettings.tabAppearance")}
+              </span>
+
+              <div className="profile-media-switcher">
+                <button
+                  type="button"
+                  className={`profile-media-tab-btn ${activeMediaTab === "avatar" ? "profile-media-tab-btn--active" : ""}`}
+                  onClick={() => setActiveMediaTab("avatar")}
+                >
+                  <UserIcon size={14} />
+                  <span>{t("profile.mediaTabAvatar")}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`profile-media-tab-btn ${activeMediaTab === "banner" ? "profile-media-tab-btn--active" : ""}`}
+                  onClick={() => setActiveMediaTab("banner")}
+                >
+                  <ImageIcon size={14} />
+                  <span>{t("profile.mediaTabBanner")}</span>
+                </button>
+              </div>
+
+              {activeMediaTab === "avatar" ? (
+                <div className="profile-media-panel">
+                  <div className="profile-media-actions">
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--sm"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={busy}
+                    >
+                      <UploadIcon size={14} />
+                      <span>{t("profile.uploadAvatar")}</span>
+                    </button>
+                    {self?.avatar ? (
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => void handleRemoveAvatar()}
+                        disabled={busy}
+                      >
+                        <TrashIcon size={14} />
+                        <span>{t("profile.removeAvatar")}</span>
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <span className="profile-media-specs">
+                    {t("profile.avatarDesc", { max: formatBytes(maxAvatarBytes) })}
+                  </span>
+
+                  <form onSubmit={(e) => void handleApplyAvatarUrl(e)} className="profile-media-url-row">
+                    <span className="profile-input-label">{t("profile.orEnterUrl")}</span>
+                    <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                      <input
+                        className="input input--sm"
+                        value={avatarUrlInput}
+                        onChange={(e) => setAvatarUrlInput(e.target.value)}
+                        placeholder="https://example.com/avatar.png"
+                        disabled={busy}
+                      />
+                      <button
+                        type="submit"
+                        className="btn btn--ghost btn--sm"
+                        disabled={busy || avatarUrlInput.trim() === (self?.avatar ?? "")}
+                      >
+                        {t("common.apply")}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : (
+                <div className="profile-media-panel">
+                  <div className="profile-media-actions">
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--sm"
+                      onClick={() => bannerInputRef.current?.click()}
+                      disabled={busy}
+                    >
+                      <UploadIcon size={14} />
+                      <span>{t("profile.uploadBanner")}</span>
+                    </button>
+                    {self?.banner ? (
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => void handleRemoveBanner()}
+                        disabled={busy}
+                      >
+                        <TrashIcon size={14} />
+                        <span>{t("profile.removeBanner")}</span>
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <span className="profile-media-specs">
+                    {t("profile.bannerDesc", { max: formatBytes(maxBannerBytes) })}
+                  </span>
+
+                  <form onSubmit={(e) => void handleApplyBannerUrl(e)} className="profile-media-url-row">
+                    <span className="profile-input-label">{t("profile.orEnterUrl")}</span>
+                    <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                      <input
+                        className="input input--sm"
+                        value={bannerUrlInput}
+                        onChange={(e) => setBannerUrlInput(e.target.value)}
+                        placeholder="https://example.com/banner.png"
+                        disabled={busy}
+                      />
+                      <button
+                        type="submit"
+                        className="btn btn--ghost btn--sm"
+                        disabled={busy || bannerUrlInput.trim() === (self?.banner ?? "")}
+                      >
+                        {t("common.apply")}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Card 2: Status & Presence */}
+          <div className="settings-card">
+            <h3 className="settings-card__title">
+              {t("profile.presenceTitle")}
             </h3>
             <p className="settings-card__subtitle">
               {t("status.selectStatusHint")}
             </p>
+
             <div className="status-grid-options" style={{ marginTop: 12 }}>
               {(
                 [
@@ -459,19 +664,23 @@ function ProfilePage() {
                 );
               })}
             </div>
-          </div>
 
-          {/* Custom Status Card */}
-          <div className="settings-card">
-            <h3 className="settings-card__title">
-              {t("status.customStatusTitle")}
-            </h3>
-            <p className="settings-card__subtitle">
-              {t("status.customStatusDesc")}
-            </p>
-            <form onSubmit={(e) => void handleSaveCustomStatus(e)} style={{ marginTop: 12 }}>
-              <div className="field">
+            <div className="profile-card-divider" />
+
+            {/* Custom Status Message */}
+            <div className="profile-field-group">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <label htmlFor="profile-custom-status" className="profile-input-label" style={{ fontWeight: 600, fontSize: 12 }}>
+                  {t("status.customStatusTitle")}
+                </label>
+                <span style={{ fontSize: 11, color: "var(--text-dim)" }}>
+                  {t("status.customStatusDesc")}
+                </span>
+              </div>
+
+              <form onSubmit={(e) => void handleSaveCustomStatus(e)} style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <input
+                  id="profile-custom-status"
                   className="input"
                   value={customStatus}
                   onChange={(e) => {
@@ -480,215 +689,62 @@ function ProfilePage() {
                   }}
                   placeholder={t("status.customPlaceholder")}
                   maxLength={128}
+                  disabled={busy}
                 />
-              </div>
-              <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-                <button
-                  type="submit"
-                  className="btn btn--primary btn--sm"
-                  disabled={!isCustomStatusDirty || busy}
-                >
-                  {busy ? t("common.loading") : t("common.save")}
-                </button>
-                {self?.customStatus ? (
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                   <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => {
-                      setCustomStatus("");
-                      void updateProfile({ customStatus: "" });
-                    }}
-                    disabled={busy}
+                    type="submit"
+                    className="btn btn--primary btn--sm"
+                    disabled={!isCustomStatusDirty || busy}
                   >
-                    {t("common.delete")}
+                    {busy ? t("common.loading") : t("common.save")}
                   </button>
-                ) : null}
-              </div>
-            </form>
-          </div>
-
-          {/* Nickname Card */}
-          <div className="settings-card">
-            <h3 className="settings-card__title">
-              {t("dialogs.userSettings.profile.nickname")}
-            </h3>
-            <p className="settings-card__subtitle">
-              {allowedNickname
-                ? t("dialogs.userSettings.profile.nicknameHint")
-                : t("errors.forbidden")}
-            </p>
-
-            <form onSubmit={(e) => void handleSaveNickname(e)} style={{ marginTop: 12 }}>
-              <div className="field">
-                <input
-                  id="profile-nickname"
-                  className="input"
-                  value={nickname}
-                  onChange={(e) => {
-                    setNicknameValue(e.target.value);
-                    setSaved(false);
-                  }}
-                  maxLength={32}
-                  disabled={!allowedNickname}
-                  placeholder={self?.nickname}
-                />
-              </div>
-
-              <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-                <button
-                  type="submit"
-                  className="btn btn--primary btn--sm"
-                  disabled={!isNicknameDirty || busy || !allowedNickname}
-                >
-                  {busy ? t("common.loading") : t("common.save")}
-                </button>
-                {isNicknameDirty ? (
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => setNicknameValue(self?.nickname ?? "")}
-                    disabled={busy}
-                  >
-                    {t("dialogs.userSettings.reset")}
-                  </button>
-                ) : null}
-              </div>
-            </form>
-          </div>
-
-          {/* Avatar Settings Card */}
-          <div className="settings-card">
-            <h3 className="settings-card__title">
-              {t("profile.avatarTitle")}
-            </h3>
-            <p className="settings-card__subtitle">
-              {t("profile.avatarDesc", { max: formatBytes(maxAvatarBytes) })}
-            </p>
-
-            <input
-              type="file"
-              ref={avatarInputRef}
-              style={{ display: "none" }}
-              accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp"
-              onChange={(e) => handleFileSelected(e, "avatar")}
-            />
-
-            <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-              <button
-                type="button"
-                className="btn btn--primary btn--sm"
-                onClick={() => avatarInputRef.current?.click()}
-                disabled={busy}
-              >
-                <UploadIcon size={14} />
-                <span>{t("profile.uploadAvatar")}</span>
-              </button>
-              {self?.avatar ? (
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={() => void handleRemoveAvatar()}
-                  disabled={busy}
-                >
-                  <TrashIcon size={14} />
-                  <span>{t("profile.removeAvatar")}</span>
-                </button>
-              ) : null}
+                  {self?.customStatus ? (
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => {
+                        setCustomStatus("");
+                        void updateProfile({ customStatus: "" });
+                      }}
+                      disabled={busy}
+                      title={t("common.delete")}
+                    >
+                      <TrashIcon size={14} />
+                    </button>
+                  ) : null}
+                </div>
+              </form>
             </div>
-
-            {/* URL input fallback */}
-            <form onSubmit={(e) => void handleApplyAvatarUrl(e)} style={{ marginTop: 14 }}>
-              <span className="profile-input-label">{t("profile.orEnterUrl")}</span>
-              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                <input
-                  className="input input--sm"
-                  value={avatarUrlInput}
-                  onChange={(e) => setAvatarUrlInput(e.target.value)}
-                  placeholder="https://example.com/avatar.png"
-                  disabled={busy}
-                />
-                <button
-                  type="submit"
-                  className="btn btn--ghost btn--sm"
-                  disabled={busy || avatarUrlInput.trim() === (self?.avatar ?? "")}
-                >
-                  {t("common.apply")}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Banner Settings Card */}
-          <div className="settings-card">
-            <h3 className="settings-card__title">
-              {t("profile.bannerTitle")}
-            </h3>
-            <p className="settings-card__subtitle">
-              {t("profile.bannerDesc", { max: formatBytes(maxBannerBytes) })}
-            </p>
-
-            <input
-              type="file"
-              ref={bannerInputRef}
-              style={{ display: "none" }}
-              accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp"
-              onChange={(e) => handleFileSelected(e, "banner")}
-            />
-
-            <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-              <button
-                type="button"
-                className="btn btn--primary btn--sm"
-                onClick={() => bannerInputRef.current?.click()}
-                disabled={busy}
-              >
-                <UploadIcon size={14} />
-                <span>{t("profile.uploadBanner")}</span>
-              </button>
-              {self?.banner ? (
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={() => void handleRemoveBanner()}
-                  disabled={busy}
-                >
-                  <TrashIcon size={14} />
-                  <span>{t("profile.removeBanner")}</span>
-                </button>
-              ) : null}
-            </div>
-
-            {/* URL input fallback */}
-            <form onSubmit={(e) => void handleApplyBannerUrl(e)} style={{ marginTop: 14 }}>
-              <span className="profile-input-label">{t("profile.orEnterUrl")}</span>
-              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                <input
-                  className="input input--sm"
-                  value={bannerUrlInput}
-                  onChange={(e) => setBannerUrlInput(e.target.value)}
-                  placeholder="https://example.com/banner.png"
-                  disabled={busy}
-                />
-                <button
-                  type="submit"
-                  className="btn btn--ghost btn--sm"
-                  disabled={busy || bannerUrlInput.trim() === (self?.banner ?? "")}
-                >
-                  {t("common.apply")}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
 
-        {/* Right Column: Live Profile Card Preview */}
+        {/* Right Column: Live Profile Card Preview with Click-to-Edit & Sticky Layout */}
         <div className="settings-preview-wrap">
-          <h3 className="settings-card__title" style={{ marginBottom: 8 }}>
-            {t("dialogs.userSettings.profile.previewTitle")}
-          </h3>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <h3 className="settings-card__title" style={{ margin: 0 }}>
+              {t("dialogs.userSettings.profile.previewTitle")}
+            </h3>
+            <span style={{ fontSize: 11, color: "var(--text-dim)" }}>
+              {server?.name ? server.name : "Aural"}
+            </span>
+          </div>
+
           <div className="profile-card-preview">
+            {/* Clickable Banner */}
             <div
-              className="profile-card-preview__banner"
+              className="profile-card-preview__banner profile-card-preview__banner--editable"
+              role="button"
+              tabIndex={0}
+              title={t("profile.changeBanner")}
+              aria-label={t("profile.changeBanner")}
+              onClick={() => bannerInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  bannerInputRef.current?.click();
+                }
+              }}
               style={
                 bannerSrc
                   ? { backgroundImage: `url("${bannerSrc}")` }
@@ -696,9 +752,47 @@ function ProfilePage() {
                       background: `linear-gradient(135deg, var(--accent, #5865F2) 0%, #0b5c51 100%)`,
                     }
               }
-            />
+            >
+              <div className="profile-card-preview__banner-overlay">
+                <span className="profile-card-preview__banner-badge">
+                  <CameraIcon size={14} />
+                  <span>{t("profile.changeBanner")}</span>
+                </span>
+              </div>
+
+              {self?.banner ? (
+                <button
+                  type="button"
+                  className="profile-card-preview__banner-remove"
+                  title={t("profile.removeBanner")}
+                  aria-label={t("profile.removeBanner")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleRemoveBanner();
+                  }}
+                  disabled={busy}
+                >
+                  <TrashIcon size={13} />
+                </button>
+              ) : null}
+            </div>
+
+            {/* Avatar Row with Clickable Avatar */}
             <div className="profile-card-preview__avatar-row">
-              <div className="profile-card-preview__avatar-wrap">
+              <div
+                className="profile-card-preview__avatar-wrap profile-card-preview__avatar-wrap--editable"
+                role="button"
+                tabIndex={0}
+                title={t("profile.changeAvatar")}
+                aria-label={t("profile.changeAvatar")}
+                onClick={() => avatarInputRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    avatarInputRef.current?.click();
+                  }
+                }}
+              >
                 {self ? (
                   <Avatar
                     user={{
@@ -711,8 +805,19 @@ function ProfilePage() {
                     showStatus
                   />
                 ) : null}
+
+                <div className="profile-card-preview__avatar-overlay">
+                  <span className="profile-card-preview__avatar-overlay-icon">
+                    <CameraIcon size={20} />
+                  </span>
+                  <span className="profile-card-preview__avatar-overlay-text">
+                    {t("common.edit")}
+                  </span>
+                </div>
               </div>
             </div>
+
+            {/* Profile Body */}
             <div className="profile-card-preview__body">
               <div className="profile-card-preview__name">
                 {nickname.trim() || self?.nickname || "User"}
@@ -775,6 +880,12 @@ function ProfilePage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Interactive Hint Card */}
+          <div className="profile-hint-card">
+            <span className="profile-hint-card__icon">💡</span>
+            <span>{t("profile.interactiveHint")}</span>
           </div>
         </div>
       </div>

@@ -280,6 +280,13 @@ export const fr: TranslationSchema = {
     uploadBanner: "Téléverser une bannière",
     removeBanner: "Supprimer la bannière",
     orEnterUrl: "Ou entrez une URL d'image :",
+    changeBanner: "Changer la bannière",
+    changeAvatar: "Changer l'avatar",
+    interactiveHint: "Cliquez sur l'avatar ou la bannière pour les modifier rapidement.",
+    identityTitle: "Identité et visuels",
+    presenceTitle: "Statut et présence",
+    mediaTabAvatar: "Avatar",
+    mediaTabBanner: "Bannière",
   },
   crop: {
     avatarTitle: "Recadrer l'avatar",

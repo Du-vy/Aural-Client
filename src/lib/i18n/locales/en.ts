@@ -283,6 +283,13 @@ export const en = {
     uploadBanner: "Upload Banner",
     removeBanner: "Remove Banner",
     orEnterUrl: "Or enter an image URL:",
+    changeBanner: "Change Banner",
+    changeAvatar: "Change Avatar",
+    interactiveHint: "Click on the avatar or banner in the preview to quickly change them.",
+    identityTitle: "Profile Identity",
+    presenceTitle: "Status & Presence",
+    mediaTabAvatar: "Avatar",
+    mediaTabBanner: "Banner",
   },
   crop: {
     avatarTitle: "Crop Avatar",
