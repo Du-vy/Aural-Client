@@ -11,6 +11,10 @@ import {
   FolderIcon,
   GearIcon,
   HangUpIcon,
+  HeadphonesIcon,
+  HeadphonesOffIcon,
+  MicIcon,
+  MicOffIcon,
   HashIcon,
   MenuIcon,
   PencilIcon,
@@ -26,6 +30,8 @@ import { MemberList } from "@/components/MemberList";
 import { SearchBar } from "@/components/SearchBar";
 import { SearchResults } from "@/components/SearchResults";
 import { UserPanel } from "@/components/UserPanel";
+import { VoicePanel } from "@/components/VoicePanel";
+import { useVoice } from "@/store/voice";
 import { StatusPopover } from "@/components/StatusPopover";
 import { UserSettingsDialog } from "@/components/dialogs/UserSettingsDialog";
 import { ChannelDialog } from "@/components/dialogs/ChannelDialog";
@@ -47,7 +53,7 @@ import { assignableRoles, outranks, useMyPermissions } from "@/store/selectors";
 
 type Dialog =
   | { kind: "none" }
-  | { kind: "account" }
+  | { kind: "account"; tab?: "voice" }
   | { kind: "settings" }
   | {
       kind: "channel";
@@ -93,6 +99,8 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   const openSearch = useSession((state) => state.openSearch);
   const jump = useSession((state) => state.jump);
   const permissions = useMyPermissions();
+  const voiceStates = useVoice((state) => state.states);
+  const moderateVoice = useVoice((state) => state.moderate);
 
   const [dialog, setDialog] = useState<Dialog>({ kind: "none" });
   const [statusOpen, setStatusOpen] = useState(false);
@@ -341,6 +349,29 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         });
       }
 
+      // Moderating somebody's audio only means anything while they are in a
+      // channel to be heard in, and only somebody they are ranked below may do
+      // it. Both are checked again by the server.
+      const voiceState = voiceStates.get(u.id);
+      if (!isSelf && voiceState && outranks(self, u, roles)) {
+        if (has(permissions, Perm.MuteUsers)) {
+          entries.push({
+            id: "voice-mute",
+            label: voiceState.mute ? t("voice.serverUnmute") : t("voice.serverMute"),
+            icon: voiceState.mute ? <MicIcon size={16} /> : <MicOffIcon size={16} />,
+            onClick: () => void moderateVoice(u.id, { mute: !voiceState.mute }),
+          });
+        }
+        if (has(permissions, Perm.DeafenUsers)) {
+          entries.push({
+            id: "voice-deafen",
+            label: voiceState.deaf ? t("voice.serverUndeafen") : t("voice.serverDeafen"),
+            icon: voiceState.deaf ? <HeadphonesIcon size={16} /> : <HeadphonesOffIcon size={16} />,
+            onClick: () => void moderateVoice(u.id, { deaf: !voiceState.deaf }),
+          });
+        }
+      }
+
       if (canKick) {
         entries.push({ type: "separator" });
         entries.push({
@@ -377,6 +408,8 @@ export function ServerView({ onAddServer }: ServerViewProps) {
     setRoleMembership,
     moveUser,
     kickUser,
+    voiceStates,
+    moderateVoice,
     t,
   ]);
 
@@ -462,6 +495,8 @@ export function ServerView({ onAddServer }: ServerViewProps) {
             setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
           }}
         />
+
+        <VoicePanel onOpenVoiceSettings={() => setDialog({ kind: "account", tab: "voice" })} />
 
         <UserPanel
           onOpenAccount={() => setDialog({ kind: "account" })}
@@ -592,7 +627,9 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         />
       ) : null}
 
-      {dialog.kind === "account" ? <UserSettingsDialog onClose={() => setDialog({ kind: "none" })} /> : null}
+      {dialog.kind === "account" ? (
+        <UserSettingsDialog initialTab={dialog.tab} onClose={() => setDialog({ kind: "none" })} />
+      ) : null}
       {dialog.kind === "settings" ? (
         <ServerSettingsDialog onClose={() => setDialog({ kind: "none" })} />
       ) : null}

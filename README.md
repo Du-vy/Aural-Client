@@ -7,9 +7,9 @@ people run their own, and you reach them by address.
 React and TypeScript on Vite, wrapped by Tauri v2 so the same codebase ships as
 a desktop app and an Android app.
 
-> **Status: v0.4.** Connecting, identity, the channel tree, roles, permissions,
-> presence, text messaging, file attachments and search all work against a real
-> server. Voice is the next milestone.
+> **Status: v0.5.** Connecting, identity, the channel tree, roles, permissions,
+> presence, text messaging, file attachments, search and voice all work against
+> a real server.
 
 ## Quick start
 
@@ -153,6 +153,70 @@ the server. The size limits are the server's, advertised before anything is
 sent, so a file that is too large is refused in the picker rather than after a
 long transfer.
 
+### Voice
+
+Audio is Opus over WebRTC. The WebSocket carries only signalling — offers,
+answers and ICE candidates — and the audio itself goes peer to peer or through
+the server's relay, depending on which of the two hosting models the server
+runs. That choice is the server's and is shown on the connect screen.
+
+The two modes share every line of this client except who the peers are. In
+`server_host` there is one connection, to the server, carrying everybody's audio
+on its own track. In `client_host` the first person in a channel relays: they
+hold one connection per participant, play what arrives and forward it on. Both
+end up in the same playback, the same meter and the same mute button.
+
+WebRTC is what makes this worth building on rather than sending Opus frames over
+the socket by hand. The browser's stack brings a jitter buffer, packet loss
+concealment, forward error correction, echo cancellation, noise suppression and
+gain control, all of which would otherwise be this client's to write and get
+wrong. `src/lib/voice/` is about 2,200 lines because of what it does not have to
+do.
+
+**Recovery is one path.** A host that left, a transport that gave up, a server
+whose audio plane an administrator reconfigured and a laptop that came back from
+sleep all end in the same place: tear the media down and call `voice.connect`
+again. That is the path every ordinary call takes, so it is a path that works,
+rather than one only reached when something has already gone wrong.
+
+**The microphone is not the track that is sent.** `src/lib/voice/audio.ts` puts
+a small audio graph in between, which buys two things: the gate fades rather
+than switches, so opening the microphone does not click, and changing input
+device rewires the graph instead of replacing the track, so it needs no
+renegotiation and cannot interrupt a call. Where that graph cannot be built the
+raw track is used and both become slightly worse, which beats not working.
+
+**Noise suppression is a choice of one, not a stack.** Off, the browser's own,
+or RNNoise. They are alternatives because two suppressors in series fight: the
+first has already flattened the bands the second reads its noise floor from, and
+the result is a metallic voice. So choosing RNNoise turns the browser's off —
+and turns off nothing else, because echo cancellation is a separate module and
+RNNoise cannot do it, having no reference of what the speakers are playing.
+
+RNNoise is by the author of Opus, which is why it already works in 10 ms frames
+at 48 kHz. It is a small recurrent network deciding band gains on top of classic
+DSP, not a network end to end, which is how a model this useful stays under
+200 KB. It is much better than the browser's suppressor on noise that comes and
+goes — a door, keys, a dog — and it does not remove other people's voices,
+because a voice is what it was trained to keep. It is not Krisp and the client
+does not imply it is.
+
+It is fetched only when somebody selects it, and if it cannot be had — the
+model would not load, or the platform would not give the graph 48 kHz — the
+browser's suppressor is asked for instead and the settings page says so. Being
+quietly given something other than what you picked is the failure worth
+avoiding here.
+
+**Playback is one `<audio>` element per person**, not one mixed graph. An
+element gives per-person volume, output device selection and the browser's own
+buffering for nothing; a graph would give the same result with more that can go
+wrong. Volumes are stored per server and per person, because an identity belongs
+to one server and turning down user 4 on one must not turn down user 4 on
+another.
+
+Push-to-talk listens on this window only. A global hotkey needs the native shell
+and is not there yet.
+
 ### Emoji
 
 The catalogue in `src/lib/emoji-data.ts` is generated, not written:
@@ -193,6 +257,12 @@ src/lib/emoji.ts         whether a message is emoji enough to render large
 src/lib/emoji-catalogue.ts  searching, recents and skin tones for the picker
 src/lib/emoji-data.ts    the catalogue itself, generated from Unicode
 src/lib/uploads.ts       sending files, addressing them, and sizing them
+src/lib/voice/audio.ts   the microphone, the gate, the meter, and playback
+src/lib/voice/denoise.ts  RNNoise, fetched only if somebody turns it on
+src/lib/voice/engine.ts  peer connections, both hosting modes, and recovery
+src/lib/voice/sdp.ts     the one place this client edits SDP
+src/lib/voice/settings.ts  voice preferences, kept on this machine
+src/store/voice.ts       one media session and what the interface draws of it
 src/lib/markdown.ts      a Markdown subset, parsed to nodes and never to markup
 src/lib/storage.ts       saved servers and their session tokens
 src/store/session.ts     one connection and everything known about it
@@ -202,6 +272,7 @@ src/components/          the panels, the chat, and the dialogs
 src/styles/theme.css     design tokens, all of them
 src/styles/app.css       layout and components
 src-tauri/               the desktop and mobile shell
+src-tauri/src/media.rs   the webview's microphone prompt, answered off screen
 scripts/                 the two checks, and the icon and emoji generators
 ```
 
@@ -233,10 +304,56 @@ logos and the Android and iOS sets. The results are not committed, so this is a
 prerequisite of the first build on a fresh clone — on Windows even a debug build
 needs `icon.ico`, because it goes into the executable's resource file.
 
-The shell is deliberately almost empty. It exists to package the web app, and to
-be where native capabilities land later: a global push-to-talk hotkey, a tray
-icon, and pinning self-signed certificates so a server reached by address can
-still be served over TLS. That last one is the reason a native shell is worth
+### Microphone access
+
+There are two permissions in the way of a microphone, and confusing them makes
+this look harder than it is. The operating system has one, and it is real: it is
+the prompt macOS shows through TCC, and the privacy setting Windows keeps. The
+browser engine embedded in the window has another, about the page it is showing
+— and that page is our own application, in our own window, opened by somebody
+who just clicked a voice channel.
+
+`src-tauri/src/media.rs` answers the second one and never shows it. It is why
+joining a call in the desktop client is one click rather than two, and it is
+what every desktop chat application does. It grants nothing but the microphone,
+and only to the client's own page: the client embeds third-party frames, and
+none of them get a microphone by sitting inside our window.
+
+Per platform:
+
+- **Windows** — handled, through `ICoreWebView2::add_PermissionRequested`. Without
+  it WebView2 drops a grey bar over the top of the window, mid-join.
+- **Linux** — handled, through WebKitGTK's `permission-request` signal. WebKitGTK
+  does not say which frame asked, only what the view is showing, so the check
+  there is on the page rather than on the frame.
+- **macOS** — left to WKWebView, which answers with a dialog of its own.
+  Silencing that one means installing a `WKUIDelegate` method onto a class wry
+  owns and shares, for a prompt that is already a real system dialog rather than
+  a bar wedged into the page. What is not optional there is
+  `NSMicrophoneUsageDescription`: macOS terminates a process that asks for a
+  microphone without one. `src-tauri/Info.plist` carries it.
+- **Android** — a separate mechanism, and not handled here. It needs
+  `RECORD_AUDIO` and `MODIFY_AUDIO_SETTINGS` in the manifest; `src-tauri/gen/`
+  is generated and not committed, so they have to be added there after
+  `tauri android init`.
+
+None of this takes anything the operating system is holding back. A refusal at
+that level, a device already in use, and a missing device all still fail, and
+all of them still reach the voice panel — which says which of the three it was,
+what to do about it, and offers a button to try again, because whatever was in
+the way was fixed outside this window and nothing inside it can notice on its
+own. In a browser the browser's own prompt is left alone; it belongs to the
+person reading it.
+
+A page served over plain HTTP from anything but `localhost` gets no microphone
+at all, whatever the user says: that is a rule of the platform, and no
+permission handler changes it. It is the same reason the shell is where
+certificate pinning belongs.
+
+The shell is otherwise deliberately almost empty. It exists to package the web
+app, and to be where native capabilities land later: a global push-to-talk
+hotkey, a tray icon, and pinning self-signed certificates so a server reached by
+address can still be served over TLS. That last one is the reason a native shell is worth
 having at all — a browser refuses `wss://` to a self-signed certificate without
 the user accepting it by hand, which is an awkward thing to ask of everyone
 joining a home server.
@@ -257,21 +374,22 @@ picker with search, categories, recents and skin tones.
 progress; images, video and audio played in place; Markdown and text previewed
 inline; and a right-click menu to download any of them.
 
-**v0.4 (here)** — search: a query written as one line, with `from:`, `in:`,
+**v0.4** — search: a query written as one line, with `from:`, `in:`,
 `has:`, `before:`, `during:` and `after:` filters suggested as they are typed;
 results shown with the message either side of each hit, sorted by date or
 relevance and paged; and a jump that opens any result where it was written,
 with the way back to the present.
 
-**v0.5** — voice. The server already advertises which of the two hosting models
-it runs, and the client shows it on the connect screen:
+**v0.5 (here)** — voice: Opus over WebRTC in both of the server's hosting
+models, with input device and gain, push-to-talk or voice activity with a
+threshold set against a live meter, echo cancellation, noise suppression and
+gain control, a bitrate chosen within what the server allows, per-person volume,
+mute and deafen for yourself and for others, speaking indicators in the channel
+tree, and a voice page in server settings for administrators.
 
-- `client_host` — the first user to enter a voice channel relays its audio for
-  everyone in it, handing off when they leave.
-- `server_host` — the server relays all audio.
-
-**Later** — screen sharing, multiple simultaneous server connections, and
-Aural Hub for finding public servers.
+**Later** — screen sharing, a global push-to-talk hotkey in the native shell,
+multiple simultaneous server connections, and Aural Hub for finding public
+servers.
 
 ## License
 

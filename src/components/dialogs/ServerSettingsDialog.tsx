@@ -10,7 +10,7 @@ import {
   isSet,
   parse,
 } from "@/lib/permissions";
-import { describeError, type Role } from "@/lib/protocol";
+import { describeError, type Role, type VoiceSettings } from "@/lib/protocol";
 import { useSession } from "@/store/session";
 import { useMyPermissions, useMyRank } from "@/store/selectors";
 import { SettingsModal, type SettingsNavCategory } from "../SettingsModal";
@@ -36,6 +36,7 @@ type ServerTabId =
   | "overview"
   | "roles"
   | "channels"
+  | "voice"
   | "emojis"
   | "integrations"
   | "audit"
@@ -71,6 +72,11 @@ export function ServerSettingsDialog({ onClose }: { onClose(): void }) {
           id: "channels",
           label: t("dialogs.serverSettings.tabChannels"),
           icon: <HashIcon size={16} />,
+        },
+        {
+          id: "voice",
+          label: t("dialogs.serverSettings.tabVoice"),
+          icon: <VoiceIcon size={16} />,
         },
         {
           id: "emojis",
@@ -164,6 +170,7 @@ export function ServerSettingsDialog({ onClose }: { onClose(): void }) {
         {activeTab === "overview" ? <ServerOverviewPage /> : null}
         {activeTab === "roles" ? <ServerRolesPage /> : null}
         {activeTab === "channels" ? <ServerChannelsPage /> : null}
+        {activeTab === "voice" ? <ServerVoicePage /> : null}
         {activeTab === "emojis" ? <ServerEmojisPage /> : null}
         {activeTab === "integrations" ? <ServerIntegrationsPage /> : null}
         {activeTab === "audit" ? <ServerAuditPage /> : null}
@@ -1129,5 +1136,291 @@ function ServerBansPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Tab: Voice                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/** The sample rates Opus encodes at. 44.1 kHz is deliberately not among them. */
+const SAMPLE_RATES = [8000, 12000, 16000, 24000, 48000];
+
+function ServerVoicePage() {
+  const { t } = useTranslation();
+  const server = useSession((state) => state.server);
+  const updateServer = useSession((state) => state.updateServer);
+  const permissions = useMyPermissions();
+  const canManage = has(permissions, Perm.ManageServer);
+
+  const [draft, setDraft] = useState<VoiceSettings | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  // The server is the authority: an edit that was never saved is dropped the
+  // moment the server says something different, which is what keeps this page
+  // from showing a setting that is not in force.
+  const live = server?.voice;
+  useEffect(() => {
+    if (!live) return;
+    setDraft({
+      enabled: live.enabled,
+      mode: live.mode,
+      sampleRate: live.sampleRate,
+      bitrate: live.bitrate,
+      minBitrate: live.minBitrate,
+      maxBitrate: live.maxBitrate,
+      fec: live.fec,
+      dtx: live.dtx,
+      stereo: live.stereo,
+      maxParticipants: live.maxParticipants,
+    });
+  }, [live]);
+
+  if (!draft) return null;
+
+  const patch = (changes: Partial<VoiceSettings>) => {
+    setSaved(false);
+    setDraft({ ...draft, ...changes });
+  };
+
+  const kb = (value: number) => `${Math.round(value / 1000)} kb/s`;
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await updateServer({ voice: draft });
+      setSaved(true);
+    } catch (failure) {
+      setError(describeError(failure));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form className="settings-section" onSubmit={submit}>
+      <header className="settings-section__header">
+        <h2 className="settings-section__title">{t("dialogs.serverSettings.voice.title")}</h2>
+        <p className="settings-section__desc">{t("dialogs.serverSettings.voice.desc")}</p>
+      </header>
+
+      {!canManage ? (
+        <p className="field__hint">{t("dialogs.serverSettings.voice.readOnly")}</p>
+      ) : null}
+
+      <fieldset disabled={!canManage || saving} style={{ border: 0, padding: 0, margin: 0 }}>
+        <div className="settings-card">
+          <div className="settings-row">
+            <div className="settings-row__info">
+              <h4 className="settings-card__title">{t("dialogs.serverSettings.voice.enabled")}</h4>
+              <p className="settings-card__subtitle">
+                {t("dialogs.serverSettings.voice.enabledDesc")}
+              </p>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={draft.enabled}
+                onChange={(e) => patch({ enabled: e.target.checked })}
+              />
+              <span className="settings-switch__slider" />
+            </label>
+          </div>
+        </div>
+
+        <div className="settings-card" style={{ marginTop: 16 }}>
+          <h3 className="settings-card__title">{t("dialogs.serverSettings.voice.mode")}</h3>
+          <div className="settings-radio-group" style={{ marginTop: 12 }}>
+            <label className="settings-radio-card">
+              <input
+                type="radio"
+                name="voice-mode"
+                checked={draft.mode === "server_host"}
+                onChange={() => patch({ mode: "server_host" })}
+              />
+              <span className="settings-radio-card__body">
+                <span className="settings-radio-card__title">
+                  {t("dialogs.serverSettings.voice.modeServer")}
+                </span>
+                <span className="settings-card__subtitle">
+                  {t("dialogs.serverSettings.voice.modeServerDesc")}
+                </span>
+              </span>
+            </label>
+            <label className="settings-radio-card">
+              <input
+                type="radio"
+                name="voice-mode"
+                checked={draft.mode === "client_host"}
+                onChange={() => patch({ mode: "client_host" })}
+              />
+              <span className="settings-radio-card__body">
+                <span className="settings-radio-card__title">
+                  {t("dialogs.serverSettings.voice.modeClient")}
+                </span>
+                <span className="settings-card__subtitle">
+                  {t("dialogs.serverSettings.voice.modeClientDesc")}
+                </span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div className="settings-card" style={{ marginTop: 16 }}>
+          <h3 className="settings-card__title">{t("dialogs.serverSettings.voice.quality")}</h3>
+
+          <div className="field" style={{ marginTop: 14 }}>
+            <label className="field__label" htmlFor="voice-sample-rate">
+              {t("dialogs.serverSettings.voice.sampleRate")}
+            </label>
+            <select
+              id="voice-sample-rate"
+              className="select"
+              value={draft.sampleRate}
+              onChange={(e) => patch({ sampleRate: Number(e.target.value) })}
+            >
+              {SAMPLE_RATES.map((rate) => (
+                <option key={rate} value={rate}>
+                  {(rate / 1000).toLocaleString()} kHz
+                </option>
+              ))}
+            </select>
+            <p className="field__hint">{t("dialogs.serverSettings.voice.sampleRateDesc")}</p>
+          </div>
+
+          <div className="settings-grid-2" style={{ marginTop: 14 }}>
+            <div className="field">
+              <label className="field__label" htmlFor="voice-min-bitrate">
+                {t("dialogs.serverSettings.voice.bitrateRange")}
+              </label>
+              <div className="voice-device-row">
+                <input
+                  id="voice-min-bitrate"
+                  className="input"
+                  type="number"
+                  min={6}
+                  max={510}
+                  value={Math.round(draft.minBitrate / 1000)}
+                  onChange={(e) => patch({ minBitrate: Number(e.target.value) * 1000 })}
+                />
+                <span className="field__hint">—</span>
+                <input
+                  className="input"
+                  type="number"
+                  min={6}
+                  max={510}
+                  value={Math.round(draft.maxBitrate / 1000)}
+                  onChange={(e) => patch({ maxBitrate: Number(e.target.value) * 1000 })}
+                />
+                <span className="field__hint">kb/s</span>
+              </div>
+              <p className="field__hint">{t("dialogs.serverSettings.voice.bitrateRangeDesc")}</p>
+            </div>
+
+            <div className="field">
+              <label className="field__label" htmlFor="voice-bitrate">
+                {t("dialogs.serverSettings.voice.bitrateDefault")}
+              </label>
+              <input
+                id="voice-bitrate"
+                type="range"
+                className="slider"
+                min={draft.minBitrate}
+                max={draft.maxBitrate}
+                step={1000}
+                value={Math.min(Math.max(draft.bitrate, draft.minBitrate), draft.maxBitrate)}
+                onChange={(e) => patch({ bitrate: Number(e.target.value) })}
+              />
+              <p className="field__hint">{kb(draft.bitrate)}</p>
+            </div>
+          </div>
+
+          <div className="field" style={{ marginTop: 14 }}>
+            <label className="field__label" htmlFor="voice-max-participants">
+              {t("dialogs.serverSettings.voice.maxParticipants")}
+            </label>
+            <input
+              id="voice-max-participants"
+              className="input"
+              type="number"
+              min={0}
+              max={512}
+              value={draft.maxParticipants}
+              onChange={(e) => patch({ maxParticipants: Number(e.target.value) })}
+            />
+            <p className="field__hint">
+              {draft.maxParticipants === 0
+                ? t("dialogs.serverSettings.voice.unlimited")
+                : t("dialogs.serverSettings.voice.maxParticipantsDesc")}
+            </p>
+          </div>
+        </div>
+
+        <div className="settings-card" style={{ marginTop: 16 }}>
+          {(
+            [
+              ["fec", "fec", "fecDesc"],
+              ["dtx", "dtx", "dtxDesc"],
+              ["stereo", "stereo", "stereoDesc"],
+            ] as const
+          ).map(([key, title, description], index) => (
+            <div
+              key={key}
+              className="settings-row"
+              style={
+                index === 0
+                  ? undefined
+                  : { marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }
+              }
+            >
+              <div className="settings-row__info">
+                <h4 className="settings-card__title">
+                  {t(`dialogs.serverSettings.voice.${title}`)}
+                </h4>
+                <p className="settings-card__subtitle">
+                  {t(`dialogs.serverSettings.voice.${description}`)}
+                </p>
+              </div>
+              <label className="settings-switch">
+                <input
+                  type="checkbox"
+                  checked={draft[key]}
+                  onChange={(e) => patch({ [key]: e.target.checked } as Partial<VoiceSettings>)}
+                />
+                <span className="settings-switch__slider" />
+              </label>
+            </div>
+          ))}
+        </div>
+
+        <div className="settings-card" style={{ marginTop: 16 }}>
+          <h3 className="settings-card__title">{t("dialogs.serverSettings.voice.deployment")}</h3>
+          <p className="settings-card__subtitle">
+            {t("dialogs.serverSettings.voice.deploymentDesc")}
+          </p>
+        </div>
+
+        {error ? (
+          <p className="field__error" style={{ marginTop: 12 }}>
+            {error}
+          </p>
+        ) : null}
+        {saved ? (
+          <p className="field__hint" style={{ marginTop: 12 }}>
+            {t("dialogs.serverSettings.voice.saved")}
+          </p>
+        ) : null}
+
+        <div style={{ marginTop: 16 }}>
+          <button type="submit" className="btn btn--primary" disabled={!canManage || saving}>
+            {t("dialogs.serverSettings.voice.save")}
+          </button>
+        </div>
+      </fieldset>
+    </form>
   );
 }

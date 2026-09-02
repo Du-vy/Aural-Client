@@ -9,11 +9,15 @@
  *   node --run smoke -- --address 127.0.0.1:9871 --owner-token XXXX-XXXX
  */
 
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { parseAddress, fetchServerInfo } from "../src/lib/address";
 import { Gateway } from "../src/lib/gateway";
 import { Perm, has, resolve, resolveChannelPermissions } from "../src/lib/permissions";
 import { buildDirectory, buildSearchRequest, parseSearchInput } from "../src/lib/search";
 import { attachmentKind, attachmentUrl, downloadUrl, formatBytes } from "../src/lib/uploads";
+import { applyOpusPreferences, opusPreferences } from "../src/lib/voice/sdp";
 import {
   Ev,
   Op,
@@ -29,8 +33,28 @@ import {
   type Role,
   type ServerInfo,
   type UserMovedEvent,
+  type VoiceConnectResult,
+  type VoiceStateEvent,
 } from "../src/lib/protocol";
 import { useSession } from "../src/store/session";
+
+/** The rates Opus encodes at. 44100 is deliberately not one of them. */
+const OPUS_SAMPLE_RATES = [8000, 12000, 16000, 24000, 48000];
+
+/**
+ * A minimal audio description, used to check the one place this client edits
+ * SDP without needing a WebRTC stack to produce one.
+ */
+const SAMPLE_SDP = [
+  "v=0",
+  "o=- 0 0 IN IP4 127.0.0.1",
+  "s=-",
+  "t=0 0",
+  "m=audio 9 UDP/TLS/RTP/SAVPF 111",
+  "a=rtpmap:111 opus/48000/2",
+  "a=fmtp:111 minptime=10;useinbandfec=1",
+  "",
+].join("\r\n");
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -114,6 +138,134 @@ function closesWithin(closed: Promise<void>, ms: number): Promise<boolean> {
   ]);
 }
 
+/**
+ * Runs the vendored RNNoise model over synthetic signals and checks it works.
+ *
+ * The model is a binary this repository ships but did not build, and the
+ * pipeline around it — a worklet, an audio graph — cannot run outside a
+ * browser. What runs anywhere is the model, and that is the part worth
+ * checking: if the vendored file is ever replaced by something that is not
+ * RNNoise, or is RNNoise built for another frame size, this says so rather
+ * than a call quietly sounding wrong.
+ *
+ * What it asserts is the discrimination and not the attenuation, because that
+ * is what RNNoise actually does. It suppresses by band gain and never nulls a
+ * band, so even pure noise comes out only about fifteen percent quieter — an
+ * assertion on loudness would be asserting something the model does not
+ * promise. Its voice detector, on the other hand, separates these signals
+ * completely: harmonics read as 1.0, noise below 0.6, digital silence exactly
+ * 0. That gap is the model working.
+ */
+async function checkDenoiser(): Promise<void> {
+  // Resolved from the working directory rather than from this module: the
+  // check runs from a bundle in node_modules/.cache, where a relative path
+  // would climb out of the wrong place.
+  const wasm = await readFile(
+    join(process.cwd(), "node_modules/@sapphi-red/web-noise-suppressor/dist/rnnoise.wasm"),
+  );
+
+  let memory: WebAssembly.Memory;
+  // Emscripten's three imports. Nothing here grows the heap — one state and
+  // one frame sit far inside the initial sixteen megabytes — so refusing to
+  // resize is the honest answer rather than a stub that pretends to.
+  const instance = new WebAssembly.Instance(new WebAssembly.Module(wasm), {
+    env: {
+      emscripten_memcpy_big: (dest: number, src: number, size: number) => {
+        new Uint8Array(memory.buffer).copyWithin(dest, src, src + size);
+        return dest;
+      },
+      emscripten_resize_heap: () => 0,
+      __assert_fail: () => {
+        throw new Error("rnnoise assertion failed");
+      },
+    },
+  });
+  const api = instance.exports as unknown as {
+    memory: WebAssembly.Memory;
+    __wasm_call_ctors(): void;
+    rnnoise_get_frame_size(): number;
+    rnnoise_create(model: number): number;
+    rnnoise_destroy(state: number): void;
+    rnnoise_process_frame(state: number, out: number, input: number): number;
+    malloc(size: number): number;
+  };
+  memory = api.memory;
+  api.__wasm_call_ctors();
+
+  const frame = api.rnnoise_get_frame_size();
+  check(frame === 480, `a frame is 10 ms at 48 kHz (${frame} samples)`);
+
+  const probe = api.rnnoise_create(0);
+  check(probe !== 0, "a denoise state can be created");
+  api.rnnoise_destroy(probe);
+
+  const buffer = api.malloc(frame * 4);
+  const rms = (values: Float32Array) =>
+    Math.sqrt(values.reduce((sum, value) => sum + value * value, 0) / values.length);
+
+  /** A pseudo-random source that stays sane in doubles, unlike a plain LCG. */
+  const random = (seed: number) => () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return (((t ^ (t >>> 14)) >>> 0) / 4294967296) * 2 - 1;
+  };
+
+  /** A crude voiced sound: one pitch with its harmonics rolling off. */
+  const voiced = (t: number) => {
+    let value = 0;
+    for (let h = 1; h <= 24; h += 1) value += Math.sin(2 * Math.PI * 130 * h * t) / h;
+    return value / 2.5;
+  };
+
+  // RNNoise works in the int16 range rather than the -1..1 the Web Audio API
+  // hands out, which is the detail that makes a wrong integration sound quiet
+  // rather than broken.
+  const SCALE = 32768;
+
+  const measure = (sample: (t: number) => number) => {
+    const state = api.rnnoise_create(0);
+    let kept = 0;
+    let lowest = 1;
+    let highest = 0;
+    let counted = 0;
+    let index = 0;
+    for (let i = 0; i < 90; i += 1) {
+      const input = new Float32Array(memory.buffer, buffer, frame);
+      for (let n = 0; n < frame; n += 1, index += 1) input[n] = sample(index / 48000) * SCALE;
+      const before = rms(input.slice());
+      const probability = api.rnnoise_process_frame(state, buffer, buffer);
+      const after = rms(new Float32Array(memory.buffer, buffer, frame));
+      // The network's recurrent state needs a moment; the opening frames are
+      // the ones it knows least about and say least about whether it works.
+      if (i >= 40) {
+        if (before > 0) kept += after / before;
+        lowest = Math.min(lowest, probability);
+        highest = Math.max(highest, probability);
+        counted += 1;
+      }
+    }
+    api.rnnoise_destroy(state);
+    return { kept: kept / counted, lowest, highest };
+  };
+
+  const noise = random(12345);
+  const grain = random(999);
+  const speech = measure((t) => voiced(t) * 0.5);
+  const hiss = measure(() => noise() * 0.3);
+  const both = measure((t) => voiced(t) * 0.5 + grain() * 0.15);
+  const silence = measure(() => 0);
+
+  check(speech.lowest > 0.9, `harmonics read as speech (${speech.lowest.toFixed(3)})`);
+  check(both.lowest > 0.9, `harmonics under noise still read as speech (${both.lowest.toFixed(3)})`);
+  check(hiss.highest < 0.8, `noise never reads as speech (${hiss.highest.toFixed(3)})`);
+  check(silence.highest === 0, "digital silence reads as no speech at all");
+  check(
+    hiss.kept < speech.kept * 0.95,
+    `noise is attenuated more than voice (${hiss.kept.toFixed(3)} against ${speech.kept.toFixed(3)})`,
+  );
+}
+
 async function main() {
   const addressInput = arg("address") ?? "127.0.0.1:9871";
   const ownerToken = arg("owner-token");
@@ -156,6 +308,108 @@ async function main() {
   const voice = ready.channels.find((channel) => channel.type === "voice")!;
   const inVoice = resolveChannelPermissions(clientMask, everyoneId, ready.user.roles, voice.id, channels);
   check(has(inVoice, Perm.Connect), "the guest may connect to the seeded voice channel");
+
+  console.log("\nvoice: what the server advertises");
+  const voiceConfig = ready.server.voice;
+  check(voiceConfig !== undefined, "the server advertises an audio plane");
+  check(
+    voiceConfig!.mode === "server_host" || voiceConfig!.mode === "client_host",
+    `hosting mode is one this client knows (${voiceConfig!.mode})`,
+  );
+  check(
+    OPUS_SAMPLE_RATES.includes(voiceConfig!.sampleRate),
+    `sample rate is one Opus encodes at (${voiceConfig!.sampleRate})`,
+  );
+  check(
+    voiceConfig!.minBitrate <= voiceConfig!.bitrate && voiceConfig!.bitrate <= voiceConfig!.maxBitrate,
+    "the default bitrate sits inside the range the server allows",
+  );
+  check(Array.isArray(ready.iceServers), "the snapshot carries an ICE server list");
+  check(Array.isArray(ready.voiceStates), "the snapshot carries voice states");
+
+  // A TURN credential must never reach the unauthenticated preview.
+  check(
+    !("iceServers" in (info as unknown as Record<string, unknown>)),
+    "the public preview carries no ICE servers",
+  );
+
+  console.log("\nvoice: opus parameters this client asks for");
+  const munged = applyOpusPreferences(
+    SAMPLE_SDP,
+    opusPreferences(voiceConfig!, voiceConfig!.bitrate),
+  );
+  check(munged.includes("useinbandfec=1"), "forward error correction is requested");
+  check(
+    munged.includes(`maxaveragebitrate=${voiceConfig!.bitrate}`),
+    "the bitrate ceiling reaches the description",
+  );
+  check(munged.includes("minptime=10"), "the packet time this client wants survives");
+  check(
+    munged.includes("a=rtpmap:111 opus/48000/2"),
+    "everything that is not an opus fmtp line is left alone",
+  );
+  check(
+    applyOpusPreferences("v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 0\r\n", opusPreferences(voiceConfig!, 64000)) ===
+      "v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 0\r\n",
+    "a description with no opus in it comes back untouched",
+  );
+
+  console.log("\nvoice: the noise suppressor");
+  await checkDenoiser();
+
+  console.log("\nvoice: opening a session");
+  let refusedOutside = false;
+  try {
+    await alice.gateway.request(Op.VoiceConnect, { channelId: voice.id });
+  } catch {
+    refusedOutside = true;
+  }
+  check(refusedOutside, "audio cannot be opened in a channel you are not in");
+
+  await alice.gateway.request(Op.UserMove, { channelId: voice.id });
+  await alice.log.wait<UserMovedEvent>(Ev.UserMoved);
+
+  if (voiceConfig!.mode === "client_host") {
+    const session = await alice.gateway.request<VoiceConnectResult>(Op.VoiceConnect, {
+      channelId: voice.id,
+    });
+    check(session.mode === "client_host", "the session reports the mode it opened in");
+    check(session.sdp === undefined || session.sdp === "", "a client-hosted session is not answered by the server");
+    check(session.hostUserId === ready.user.id, "the first arrival is elected host");
+    check(
+      session.participants.some((state) => state.userId === ready.user.id && state.connected),
+      "the caller is listed as a connected participant",
+    );
+
+    const hosting = await alice.log.wait<VoiceStateEvent>(Ev.VoiceState);
+    check(hosting.state.userId === ready.user.id, "the channel is told who joined its audio");
+    check(hosting.state.host, "and that they are hosting it");
+  } else {
+    // A server-hosted session needs a real offer, which needs a WebRTC stack
+    // Node does not have. What can be checked here is that the server refuses
+    // to open one without it rather than half-building anything.
+    let refusedWithoutOffer = false;
+    try {
+      await alice.gateway.request(Op.VoiceConnect, { channelId: voice.id });
+    } catch {
+      refusedWithoutOffer = true;
+    }
+    check(refusedWithoutOffer, "a server-hosted session is refused without an offer");
+  }
+
+  console.log("\nvoice: mute and deafen");
+  const deafened = await alice.gateway.request<VoiceStateEvent>(Op.VoiceState, { selfDeaf: true });
+  check(deafened.state.selfDeaf, "deafening yourself takes");
+  check(deafened.state.selfMute, "deafening yourself mutes you too");
+
+  const heard = await alice.gateway.request<VoiceStateEvent>(Op.VoiceState, { selfDeaf: false });
+  check(!heard.state.selfDeaf, "un-deafening takes");
+  check(heard.state.selfMute, "un-deafening leaves the mute where it was");
+
+  await alice.gateway.request(Op.VoiceState, { selfMute: false });
+  await alice.gateway.request(Op.VoiceLeave, {});
+  await alice.gateway.request(Op.UserMove, { channelId: null });
+  await settle();
 
   console.log("\nresuming an identity");
   const resumed = await open(addressInput);

@@ -342,6 +342,39 @@ export const VolumeIcon = icon(
   </>,
 );
 
+export const MicOffIcon = icon(
+  <>
+    <line x1="2" y1="2" x2="22" y2="22" />
+    <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+    <path d="M19 10v2a7 7 0 0 1-.11 1.23M5 10v2a7 7 0 0 0 12 5" />
+    <line x1="12" y1="19" x2="12" y2="23" />
+    <line x1="8" y1="23" x2="16" y2="23" />
+  </>,
+);
+
+export const HeadphonesIcon = icon(
+  <>
+    <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+  </>,
+);
+
+export const HeadphonesOffIcon = icon(
+  <>
+    <line x1="2" y1="2" x2="22" y2="22" />
+    <path d="M3 18v-6a9 9 0 0 1 13.4-7.83M21 15v3" />
+    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+  </>,
+);
+
+export const BroadcastIcon = icon(
+  <>
+    <circle cx="12" cy="12" r="2" />
+    <path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49" />
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14" />
+  </>,
+);
+
 export const MonitorIcon = icon(
   <>
     <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />

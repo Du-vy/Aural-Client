@@ -6,6 +6,8 @@
 //! and pinning self-signed certificates so a server reached by address can
 //! still be served over TLS.
 
+mod media;
+
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
@@ -66,6 +68,22 @@ async fn save_file(
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![open_url, save_file])
+        .setup(|_app| {
+            // Desktop only. Android grants the WebView its microphone through
+            // the manifest and its own chrome client, which is a different
+            // mechanism reached through a handle this does not have.
+            #[cfg(desktop)]
+            {
+                use tauri::Manager as _;
+                if let Some(window) = _app.get_webview_window("main") {
+                    // Best effort by design: if the handle cannot be reached
+                    // the engine shows its own prompt, which is what happened
+                    // before this existed.
+                    let _ = window.with_webview(|webview| media::allow_microphone(&webview));
+                }
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("failed to start the Aural window");
 }

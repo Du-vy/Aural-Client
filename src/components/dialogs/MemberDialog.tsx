@@ -5,6 +5,7 @@ import { Perm, has } from "@/lib/permissions";
 import { describeError } from "@/lib/protocol";
 import { useSession } from "@/store/session";
 import { assignableRoles, outranks, useMyPermissions } from "@/store/selectors";
+import { useVoice } from "@/store/voice";
 import { Avatar, resolveAvatarUrl } from "../Avatar";
 import { Modal } from "../Modal";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -28,6 +29,11 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
   const moveUser = useSession((state) => state.moveUser);
   const kickUser = useSession((state) => state.kickUser);
   const permissions = useMyPermissions();
+  // A volume is this listener's own preference about one person, so it is
+  // applied the moment it moves and never asks the server anything.
+  const voiceState = useVoice((state) => state.states.get(userId));
+  const setUserVolume = useVoice((state) => state.setUserVolume);
+  const volume = useVoice((state) => state.volumeFor(userId));
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -123,6 +129,36 @@ export function MemberDialog({ userId, onClose }: MemberDialogProps) {
           </div>
           {!canModerate ? (
             <span className="field__hint">{t("errors.forbidden")}</span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {voiceState && !isSelf ? (
+        <div className="field">
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <label className="field__label" htmlFor="member-volume">
+              {t("voice.volume")}
+            </label>
+            <span className="field__hint">{volume}%</span>
+          </div>
+          <input
+            id="member-volume"
+            type="range"
+            className="slider"
+            min={0}
+            max={200}
+            value={volume}
+            onChange={(event) => setUserVolume(user.id, Number(event.target.value))}
+          />
+          {volume !== 100 ? (
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              style={{ marginTop: 8 }}
+              onClick={() => setUserVolume(user.id, 100)}
+            >
+              {t("voice.resetVolume")}
+            </button>
           ) : null}
         </div>
       ) : null}

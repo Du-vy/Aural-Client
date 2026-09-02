@@ -258,6 +258,9 @@ dependencies = [
  "rfd",
  "tauri",
  "tauri-build",
+ "webkit2gtk",
+ "webview2-com",
+ "windows",
 ]
 
 [[package]]

@@ -20,6 +20,7 @@
     "tauri:android": "tauri android dev"
   },
   "dependencies": {
+    "@sapphi-red/web-noise-suppressor": "0.4.0",
     "@tauri-apps/api": "^2.11.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

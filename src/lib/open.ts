@@ -49,6 +49,38 @@ export async function saveUrl(url: string, filename: string): Promise<void> {
   anchor.remove();
 }
 
+/**
+ * The operating system page where microphone access is granted, or null.
+ *
+ * Only offered in the desktop client. In a browser a refused microphone is the
+ * browser's own decision about this page, and sending somebody to the system
+ * settings for it would be sending them to the wrong place; the padlock in
+ * their address bar is the right one, and only they can reach it.
+ *
+ * Linux is null on purpose. It has as many privacy panels as it has desktops
+ * and no address that opens all of them, so nothing is promised.
+ */
+function privacySettingsUrl(): string | null {
+  if (typeof navigator === "undefined" || !isTauri()) return null;
+  const agent = navigator.userAgent;
+  if (/Windows/i.test(agent)) return "ms-settings:privacy-microphone";
+  if (/Mac OS X|Macintosh/i.test(agent)) {
+    return "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
+  }
+  return null;
+}
+
+/** Whether there is a system settings page worth offering a button for. */
+export function canOpenPrivacySettings(): boolean {
+  return privacySettingsUrl() !== null;
+}
+
+/** Opens the system's microphone privacy settings. */
+export async function openPrivacySettings(): Promise<void> {
+  const url = privacySettingsUrl();
+  if (url) await openExternalUrl(url);
+}
+
 export interface SaveTextFileOptions {
   mimeType?: string;
   filterName?: string;

@@ -181,6 +181,20 @@ Needed:
    npm run tauri:android
    ```
 
+6. **Add the microphone permissions.** `android init` writes a manifest without
+   them, and because `src-tauri/gen/` is not committed they have to be added
+   again after every fresh init. In
+   `src-tauri/gen/android/app/src/main/AndroidManifest.xml`, above
+   `<application>`:
+
+   ```xml
+   <uses-permission android:name="android.permission.RECORD_AUDIO" />
+   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+   ```
+
+   Without them `getUserMedia` is refused and voice can listen but never
+   transmit.
+
 Check where you stand:
 
 ```sh
@@ -209,14 +223,86 @@ is stored only as a hash. If you lose it, `-new-owner-token` issues another.
 
 ---
 
+## Testing voice
+
+Voice needs two things the rest of the client does not: a microphone the
+browser will hand over, and a second participant.
+
+**A secure origin.** A page served over plain HTTP from anything but
+`localhost` gets no microphone at all, whatever the person at the keyboard
+says. `npm run dev` binds every interface so a phone on the same network can
+load the client, and that page will have no microphone. To test voice from
+another device, either reach the dev server through an SSH tunnel so it is
+`localhost` there too, or serve it over TLS.
+
+**Two participants on one machine.** Two browser profiles, or one normal window
+and one private window, are two identities as far as a server is concerned —
+the session token lives in `localStorage`. Two tabs of the same profile are
+not: the second displaces the first, which is what one connection per identity
+means.
+
+Expect to hear yourself echoed if both windows have the same microphone and
+speakers open. That is real feedback and not a bug; headphones on one of them
+settles it.
+
+**Which mode.** The server's `voice.mode` decides which half of
+`src/lib/voice/engine.ts` runs, and the two fail in different places, so both
+are worth a pass:
+
+```jsonc
+// Aural-Server/config.json
+"voice": { "mode": "server_host" }   // then: "client_host"
+```
+
+`client_host` between two windows on one machine works without any STUN server,
+because both ends see each other's host candidates. Between two machines behind
+different routers it does not, and that is the case `voice.ice_servers` exists
+for.
+
+**Permission.** A browser asks the way it always does. The desktop shell does
+not: `src-tauri/src/media.rs` answers the webview's own request and never shows
+it, so joining a call there is one click. The operating system's permission is
+untouched and still applies — see [Microphone access](../README.md#microphone-access).
+That path only exists in a `tauri:dev` or bundled build; `npm run dev` in a
+browser is unaffected, which is worth remembering before concluding it is
+broken.
+
+**Noise suppression.** The three choices are alternatives, and the one worth
+testing deliberately is RNNoise, because it is the only one with anything to
+load. `npm run smoke` runs the model over synthetic signals and checks it
+discriminates speech from noise, which catches a broken or substituted binary;
+what it cannot check is the worklet around it, since that needs a browser. If
+RNNoise is selected and the settings page reports it unavailable, look for the
+`.wasm` and the worklet in `dist/assets/` — a bundler upgrade that stops
+emitting them is the likely cause, and the client falls back rather than
+failing, so nothing else will complain.
+
+**What to look at when it does not work.** The voice strip above the user panel
+carries the status and, in `client_host`, who is relaying. When the microphone
+itself failed the strip says which of the three refusals it was and offers a
+retry, so read it before reaching for a debugger. `chrome://webrtc-internals`
+in a Chromium browser shows every candidate pair and every track, and is the
+fastest way to tell a signalling problem from a NAT one.
+
+---
+
 ## The checks
 
-Run these before pushing. Neither needs Rust.
+Run these before pushing. None of the three needs Rust.
 
 ```sh
 npm run typecheck       # tsc, no emit
 npm run render-check    # mounts every screen and dialog in a real DOM
 npm run smoke           # drives the real modules against a live server
+```
+
+The shell has a few tests of its own, which do need Rust. They cover the rule
+that decides whose page may take a microphone without being asked, and that
+rule is the reason granting it silently is defensible, so it is worth keeping
+honest:
+
+```sh
+cd src-tauri && cargo test
 ```
 
 `npm run smoke` needs a server actually running, and takes its address and

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  macOS bundle keys Tauri merges into the generated Info.plist.
+
+  NSMicrophoneUsageDescription is not optional: macOS terminates a process that
+  asks for the microphone without it, so leaving it out does not produce a
+  refusal, it produces a crash the first time somebody joins a voice channel.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Aural uses your microphone to talk in voice channels.</string>
+  </dict>
+</plist>

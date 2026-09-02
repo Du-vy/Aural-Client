@@ -10,8 +10,18 @@ import {
   usersInChannel,
   type ChannelNode,
 } from "@/store/selectors";
+import { useVoice } from "@/store/voice";
 import { Avatar } from "./Avatar";
-import { ChevronIcon, HashIcon, PlusIcon, TrashIcon, VoiceIcon } from "./Icons";
+import {
+  BroadcastIcon,
+  ChevronIcon,
+  HashIcon,
+  HeadphonesOffIcon,
+  MicOffIcon,
+  PlusIcon,
+  TrashIcon,
+  VoiceIcon,
+} from "./Icons";
 
 interface ChannelSidebarProps {
   selectedChannelId: number | null;
@@ -296,27 +306,83 @@ function ChannelRow({
       {occupants.length > 0 ? (
         <div className="occupants">
           {occupants.map((user) => (
-            <button
+            <Occupant
               key={user.id}
-              className={user.id === self?.id ? "occupant occupant--self" : "occupant"}
-              onClick={() => onOpenMember(user.id)}
-              onContextMenu={(event) => {
-                if (onContextMenuMember) {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onContextMenuMember(event, user);
-                }
-              }}
-            >
-              <Avatar user={user} size="sm" />
-              <span className="occupant__name" style={{ color: colorOf(user, roles) ?? undefined }}>
-                {user.nickname}
-              </span>
-            </button>
+              user={user}
+              self={self}
+              roles={roles}
+              onOpenMember={onOpenMember}
+              onContextMenuMember={onContextMenuMember}
+            />
           ))}
         </div>
       ) : null}
     </>
+  );
+}
+
+interface OccupantProps {
+  user: User;
+  self: User | null;
+  roles: ReadonlyMap<number, Role>;
+  onOpenMember(userId: number): void;
+  onContextMenuMember?(event: React.MouseEvent, user: User): void;
+}
+
+/**
+ * One person sitting in a voice channel.
+ *
+ * The three things drawn on them are the three that change second to second:
+ * whether they are speaking, whether they can be heard, and whether they are
+ * the one relaying the channel. Everything else about them is in the member
+ * list, which is where somebody looks when they want to know more.
+ */
+function Occupant({ user, self, roles, onOpenMember, onContextMenuMember }: OccupantProps) {
+  const { t } = useTranslation();
+  const state = useVoice((voice) => voice.states.get(user.id));
+  const speaking = useVoice((voice) => voice.speaking.has(user.id));
+
+  const muted = state ? state.selfMute || state.mute : false;
+  const deafened = state ? state.selfDeaf || state.deaf : false;
+
+  const classes = ["occupant"];
+  if (user.id === self?.id) classes.push("occupant--self");
+  if (speaking) classes.push("occupant--speaking");
+  if (muted) classes.push("occupant--muted");
+
+  return (
+    <button
+      className={classes.join(" ")}
+      onClick={() => onOpenMember(user.id)}
+      onContextMenu={(event) => {
+        if (onContextMenuMember) {
+          event.preventDefault();
+          event.stopPropagation();
+          onContextMenuMember(event, user);
+        }
+      }}
+    >
+      <Avatar user={user} size="sm" />
+      <span className="occupant__name" style={{ color: colorOf(user, roles) ?? undefined }}>
+        {user.nickname}
+      </span>
+      <span className="occupant__flags">
+        {state?.host ? (
+          <span className="occupant__flag" title={t("voice.hostBadge")}>
+            <BroadcastIcon size={12} />
+          </span>
+        ) : null}
+        {deafened ? (
+          <span className="occupant__flag occupant__flag--danger" title={t("voice.deafen")}>
+            <HeadphonesOffIcon size={12} />
+          </span>
+        ) : muted ? (
+          <span className="occupant__flag occupant__flag--danger" title={t("voice.mute")}>
+            <MicOffIcon size={12} />
+          </span>
+        ) : null}
+      </span>
+    </button>
   );
 }
 

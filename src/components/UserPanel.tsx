@@ -1,7 +1,7 @@
 import { useTranslation } from "@/lib/i18n";
 import { useSession } from "@/store/session";
 import { Avatar } from "./Avatar";
-import { GearIcon, HangUpIcon, LogOutIcon } from "./Icons";
+import { GearIcon, LogOutIcon } from "./Icons";
 
 interface UserPanelProps {
   onOpenAccount(): void;
@@ -9,15 +9,18 @@ interface UserPanelProps {
 }
 
 /**
- * The bottom-left panel: who you are on this server, your current status/presence,
- * whether you are in a voice channel, and the way out of both.
+ * The bottom-left panel: who you are on this server, your current status, and
+ * the way out.
+ *
+ * Leaving a voice channel is not here. It belongs with everything else about a
+ * call, on the voice strip directly above, which is where somebody in one is
+ * already looking.
  */
 export function UserPanel({ onOpenAccount, onOpenStatus }: UserPanelProps) {
   const { t } = useTranslation();
   const self = useSession((state) => state.self);
   const channels = useSession((state) => state.channels);
   const status = useSession((state) => state.status);
-  const leaveChannel = useSession((state) => state.leaveChannel);
   const disconnect = useSession((state) => state.disconnect);
 
   if (!self) return null;
@@ -57,16 +60,6 @@ export function UserPanel({ onOpenAccount, onOpenStatus }: UserPanelProps) {
       </button>
 
       <div className="userpanel__actions">
-        {channel ? (
-          <button
-            className="iconbtn iconbtn--danger"
-            onClick={() => void leaveChannel()}
-            title={`${t("common.leave")} ${channel.name}`}
-            aria-label={`${t("common.leave")} ${channel.name}`}
-          >
-            <HangUpIcon size={17} />
-          </button>
-        ) : null}
         <button
           className="iconbtn"
           onClick={onOpenAccount}

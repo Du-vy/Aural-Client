@@ -40,7 +40,9 @@ export type ErrorCode =
   | "rate_limited"
   | "too_large"
   | "storage_full"
-  | "uploads_disabled";
+  | "uploads_disabled"
+  | "voice_disabled"
+  | "voice_failed";
 
 /** Reply ops. Every request receives exactly one of these. */
 export const OP_RESULT = "result";
@@ -76,6 +78,13 @@ export const Op = {
   RoleDelete: "role.delete",
   RoleAssign: "role.assign",
   RoleUnassign: "role.unassign",
+
+  VoiceConnect: "voice.connect",
+  VoiceLeave: "voice.leave",
+  VoiceSignal: "voice.signal",
+  VoiceState: "voice.state",
+  VoiceModerate: "voice.moderate",
+  VoiceSpeaking: "voice.speaking",
 } as const;
 
 /** Event ops, pushed by the server. */
@@ -101,6 +110,13 @@ export const Ev = {
   RoleDeleted: "role.deleted",
 
   ServerUpdated: "server.updated",
+
+  VoiceState: "voice.state",
+  VoiceSpeaking: "voice.speaking",
+  VoiceSignal: "voice.signal",
+  VoicePeer: "voice.peer",
+  VoiceHost: "voice.host",
+  VoiceReset: "voice.reset",
 } as const;
 
 export type ChannelType = "category" | "text" | "voice";
@@ -118,6 +134,8 @@ export interface ServerInfo {
   registrationEnabled: boolean;
   guestsAllowed: boolean;
   voiceMode: VoiceMode;
+  /** Absent from a server older than the audio plane. */
+  voice?: VoiceConfig;
   uploads: UploadLimits;
   /**
    * Whether this server will proxy GIF and sticker lookups. The credential
@@ -142,6 +160,91 @@ export interface UploadLimits {
   maxTotalBytes: string;
   usedBytes: string;
   maxPerMessage: number;
+}
+
+/**
+ * What a server will carry as audio, told to the client before it opens a
+ * session so the encoder is configured once rather than by being refused.
+ *
+ * It carries no ICE servers on purpose: those may hold TURN credentials, and
+ * this object travels in the unauthenticated preview at `GET /info`. They
+ * arrive with the reply to `voice.connect`, which is behind an identity.
+ */
+export interface VoiceConfig {
+  enabled: boolean;
+  mode: VoiceMode;
+  /**
+   * The highest rate the encoder is asked for, in hertz. Opus always runs on a
+   * 48 kHz clock, so this is a ceiling on quality rather than a change of
+   * clock, and 44100 is deliberately not one of the values it can take.
+   */
+  sampleRate: number;
+  /** Where a client starts. `minBitrate` and `maxBitrate` bound where it goes. */
+  bitrate: number;
+  minBitrate: number;
+  maxBitrate: number;
+  fec: boolean;
+  dtx: boolean;
+  stereo: boolean;
+  /** 0 leaves the ceiling to the channel's own user limit. */
+  maxParticipants: number;
+}
+
+/** One STUN or TURN server, in the shape `RTCConfiguration` expects. */
+export interface ICEServer {
+  urls: string[];
+  username?: string;
+  credential?: string;
+}
+
+/** One trickled ICE candidate, field for field as `RTCIceCandidate` serialises. */
+export interface ICECandidateInitLike {
+  candidate: string;
+  sdpMid?: string | null;
+  sdpMLineIndex?: number | null;
+  usernameFragment?: string | null;
+}
+
+/** Signalling frame kinds carried by `voice.signal`. */
+export type SignalKind = "offer" | "answer" | "candidate" | "end";
+
+/**
+ * The peer id that addresses the server's own relay rather than another
+ * client. It cannot collide with a user: identities start at 1.
+ */
+export const SERVER_PEER = 0;
+
+/**
+ * One participant's audio state.
+ *
+ * Sitting in a voice channel and holding a live audio session are different
+ * things: somebody with no microphone is in the channel with `connected`
+ * false. The channel is `User.channelId`; this is the audio on top of it.
+ *
+ * The mute flags come in pairs because they have different owners. `selfMute`
+ * is the participant's own choice and theirs to undo; `mute` was imposed by a
+ * moderator, or by not holding Speak, and is not.
+ */
+export interface VoiceState {
+  userId: number;
+  channelId: number;
+  connected: boolean;
+  selfMute: boolean;
+  selfDeaf: boolean;
+  mute: boolean;
+  deaf: boolean;
+  /** Set on the participant relaying a `client_host` channel. */
+  host: boolean;
+}
+
+/** Whether any reason to stop this participant transmitting applies. */
+export function isMuted(state: VoiceState): boolean {
+  return state.selfMute || state.mute;
+}
+
+/** The same for receiving. */
+export function isDeafened(state: VoiceState): boolean {
+  return state.selfDeaf || state.deaf;
 }
 
 export type UserStatus = "online" | "idle" | "dnd" | "offline" | "invisible";
@@ -250,6 +353,20 @@ export interface Ready {
   /** The caller's resolved server-wide mask. */
   permissions: string;
   server: ServerInfo;
+  /**
+   * The STUN and TURN servers to use.
+   *
+   * They arrive here as well as with a `voice.connect` reply because a
+   * server-hosted session has to build its peer connection in order to produce
+   * the offer that reply answers: the configuration is needed one step before
+   * the reply that would otherwise carry it.
+   */
+  iceServers?: ICEServer[];
+  /**
+   * Every participant of every voice channel this client may see. Absent from
+   * a server older than the audio plane.
+   */
+  voiceStates?: VoiceState[];
 }
 
 // --- request payloads --------------------------------------------------------
@@ -287,6 +404,30 @@ export interface ServerUpdateRequest {
   name?: string;
   description?: string;
   klipyApiKey?: string;
+  /**
+   * The audio plane, replaced whole. It is not a per-field patch because the
+   * fields constrain one another: a bitrate range has to be read together to
+   * be checked.
+   */
+  voice?: VoiceSettings;
+}
+
+/**
+ * The part of the audio plane an administrator may change at runtime. The
+ * deployment details — the public address, the port range, the ICE servers —
+ * belong to the machine and are not here.
+ */
+export interface VoiceSettings {
+  enabled: boolean;
+  mode: VoiceMode;
+  sampleRate: number;
+  bitrate: number;
+  minBitrate: number;
+  maxBitrate: number;
+  fec: boolean;
+  dtx: boolean;
+  stereo: boolean;
+  maxParticipants: number;
 }
 
 export interface UserUpdateRequest {
@@ -504,6 +645,108 @@ export interface ServerUpdatedEvent {
   server: ServerInfo;
 }
 
+// --- voice -------------------------------------------------------------------
+
+export interface VoiceConnectRequest {
+  channelId: number;
+  /** The client's offer in `server_host` mode, and absent otherwise. */
+  sdp?: string;
+}
+
+export interface VoiceConnectResult {
+  channelId: number;
+  mode: VoiceMode;
+  /** The server's answer in `server_host` mode. */
+  sdp?: string;
+  /**
+   * The peer relaying this channel in `client_host` mode. It is this client
+   * when it was the one elected, which is how a first arrival learns that
+   * everybody else will be dialling it.
+   */
+  hostUserId?: number;
+  /** Increments on every election, so stale signalling can be dropped. */
+  hostEpoch?: number;
+  iceServers: ICEServer[];
+  voice: VoiceConfig;
+  /** The voice state of everybody already in the channel. */
+  participants: VoiceState[];
+}
+
+export interface VoiceSignalRequest {
+  /** `SERVER_PEER` addresses the relay, which is the only target in `server_host`. */
+  targetId: number;
+  kind: SignalKind;
+  sdp?: string;
+  candidate?: ICECandidateInitLike;
+  /**
+   * Maps an SDP media id to the user whose audio it carries. It travels with
+   * an offer in `client_host` mode only.
+   *
+   * The server-hosted relay needs none of this: it names each participant in
+   * the stream id, so a receiver reads the identity off the track. A relaying
+   * browser cannot — forwarding somebody else's track gives no way to rename
+   * it — so the host says which media id is whose.
+   */
+  tracks?: Record<string, number>;
+}
+
+export interface VoiceStateRequest {
+  selfMute?: boolean;
+  selfDeaf?: boolean;
+}
+
+export interface VoiceModerateRequest {
+  userId: number;
+  mute?: boolean;
+  deaf?: boolean;
+}
+
+export interface VoiceSpeakingRequest {
+  speaking: boolean;
+}
+
+export interface VoiceStateEvent {
+  state: VoiceState;
+}
+
+export interface VoiceSpeakingEvent {
+  userId: number;
+  channelId: number;
+  speaking: boolean;
+}
+
+export interface VoiceSignalEvent {
+  /** `SERVER_PEER` when the server's own relay sent it. */
+  fromUserId: number;
+  channelId: number;
+  kind: SignalKind;
+  sdp?: string;
+  candidate?: ICECandidateInitLike;
+  /** The media-id map described on `VoiceSignalRequest`, relayed unread. */
+  tracks?: Record<string, number>;
+}
+
+export interface VoicePeerEvent {
+  channelId: number;
+  userId: number;
+  action: "add" | "remove";
+  epoch: number;
+}
+
+export interface VoiceHostEvent {
+  channelId: number;
+  hostUserId: number | null;
+  epoch: number;
+}
+
+/** Why a media session was reset. None of them is an error. */
+export type VoiceResetReason = "host_changed" | "config_changed" | "failed" | "disabled";
+
+export interface VoiceResetEvent {
+  channelId: number;
+  reason: VoiceResetReason;
+}
+
 /** An error reply, thrown by the gateway so callers can catch it by code. */
 export class AuralError extends Error {
   readonly code: ErrorCode;
@@ -559,6 +802,10 @@ export function describeError(error: unknown): string {
       return t("errors.storage_full");
     case "uploads_disabled":
       return t("errors.uploads_disabled");
+    case "voice_disabled":
+      return t("errors.voice_disabled");
+    case "voice_failed":
+      return t("errors.voice_failed");
     default:
       return error.message || t("errors.unknown");
   }

@@ -41,6 +41,7 @@ import {
   type UserDisconnectedEvent,
   type UserEvent,
   type UserMovedEvent,
+  type VoiceSettings,
 } from "@/lib/protocol";
 import {
   clearToken,
@@ -56,6 +57,7 @@ import {
   parseSearchInput,
   type SearchToken,
 } from "@/lib/search";
+import { useVoice } from "./voice";
 import {
   uploadFile,
   uploadAvatar as uploadAvatarRequest,
@@ -222,7 +224,13 @@ interface SessionState {
   register(username: string, password: string): Promise<void>;
   signIn(username: string, password: string): Promise<void>;
   claimAdmin(token: string): Promise<void>;
-  updateServer(patch: { name?: string; description?: string; klipyApiKey?: string }): Promise<void>;
+  updateServer(patch: {
+    name?: string;
+    description?: string;
+    klipyApiKey?: string;
+    /** The audio plane, replaced whole. See `VoiceSettings`. */
+    voice?: VoiceSettings;
+  }): Promise<void>;
 
   createChannel(input: {
     name: string;
@@ -353,6 +361,22 @@ export const useSession = create<SessionState>((set, get) => {
       roles: indexById(ready.roles),
       history,
     });
+
+    // A resync can add or remove voice channels, and with them the people in
+    // them. Handing the whole snapshot over is the same answer the rest of the
+    // state gives: rebuilding is cheaper than reconciling, and cannot drift.
+    useVoice.getState().attach(
+      {
+        selfId: ready.user.id,
+        serverId: get().savedId,
+        request: (op, payload) => requireGateway().request(op, payload),
+      },
+      ready.server.voice,
+      ready.iceServers ?? [],
+      ready.voiceStates ?? [],
+    );
+    const own = ready.user.channelId === null ? null : channels.get(ready.user.channelId);
+    if (own?.type === "voice") useVoice.getState().enter(own.id);
   }
 
   /** Applies a patch to one channel's history entry, creating it if needed. */
@@ -364,6 +388,14 @@ export const useSession = create<SessionState>((set, get) => {
 
   function applyEvent(op: string, payload: unknown): void {
     const state = get();
+
+    // The audio plane keeps its own state. Everything about it arrives here
+    // because there is one socket, and goes straight on because there is
+    // nothing in this store that needs to know.
+    if (op.startsWith("voice.")) {
+      useVoice.getState().handleEvent(op, payload);
+      return;
+    }
 
     switch (op) {
       case Ev.Ready:
@@ -396,6 +428,7 @@ export const useSession = create<SessionState>((set, get) => {
         const users = new Map(state.users);
         users.delete(userId);
         set({ users });
+        useVoice.getState().participantGone(userId);
         return;
       }
 
@@ -410,6 +443,17 @@ export const useSession = create<SessionState>((set, get) => {
           users,
           self: state.self?.id === moved.id ? moved : state.self,
         });
+
+        // Sitting in a voice channel is what opens audio, whether this client
+        // asked to or a moderator moved it. There is one path either way.
+        const voice = useVoice.getState();
+        const destination = event.to === null ? null : state.channels.get(event.to);
+        if (state.self?.id === event.userId) {
+          if (destination?.type === "voice") voice.enter(destination.id);
+          else voice.exit();
+        } else if (event.to === null || event.to !== voice.channelId) {
+          voice.participantGone(event.userId);
+        }
         return;
       }
 
@@ -433,6 +477,11 @@ export const useSession = create<SessionState>((set, get) => {
           history.delete(id);
         }
         set({ channels, history });
+
+        const open = useVoice.getState().channelId;
+        if (open !== null && (open === event.channelId || event.cascaded.includes(open))) {
+          useVoice.getState().exit();
+        }
         return;
       }
 
@@ -536,6 +585,10 @@ export const useSession = create<SessionState>((set, get) => {
     const state = get();
     const wasConnected = state.status === "connected";
     set({ gateway: null });
+    // Signalling travels on the socket that just went, so nothing about the
+    // media session can be recovered without a new one. It is torn down here
+    // rather than left to time out.
+    useVoice.getState().detach();
 
     // A deliberate close, a kick, or a displacement: do not fight it.
     const permanent = info.code === 1000 || info.code === 1008;
@@ -722,6 +775,7 @@ export const useSession = create<SessionState>((set, get) => {
       cancelReconnect();
       lastOptions = null;
       connectionEpoch += 1;
+      useVoice.getState().detach();
       get().gateway?.close("disconnected by the user");
       set({
         status: "idle",
