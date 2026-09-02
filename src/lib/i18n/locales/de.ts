@@ -420,15 +420,15 @@ export const de: TranslationSchema = {
         processingTitle: "Erweiterte Sprachverarbeitung",
         noiseSuppression: "Rauschunterdrückung",
         noiseSuppressionDesc:
-          "Welcher Filter vor deinem Mikrofon liegt. Es läuft immer nur einer — zwei hintereinander stören sich gegenseitig und lassen die Stimme metallisch klingen.",
+          "Filtert Hintergrund- und Umgebungsgeräusche deines Mikrofons.",
         suppressionOff: "Aus",
-        suppressionOffDesc: "Dein Mikrofon wird genau so übertragen, wie es aufgenommen wird.",
+        suppressionOffDesc: "Keine Rauschunterdrückung. Unverändertes Audiosignal.",
         suppressionStandard: "Standard",
         suppressionStandardDesc:
-          "Die im Browser integrierte Rauschunterdrückung. Gut bei gleichmäßigem Rauschen: Lüfter, Brummen, Klimaanlage.",
+          "Standardfilter. Ideal für gleichmäßiges Rauschen (Lüfter, Summen).",
         suppressionRnnoise: "RNNoise",
         suppressionRnnoiseDesc:
-          "Ein kompaktes neuronales Modell, deutlich besser bei unregelmäßigen Geräuschen — Türen, Schlüssel, Hundegebell. Entfernt keine fremden Stimmen. Benötigt etwas mehr Prozessorleistung.",
+          "KI-Filter. Entfernt wechselnde und plötzliche Umgebungsgeräusche.",
         rnnoiseUnavailable: "RNNoise konnte nicht geladen werden, daher wird die Standard-Unterdrückung verwendet.",
         echoCancellation: "Echounterdrückung",
         echoCancellationDesc: "Verhindert, dass Audio aus deinen Lautsprechern zurück ins Mikrofon gelangt.",

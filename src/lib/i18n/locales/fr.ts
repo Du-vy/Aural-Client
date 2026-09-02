@@ -420,15 +420,15 @@ export const fr: TranslationSchema = {
         processingTitle: "Traitement vocal avancé",
         noiseSuppression: "Suppression du bruit",
         noiseSuppressionDesc:
-          "Le filtre appliqué à votre microphone. Un seul filtre s'exécute à la fois — deux en cascade se parasitent et donnent un son métallique.",
+          "Filtre pour atténuer les bruits de fond de votre microphone.",
         suppressionOff: "Désactivé",
-        suppressionOffDesc: "Votre microphone est transmis tel quel, sans modification.",
+        suppressionOffDesc: "Aucun filtrage. Audio brut du microphone.",
         suppressionStandard: "Standard",
         suppressionStandardDesc:
-          "La suppression de bruit intégrée au navigateur. Efficace contre les bruits continus : ventilateurs, ronronnements, climatisation.",
+          "Filtre standard. Idéal pour les bruits continus (ventilateurs, ronflements).",
         suppressionRnnoise: "RNNoise",
         suppressionRnnoiseDesc:
-          "Un modèle neuronal compact, bien plus performant sur les bruits intermittents — portes, clés, aboiements. Ne supprime pas les voix humaines. Consomme un peu plus de processeur.",
+          "Filtre par IA. Supprime les bruits variables de l'environnement.",
         rnnoiseUnavailable: "Impossible de charger RNNoise, la suppression standard est utilisée.",
         echoCancellation: "Annulation de l'écho",
         echoCancellationDesc: "Empêche le son de vos haut-parleurs de repasser dans votre microphone.",

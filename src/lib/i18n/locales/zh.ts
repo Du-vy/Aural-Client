@@ -420,15 +420,15 @@ export const zh: TranslationSchema = {
         processingTitle: "高级语音处理",
         noiseSuppression: "降噪处理",
         noiseSuppressionDesc:
-          "麦克风前端应用的降噪滤镜。同时只能运行一个 — 串联两个会相互冲突并产生金属机械音。",
+          "过滤麦克风输入中的环境杂音和背景噪音。",
         suppressionOff: "关闭",
-        suppressionOffDesc: "麦克风音频按系统采集的原样直接发送。",
+        suppressionOffDesc: "不进行降噪，直接传输原始音频。",
         suppressionStandard: "标准降噪",
         suppressionStandardDesc:
-          "浏览器内置的降噪算法。对风扇、嗡嗡声、空调等持续稳定的噪音效果良好。",
+          "标准滤波。适合持续稳定的噪音（风扇、嗡嗡声）。",
         suppressionRnnoise: "RNNoise",
         suppressionRnnoiseDesc:
-          "基于小型神经网络模型，对开关门、钥匙、狗吠等突发性噪音抑制效果极佳。不会消除人声。会略微增加 CPU 占用。",
+          "AI 神经网络降噪。消除突发及多变的环境杂音。",
         rnnoiseUnavailable: "无法加载 RNNoise，正在使用标准降噪。",
         echoCancellation: "回声消除",
         echoCancellationDesc: "防止扬声器发出的声音重新漏入麦克风。",

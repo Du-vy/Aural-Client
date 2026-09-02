@@ -418,17 +418,17 @@ export const es: TranslationSchema = {
         bitrateServerRange: "Este servidor permite de {min} a {max}.",
         bitrateNoServer: "Con\u00e9ctate a un servidor para ver el rango que permite.",
         processingTitle: "Procesamiento de voz avanzado",
-        noiseSuppression: "Supresi\u00f3n de ruido",
+        noiseSuppression: "Supresión de ruido",
         noiseSuppressionDesc:
-          "Qu\u00e9 filtro va delante de tu micr\u00f3fono. Solo funciona uno a la vez: dos en serie se pelean y hacen que tu voz suene met\u00e1lica.",
+          "Filtro para atenuar ruidos ambientales y de fondo en tu micrófono.",
         suppressionOff: "Desactivado",
-        suppressionOffDesc: "Tu micr\u00f3fono se env\u00eda tal y como lo captura el sistema.",
-        suppressionStandard: "Cl\u00e1sico",
+        suppressionOffDesc: "Sin reducción de ruido. Audio tal cual.",
+        suppressionStandard: "Clásico",
         suppressionStandardDesc:
-          "El supresor que trae el navegador. Bueno con ruido constante: ventiladores, zumbidos, aire acondicionado.",
+          "Filtro estándar. Ideal para ruido continuo (ventiladores, zumbidos).",
         suppressionRnnoise: "RNNoise",
         suppressionRnnoiseDesc:
-          "Un modelo neuronal peque\u00f1o, y bastante mejor con el ruido que va y viene: una puerta, unas llaves, un perro. No elimina las voces de otras personas. Consume algo m\u00e1s de procesador.",
+          "Filtro por IA. Elimina ruidos imprevistos y del entorno.",
         rnnoiseUnavailable: "No se pudo cargar RNNoise, as\u00ed que se est\u00e1 usando la supresi\u00f3n cl\u00e1sica.",
         echoCancellation: "Cancelaci\u00f3n de eco",
         echoCancellationDesc: "Evita que el sonido de tus altavoces vuelva a entrar por el micr\u00f3fono.",

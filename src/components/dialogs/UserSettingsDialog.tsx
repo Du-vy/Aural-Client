@@ -948,7 +948,7 @@ function PrivacyPage() {
           {t("dialogs.userSettings.privacy.friendRequestsTitle")}
         </h3>
         <div className="settings-radio-group" style={{ marginTop: 12 }}>
-          <label className="settings-radio-card">
+          <label className={`settings-radio-card ${friendScope === "everyone" ? "settings-radio-card--active" : ""}`}>
             <input
               type="radio"
               name="friend-scope"
@@ -962,7 +962,7 @@ function PrivacyPage() {
             </span>
           </label>
 
-          <label className="settings-radio-card">
+          <label className={`settings-radio-card ${friendScope === "mutual" ? "settings-radio-card--active" : ""}`}>
             <input
               type="radio"
               name="friend-scope"
@@ -1325,7 +1325,7 @@ function VoiceAudioPage() {
       <div className="settings-card" style={{ marginTop: 16 }}>
         <h3 className="settings-card__title">{t("dialogs.userSettings.voice.inputMode")}</h3>
         <div className="settings-radio-group" style={{ marginTop: 12 }}>
-          <label className="settings-radio-card">
+          <label className={`settings-radio-card ${prefs.mode === "activity" ? "settings-radio-card--active" : ""}`}>
             <input
               type="radio"
               name="input-mode"
@@ -1342,7 +1342,7 @@ function VoiceAudioPage() {
             </span>
           </label>
 
-          <label className="settings-radio-card">
+          <label className={`settings-radio-card ${prefs.mode === "ptt" ? "settings-radio-card--active" : ""}`}>
             <input
               type="radio"
               name="input-mode"
@@ -1422,20 +1422,26 @@ function VoiceAudioPage() {
         </p>
 
         <div className="settings-radio-group" style={{ marginTop: 12 }}>
-          {SUPPRESSION_CHOICES.map((choice) => (
-            <label className="settings-radio-card" key={choice.value}>
-              <input
-                type="radio"
-                name="noise-suppression"
-                checked={prefs.noiseSuppression === choice.value}
-                onChange={() => setPreferences({ noiseSuppression: choice.value })}
-              />
-              <span className="settings-radio-card__body">
-                <span className="settings-radio-card__title">{t(choice.title)}</span>
-                <span className="settings-card__subtitle">{t(choice.description)}</span>
-              </span>
-            </label>
-          ))}
+          {SUPPRESSION_CHOICES.map((choice) => {
+            const isChecked = prefs.noiseSuppression === choice.value;
+            return (
+              <label
+                className={`settings-radio-card ${isChecked ? "settings-radio-card--active" : ""}`}
+                key={choice.value}
+              >
+                <input
+                  type="radio"
+                  name="noise-suppression"
+                  checked={isChecked}
+                  onChange={() => setPreferences({ noiseSuppression: choice.value })}
+                />
+                <span className="settings-radio-card__body">
+                  <span className="settings-radio-card__title">{t(choice.title)}</span>
+                  <span className="settings-card__subtitle">{t(choice.description)}</span>
+                </span>
+              </label>
+            );
+          })}
         </div>
 
         {/*
@@ -2107,7 +2113,7 @@ function AppearancePage() {
       <div className="settings-card" style={{ marginTop: 16 }}>
         <h3 className="settings-card__title">{t("dialogs.userSettings.appearance.densityTitle")}</h3>
         <div className="settings-radio-group" style={{ marginTop: 12 }}>
-          <label className="settings-radio-card">
+          <label className={`settings-radio-card ${density === "cozy" ? "settings-radio-card--active" : ""}`}>
             <input
               type="radio"
               name="msg-density"
@@ -2121,7 +2127,7 @@ function AppearancePage() {
             </span>
           </label>
 
-          <label className="settings-radio-card">
+          <label className={`settings-radio-card ${density === "compact" ? "settings-radio-card--active" : ""}`}>
             <input
               type="radio"
               name="msg-density"

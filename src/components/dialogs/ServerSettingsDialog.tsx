@@ -1235,7 +1235,7 @@ function ServerVoicePage() {
         <div className="settings-card" style={{ marginTop: 16 }}>
           <h3 className="settings-card__title">{t("dialogs.serverSettings.voice.mode")}</h3>
           <div className="settings-radio-group" style={{ marginTop: 12 }}>
-            <label className="settings-radio-card">
+            <label className={`settings-radio-card ${draft.mode === "server_host" ? "settings-radio-card--active" : ""}`}>
               <input
                 type="radio"
                 name="voice-mode"
@@ -1251,7 +1251,7 @@ function ServerVoicePage() {
                 </span>
               </span>
             </label>
-            <label className="settings-radio-card">
+            <label className={`settings-radio-card ${draft.mode === "client_host" ? "settings-radio-card--active" : ""}`}>
               <input
                 type="radio"
                 name="voice-mode"

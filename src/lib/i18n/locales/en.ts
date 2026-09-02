@@ -423,15 +423,15 @@ export const en = {
         processingTitle: "Advanced Voice Processing",
         noiseSuppression: "Noise Suppression",
         noiseSuppressionDesc:
-          "Which filter sits in front of your microphone. Only one runs at a time \u2014 two of them in series fight each other and make your voice sound metallic.",
+          "Filter background and ambient noise from your microphone input.",
         suppressionOff: "Off",
-        suppressionOffDesc: "Your microphone is sent as the system captures it.",
+        suppressionOffDesc: "No noise reduction applied. Raw microphone audio.",
         suppressionStandard: "Standard",
         suppressionStandardDesc:
-          "The suppressor built into the browser. Good with steady noise: fans, hum, air conditioning.",
+          "Standard filter. Best for continuous hums, fans, and background noise.",
         suppressionRnnoise: "RNNoise",
         suppressionRnnoiseDesc:
-          "A small neural model, and much better with noise that comes and goes \u2014 a door, keys, a dog. It does not remove other people's voices. It uses a little more processor.",
+          "AI neural filter. Best for variable, clicking, and sudden noises.",
         rnnoiseUnavailable: "RNNoise could not be loaded, so standard suppression is in use.",
         echoCancellation: "Echo Cancellation",
         echoCancellationDesc: "Stops audio from your speakers leaking back into your microphone.",

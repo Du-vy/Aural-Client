@@ -132,7 +132,10 @@ export function SettingsModal({
 
         {/* Right Main Content */}
         <main className="settings-content" ref={contentRef}>
-          <div className="settings-content__inner">{children}</div>
+          <div className="settings-content__inner">
+            {children}
+            <div className="settings-content__spacer" aria-hidden="true" />
+          </div>
 
           {/* Floating Discord-style Unsaved Changes Notice */}
           {unsaved ? (

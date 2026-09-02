@@ -420,15 +420,15 @@ export const it: TranslationSchema = {
         processingTitle: "Elaborazione vocale avanzata",
         noiseSuppression: "Riduzione del rumore",
         noiseSuppressionDesc:
-          "Quale filtro applicare al microfono. Viene eseguito uno solo alla volta: due in serie si contrastano rendendo la voce metallica.",
+          "Filtra i rumori ambientali e di fondo dal microfono.",
         suppressionOff: "Disattivata",
-        suppressionOffDesc: "Il microfono viene trasmesso esattamente come acquisito dal sistema.",
+        suppressionOffDesc: "Nessuna riduzione del rumore. Audio grezzo.",
         suppressionStandard: "Standard",
         suppressionStandardDesc:
-          "La soppressione del rumore integrata nel browser. Ottima con rumori costanti: ventole, ronzii, aria condizionata.",
+          "Filtro standard. Ottimo per rumori costanti (ventole, ronzii).",
         suppressionRnnoise: "RNNoise",
         suppressionRnnoiseDesc:
-          "Un piccolo modello neurale, molto più efficace con rumori intermittenti — porte, chiavi, un cane che abbaia. Non rimuove altre voci umane. Usa un po' più di CPU.",
+          "Filtro IA. Rimuove rumori improvvisi e di sottofondo.",
         rnnoiseUnavailable: "Impossibile caricare RNNoise, è in uso la soppressione standard.",
         echoCancellation: "Cancellazione dell'eco",
         echoCancellationDesc: "Impedisce che l'audio degli altoparlanti rientri nel microfono.",

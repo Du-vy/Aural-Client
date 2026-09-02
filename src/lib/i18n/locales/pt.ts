@@ -420,15 +420,15 @@ export const pt: TranslationSchema = {
         processingTitle: "Processamento de Voz Avançado",
         noiseSuppression: "Supressão de Ruído",
         noiseSuppressionDesc:
-          "Qual filtro processa seu microfone. Apenas um é executado por vez — dois em série interferem entre si e deixam a voz metálica.",
+          "Filtro para atenuar ruídos de fundo do seu microfone.",
         suppressionOff: "Desativado",
-        suppressionOffDesc: "Seu microfone é transmitido exatamente como capturado pelo sistema.",
+        suppressionOffDesc: "Sem redução de ruído. Áudio direto do microfone.",
         suppressionStandard: "Padrão",
         suppressionStandardDesc:
-          "O supressor de ruído integrado no navegador. Bom para ruídos contínuos: ventiladores, zumbidos, ar-condicionado.",
+          "Filtro padrão. Ideal para ruídos contínuos (ventoinhas, zumbidos).",
         suppressionRnnoise: "RNNoise",
         suppressionRnnoiseDesc:
-          "Um pequeno modelo neural, muito superior para ruídos intermitentes — portas, chaves, latidos. Não remove outras vozes humanas. Usa um pouco mais de CPU.",
+          "Filtro por IA. Remove ruídos variáveis e imprevistos.",
         rnnoiseUnavailable: "Não foi possível carregar o RNNoise, utilizando supressão padrão.",
         echoCancellation: "Cancelamento de Eco",
         echoCancellationDesc: "Impede que o áudio dos alto-falantes retorne para o microfone.",
