@@ -217,15 +217,32 @@ jobs:
 
       - run: npm ci
 
-      - name: Build and upload to the release
-        if: ${{ !inputs.dry_run }}
+      # Tauri decides whether to codesign by asking whether APPLE_CERTIFICATE
+      # is *set*, and an empty string counts as set: passing the secrets
+      # unconditionally makes an unsigned macOS build die in `security import`
+      # with a certificate that is the empty string. So the signing environment
+      # has to be absent entirely, not empty, which is what this flag picks
+      # between the two build steps below.
+      - name: Decide whether this build can be signed
+        id: signing
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+        run: |
+          if [ -n "$APPLE_CERTIFICATE" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Apple certificate configured; building unsigned."
+          fi
+
+      - name: Build (signed)
+        if: ${{ steps.signing.outputs.signed == 'true' }}
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Signing and notarisation, all optional. When the secrets are unset
-          # these are empty and Tauri produces unsigned bundles, which is what
-          # ships today. Add the secrets and the same workflow starts signing,
-          # with no edit here.
+          # Signing and notarisation. Set the secrets and this is the step that
+          # runs, with no edit here.
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -233,15 +250,18 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          releaseId: ${{ needs.prepare.outputs.release_id }}
+          # A dry run attaches its installers to the run instead, so it uploads
+          # to no release.
+          releaseId: ${{ inputs.dry_run && '' || needs.prepare.outputs.release_id }}
           args: ${{ matrix.args }}
 
-      - name: Build only
-        if: ${{ inputs.dry_run }}
+      - name: Build (unsigned)
+        if: ${{ steps.signing.outputs.signed != 'true' }}
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          releaseId: ${{ inputs.dry_run && '' || needs.prepare.outputs.release_id }}
           args: ${{ matrix.args }}
 
       - name: Attach the installers to this run
