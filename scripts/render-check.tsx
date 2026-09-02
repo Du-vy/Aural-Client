@@ -31,6 +31,7 @@ const { MessageList } = await import("@/components/MessageList");
 const { SearchResults } = await import("@/components/SearchResults");
 const { insertAtCaret } = await import("@/components/MessageComposer");
 const { ServerSettingsDialog } = await import("@/components/dialogs/ServerSettingsDialog");
+const { UserSettingsDialog } = await import("@/components/dialogs/UserSettingsDialog");
 const { ExternalLinkDialog } = await import("@/components/dialogs/ExternalLinkDialog");
 const { MessageContent } = await import("@/components/MessageContent");
 const { MessageAttachments } = await import("@/components/attachments/MessageAttachments");
@@ -355,6 +356,16 @@ render("channel dialog in edit mode", <ChannelDialog editChannelId={2} onClose={
 render("nickname dialog", <NicknameDialog userId={guest.id} onClose={noop} />, ["Change Nickname"]);
 render("member dialog", <MemberDialog userId={guest.id} onClose={noop} />);
 render("server settings dialog", <ServerSettingsDialog onClose={noop} />);
+
+// The user settings dialog mounts one page at a time, so a page that throws
+// is invisible until somebody clicks its tab. Each is asked for by name.
+render("user settings, profile", <UserSettingsDialog onClose={noop} />, ["User Profile", "Profile Identity"]);
+render("user settings, account", <UserSettingsDialog initialTab="account" onClose={noop} />, ["My Account", "Claim Account with Password"]);
+render("user settings, privacy", <UserSettingsDialog initialTab="privacy" onClose={noop} />, ["Friend Requests"]);
+render("user settings, voice", <UserSettingsDialog initialTab="voice" onClose={noop} />, ["Mic Test"]);
+render("user settings, appearance", <UserSettingsDialog initialTab="appearance" onClose={noop} />, ["Interface Themes", "Message Density"]);
+render("user settings, language", <UserSettingsDialog initialTab="language" onClose={noop} />, ["Interface Language", "Español"]);
+render("user settings, startup", <UserSettingsDialog initialTab="startup" onClose={noop} />, ["Launch Aural on System Startup"]);
 render(
   "delete message dialog",
   <DeleteMessageDialog
