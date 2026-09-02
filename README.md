@@ -361,6 +361,15 @@ joining a home server.
 Content Security Policy is disabled (`"csp": null`) because the client connects
 to WebSocket endpoints the user types in, which no fixed policy can enumerate.
 
+## Releases
+
+Installers for Windows, macOS and Linux are built by
+[`.github/workflows/release.yml`](.github/workflows/release.yml). It is manual —
+Actions → Release → Run workflow — because a release tags the repository and
+puts binaries in front of people, which is a decision rather than a side effect
+of a commit. [`docs/RELEASING.md`](docs/RELEASING.md) covers cutting one, what
+each job does, and where code signing would go.
+
 ## Roadmap
 
 **v0.1** — connecting by address, identity and registration, the channel tree,

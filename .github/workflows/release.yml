@@ -1,0 +1,323 @@
+# Builds the desktop client for every platform we ship, and publishes the
+# installers as a GitHub release.
+#
+# Manual only, on purpose. This is the production pipeline: it tags the repo and
+# puts binaries in front of people, so it runs when somebody decides a release is
+# happening, never because a commit landed. Nothing here triggers on push.
+#
+#   Actions -> Release -> Run workflow
+#
+# The version comes from the repo, not from an input: bump it in package.json,
+# src-tauri/tauri.conf.json and src-tauri/Cargo.toml, commit, then run this. The
+# tag is derived from that version, so a tag can never name something other than
+# what the installers actually contain.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "How to leave the release when the builds finish"
+        type: choice
+        default: draft
+        options:
+          - draft # created, but only maintainers see it until published by hand
+          - prerelease # public, flagged as a prerelease
+          - published # public, and marked as the latest release
+      dry_run:
+        description: "Build only - attach installers to this run, create no tag or release"
+        type: boolean
+        default: false
+
+# Creating the release and its tag is a write to the repository.
+permissions:
+  contents: write
+
+# Two releases at once would race for the same tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "24"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Nothing is built, tagged or published until the checks pass. `npm run smoke`
+  # is deliberately absent: it drives a live server, so it belongs to a person
+  # with a server running, not to CI.
+  # ---------------------------------------------------------------------------
+  checks:
+    name: Checks
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      - name: Resolve the version, and refuse a mismatch
+        id: version
+        run: node .github/scripts/resolve-version.mjs >> "$GITHUB_OUTPUT"
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Render check
+        run: npm run render-check
+
+      # The rule that decides whose page may take a microphone without being
+      # asked. A build that gets this wrong is a security problem rather than a
+      # bug, so it gates the release.
+      - name: Shell tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  # ---------------------------------------------------------------------------
+  # The release is created up front, as a draft, so the three build jobs have
+  # one place to upload to instead of racing to create it. It stays a draft
+  # until `finalise` decides what to do with it, so a build that fails halfway
+  # never leaves half a release in public.
+  # ---------------------------------------------------------------------------
+  prepare:
+    name: Prepare release
+    needs: checks
+    runs-on: ubuntu-22.04
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refuse a tag that already exists
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ needs.checks.outputs.tag }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::$TAG is already tagged. Bump the version and commit before releasing."
+            exit 1
+          fi
+          echo "$TAG is free."
+
+      - name: Create the draft release
+        id: create
+        if: ${{ !inputs.dry_run }}
+        uses: actions/github-script@v7
+        env:
+          TAG: ${{ needs.checks.outputs.tag }}
+          VERSION: ${{ needs.checks.outputs.version }}
+        with:
+          script: |
+            const { TAG, VERSION } = process.env;
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: TAG,
+              // Tag the exact commit this run started from, not whatever the
+              // branch tip happens to be by the time the builds finish.
+              target_commitish: context.sha,
+              name: `Aural ${VERSION}`,
+              body: [
+                `Desktop installers for Aural ${VERSION}.`,
+                "",
+                "| Platform | File |",
+                "| --- | --- |",
+                "| Windows | `.exe` installer, or `.msi` |",
+                "| macOS (Intel and Apple Silicon) | `.dmg` |",
+                "| Linux | `.AppImage`, `.deb`, or `.rpm` |",
+                "",
+                "These builds are not code signed, so Windows SmartScreen and macOS",
+                "Gatekeeper both warn on first launch. On macOS, open it once from the",
+                "right-click menu to get past that.",
+                "",
+                "Servers are self-hosted: you connect by address, and no account with",
+                "anyone is needed.",
+              ].join("\n"),
+              draft: true,
+              generate_release_notes: true,
+            });
+            core.setOutput("release_id", data.id);
+            core.notice(`Draft release ready: ${data.html_url}`);
+
+  # ---------------------------------------------------------------------------
+  # One job per platform. macOS builds a universal binary so a single .dmg runs
+  # on both Intel and Apple Silicon, which is one less thing for somebody
+  # downloading this to get wrong.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build ${{ matrix.name }}
+    needs: [checks, prepare]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      # Let the other platforms finish: a Windows-only failure should not cost
+      # the macOS and Linux builds too.
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows (x64)
+            runner: windows-latest
+            rust_targets: x86_64-pc-windows-msvc
+            args: ""
+          - name: macOS (universal)
+            runner: macos-14
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            args: "--target universal-apple-darwin"
+          # 22.04, not latest. The glibc a Tauri build links against sets the
+          # oldest distribution the .deb and .AppImage will run on, and building
+          # on 24.04 would quietly drop everyone still on 22.04.
+          - name: Linux (x64)
+            runner: ubuntu-22.04
+            rust_targets: x86_64-unknown-linux-gnu
+            args: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install Linux build dependencies
+        if: matrix.runner == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.runner }}
+
+      - run: npm ci
+
+      - name: Build and upload to the release
+        if: ${{ !inputs.dry_run }}
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signing and notarisation, all optional. When the secrets are unset
+          # these are empty and Tauri produces unsigned bundles, which is what
+          # ships today. Add the secrets and the same workflow starts signing,
+          # with no edit here.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          releaseId: ${{ needs.prepare.outputs.release_id }}
+          args: ${{ matrix.args }}
+
+      - name: Build only
+        if: ${{ inputs.dry_run }}
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: ${{ matrix.args }}
+
+      - name: Attach the installers to this run
+        if: ${{ inputs.dry_run }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: aural-${{ needs.checks.outputs.version }}-${{ matrix.runner }}
+          if-no-files-found: error
+          retention-days: 14
+          # Two roots: a plain build bundles under target/release, a --target
+          # build under target/<triple>/release.
+          path: |
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.deb
+            src-tauri/target/release/bundle/**/*.rpm
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/*/release/bundle/**/*.exe
+            src-tauri/target/*/release/bundle/**/*.msi
+            src-tauri/target/*/release/bundle/**/*.dmg
+            src-tauri/target/*/release/bundle/**/*.deb
+            src-tauri/target/*/release/bundle/**/*.rpm
+            src-tauri/target/*/release/bundle/**/*.AppImage
+
+  # ---------------------------------------------------------------------------
+  # Only reached when all three platforms built. A release goes public with a
+  # full set of installers or it does not go public at all.
+  # ---------------------------------------------------------------------------
+  finalise:
+    name: Finalise release
+    needs: [checks, prepare, build]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Set the release state
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
+        with:
+          script: |
+            const { RELEASE_ID, RELEASE_TYPE } = process.env;
+            const { data } = await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: Number(RELEASE_ID),
+              draft: RELEASE_TYPE === "draft",
+              prerelease: RELEASE_TYPE === "prerelease",
+              make_latest: RELEASE_TYPE === "published" ? "true" : "false",
+            });
+            core.notice(
+              RELEASE_TYPE === "draft"
+                ? `Draft ready to review and publish by hand: ${data.html_url}`
+                : `Released: ${data.html_url}`
+            );
+
+  # ---------------------------------------------------------------------------
+  # A build that dies partway would otherwise leave a draft holding an
+  # incomplete set of installers, which is exactly the thing somebody publishes
+  # by accident a week later.
+  # ---------------------------------------------------------------------------
+  cleanup:
+    name: Discard the failed release
+    needs: [prepare, build]
+    if: ${{ always() && !inputs.dry_run && needs.prepare.result == 'success' && needs.build.result != 'success' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+        with:
+          script: |
+            await github.rest.repos.deleteRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: Number(process.env.RELEASE_ID),
+            });
+            core.warning("A platform failed to build, so the draft release was discarded.");
