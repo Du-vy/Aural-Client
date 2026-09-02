@@ -451,6 +451,34 @@ async function main() {
   check(moved.to === voice.id, "the move event names the destination");
   check(moved.from === null, "Bob came from no channel");
 
+  // The member list is a roster: everybody with an account is in it, connected
+  // or not, and a guest is in it only while their connection is. Both halves
+  // have to hold across the two repositories, so both are checked here against
+  // the real server.
+  const carol = await open(addressInput);
+  await carol.gateway.request<Ready>(Op.AuthGuest, { nickname: "Carol" });
+  const carolAccount = await carol.gateway.request<AuthRegisterResult>(Op.AuthRegister, {
+    username: `carol_${suffix}`,
+    password: "correct-horse-battery",
+  });
+  await other.log.wait(Ev.UserConnected);
+  carol.gateway.close();
+  await other.log.wait(Ev.UserDisconnected);
+  await settle();
+
+  const late = await open(addressInput);
+  const lateReady = await late.gateway.request<Ready>(Op.AuthGuest, { nickname: "Late" });
+  const listedCarol = lateReady.users.find((user) => user.id === carolAccount.user.id);
+  check(listedCarol !== undefined, "a member who is not connected is still listed");
+  check(listedCarol?.online === false, "an absent member is listed as offline");
+  check(listedCarol?.status === "offline", "an absent member carries the offline status");
+  check(listedCarol?.channelId === null, "an absent member is in no channel");
+  check(
+    lateReady.users.some((user) => user.id === bobReady.user.id),
+    "a connected guest is listed",
+  );
+  late.gateway.close();
+
   console.log("\ntext channels");
   const text = ready.channels.find((channel) => channel.type === "text");
   check(text !== undefined, "the seeded tree has a text channel");
@@ -651,6 +679,37 @@ async function main() {
   const live = useSession.getState();
   check(live.self !== null, "the store knows who it is");
   check(live.channels.size >= 3, "the store holds the channel tree");
+
+  // The roster the store holds outlives a connection: a member who leaves drops
+  // to offline where they stand, and a guest leaves the list altogether. This
+  // is the reducer the member list reads, so it is driven with real departures.
+  const visitor = await open(addressInput);
+  await visitor.gateway.request<Ready>(Op.AuthGuest, { nickname: "Visitor" });
+  const visitorAccount = await visitor.gateway.request<AuthRegisterResult>(Op.AuthRegister, {
+    username: `visitor_${suffix}`,
+    password: "correct-horse-battery",
+  });
+  const passing = await open(addressInput);
+  const passingReady = await passing.gateway.request<Ready>(Op.AuthGuest, { nickname: "Passing" });
+  await settle();
+  check(
+    useSession.getState().users.has(visitorAccount.user.id),
+    "an arriving member reaches the store",
+  );
+  check(useSession.getState().users.has(passingReady.user.id), "so does an arriving guest");
+
+  visitor.gateway.close();
+  passing.gateway.close();
+  await settle();
+  const afterLeaving = useSession.getState().users;
+  const stayed = afterLeaving.get(visitorAccount.user.id);
+  check(stayed !== undefined, "a member who leaves stays in the store");
+  check(
+    stayed?.online === false && stayed?.status === "offline",
+    "and is held there as offline",
+  );
+  check(stayed?.channelId === null, "and in no channel");
+  check(!afterLeaving.has(passingReady.user.id), "a guest who leaves is dropped from the store");
 
   const storeText = [...live.channels.values()].find((channel) => channel.type === "text")!;
   await live.openChannel(storeText.id);

@@ -49,7 +49,7 @@ import {
 import { Perm, has } from "@/lib/permissions";
 import type { Channel, ChannelType, User } from "@/lib/protocol";
 import { useSession } from "@/store/session";
-import { assignableRoles, outranks, useMyPermissions } from "@/store/selectors";
+import { assignableRoles, isOnline, outranks, useMyPermissions } from "@/store/selectors";
 
 type Dialog =
   | { kind: "none" }
@@ -303,7 +303,11 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         : has(permissions, Perm.ManageNicknames) && outranks(self, u, roles);
       const canManageRoles = has(permissions, Perm.ManageRoles);
       const assignable = assignableRoles(self, roles);
-      const canKick = !isSelf && has(permissions, Perm.KickUsers) && outranks(self, u, roles);
+      // Kicking is closing a connection, so it is offered only to somebody who
+      // has one. The list now holds members who are away, and the server turns
+      // the request down for them.
+      const canKick =
+        !isSelf && isOnline(u) && has(permissions, Perm.KickUsers) && outranks(self, u, roles);
       const canMove = has(permissions, Perm.MoveUsers) && u.channelId !== null;
 
       const entries: MenuEntry[] = [

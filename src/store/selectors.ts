@@ -143,15 +143,38 @@ export interface MemberGroup {
   members: User[];
 }
 
-/** Groups the member list by hoisted role, highest first, as Discord does. */
+/**
+ * Whether a member is here right now.
+ *
+ * The list carries everybody with an account, so being in it says nothing
+ * about being around. A member who is hiding arrives looking exactly like one
+ * who is away, which is the point: there is nothing here to tell them apart
+ * with, and nothing that tries.
+ */
+export function isOnline(user: User): boolean {
+  return user.online && user.status !== "offline";
+}
+
+/**
+ * Groups the member list by hoisted role, highest first, as Discord does.
+ *
+ * Members who are not connected go in one group at the bottom rather than
+ * under their role. A role's group answers who is around to be called on, and
+ * a name in it that cannot answer is worse than no name at all.
+ */
 export function groupMembers(
   users: ReadonlyMap<number, User>,
   roles: ReadonlyMap<number, Role>,
 ): MemberGroup[] {
   const grouped = new Map<number, User[]>();
   const ungrouped: User[] = [];
+  const offline: User[] = [];
 
   for (const user of users.values()) {
+    if (!isOnline(user)) {
+      offline.push(user);
+      continue;
+    }
     const role = hoistRoleOf(user, roles);
     if (!role) {
       ungrouped.push(user);
@@ -184,6 +207,14 @@ export function groupMembers(
       label: "Online",
       color: null,
       members: ungrouped.sort(byNickname),
+    });
+  }
+  if (offline.length > 0) {
+    groups.push({
+      key: "offline",
+      label: "Offline",
+      color: null,
+      members: offline.sort(byNickname),
     });
   }
   return groups;

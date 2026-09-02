@@ -380,6 +380,19 @@ function indexById<T extends { id: number }>(items: T[]): Map<number, T> {
 }
 
 /**
+ * The shape a member takes once their connection ends.
+ *
+ * It is the entry the server sends for somebody who was already away, rebuilt
+ * from the copy the client is holding: a departure carries an id and nothing
+ * else, and the member has to stay in the list either way. Clearing the channel
+ * and the custom status is what makes the two entries the same, which is what
+ * leaves an invisible member indistinguishable from an absent one.
+ */
+function asOffline(user: User): User {
+  return { ...user, online: false, status: "offline", customStatus: "", channelId: null };
+}
+
+/**
  * Combines two runs of messages into one ordered, duplicate-free list.
  *
  * A fetched page and the live event stream overlap whenever a message arrives
@@ -460,15 +473,20 @@ export const useSession = create<SessionState>((set, get) => {
       case Ev.UserUpdated: {
         const { user } = payload as UserEvent;
         const users = new Map(state.users);
-        // This map holds who is connected, and nobody else: a genuinely
-        // offline user never reaches it. So an entry that looks offline could
-        // only ever be somebody hiding, which is exactly what it would give
-        // away. A server that masks presence properly never sends one; this is
-        // what keeps an older or patched one from undoing the hiding.
-        if (user.id !== state.self?.id && (user.status === "offline" || !user.online)) {
-          users.delete(user.id);
-        } else {
+        // This map is the whole roster, so a member belongs in it whether or
+        // not they are here — the offline part of the list is where somebody
+        // away is shown, and where somebody hiding disappears to.
+        //
+        // A guest has no such entry: the identity lasts no longer than the
+        // connection that made it, so one who looks offline is either gone or
+        // hiding, and both mean the same thing — leave them out. A server that
+        // masks presence properly never sends one; this is what keeps an older
+        // or patched one from undoing the hiding.
+        const connected = user.online && user.status !== "offline";
+        if (user.registered || connected || user.id === state.self?.id) {
           users.set(user.id, user);
+        } else {
+          users.delete(user.id);
         }
         set({
           users,
@@ -480,7 +498,15 @@ export const useSession = create<SessionState>((set, get) => {
       case Ev.UserDisconnected: {
         const { userId } = payload as UserDisconnectedEvent;
         const users = new Map(state.users);
-        users.delete(userId);
+        // The event says a connection ended, not that a person left. A member
+        // drops into the offline part of the list they were always in; a guest,
+        // whose identity goes with the connection, drops out of it.
+        const gone = users.get(userId);
+        if (gone?.registered) {
+          users.set(userId, asOffline(gone));
+        } else {
+          users.delete(userId);
+        }
         set({ users });
         useVoice.getState().participantGone(userId);
         return;

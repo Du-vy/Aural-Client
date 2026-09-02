@@ -4,7 +4,7 @@ import { useTranslation } from "@/lib/i18n";
 import { Perm, has } from "@/lib/permissions";
 import { describeError } from "@/lib/protocol";
 import { useSession } from "@/store/session";
-import { assignableRoles, outranks, useMyPermissions } from "@/store/selectors";
+import { assignableRoles, isOnline, outranks, useMyPermissions } from "@/store/selectors";
 import { useVoice } from "@/store/voice";
 import { Avatar, avatarColor, resolveAvatarUrl } from "../Avatar";
 import { CheckIcon, CloseIcon, CopyIcon, PlusIcon } from "../Icons";
@@ -114,6 +114,10 @@ export function MemberDialog({ userId, anchorRect, onClose }: MemberDialogProps)
   const bannerSrc = resolveAvatarUrl(user.banner, address);
   const isSelf = user.id === self.id;
   const canModerate = outranks(self, user, roles);
+  // Moving somebody between voice channels and kicking them both act on a
+  // connection, so neither is offered for a member who is away. Renaming and
+  // role grants outlive one and stay.
+  const here = isOnline(user);
   const held = user.roles
     .map((id) => roles.get(id))
     .filter((role) => role !== undefined)
@@ -345,7 +349,7 @@ export function MemberDialog({ userId, anchorRect, onClose }: MemberDialogProps)
           ) : null}
 
           {/* Move User Voice Channel */}
-          {has(permissions, Perm.MoveUsers) && !isSelf ? (
+          {has(permissions, Perm.MoveUsers) && !isSelf && here ? (
             <>
               <div className="profile-card__divider" />
               <div className="profile-card__section">
@@ -375,7 +379,7 @@ export function MemberDialog({ userId, anchorRect, onClose }: MemberDialogProps)
           ) : null}
 
           {/* Kick User */}
-          {has(permissions, Perm.KickUsers) && !isSelf ? (
+          {has(permissions, Perm.KickUsers) && !isSelf && here ? (
             <>
               <div className="profile-card__divider" />
               <button

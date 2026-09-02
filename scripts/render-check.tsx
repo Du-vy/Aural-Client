@@ -258,6 +258,18 @@ const guest: User = {
   online: true,
 };
 
+/** A member who is not connected, which the list groups on her own. */
+const absent: User = {
+  id: 12,
+  nickname: "Carla",
+  username: "carla",
+  registered: true,
+  roles: [1, 2],
+  channelId: null,
+  online: false,
+  status: "offline",
+};
+
 const DAY = 24 * 60 * 60;
 const nowSeconds = Math.floor(Date.now() / 1000);
 
@@ -314,6 +326,7 @@ function seed(overrides: Partial<Parameters<typeof useSession.setState>[0]> = {}
     users: new Map([
       [admin.id, admin],
       [guest.id, guest],
+      [absent.id, absent],
     ]),
     channels: new Map(channels.map((channel) => [channel.id, channel])),
     roles: new Map(roles.map((role) => [role.id, role])),
@@ -333,7 +346,9 @@ render("connect screen", <App />);
 
 console.log("\nconnected as an administrator");
 seed();
-render("server view", <App />);
+// The offline group is what says the member list is a roster rather than a
+// list of who is connected.
+render("server view", <App />, ["Offline — 1", "Carla"]);
 render("account dialog", <AccountDialog onClose={noop} />);
 render("channel dialog", <ChannelDialog parentId={1} onClose={noop} />);
 render("channel dialog in edit mode", <ChannelDialog editChannelId={2} onClose={noop} />, ["Edit Channel", "Save Changes"]);

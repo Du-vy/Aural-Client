@@ -2006,6 +2006,18 @@
   background: var(--hover);
 }
 
+/* A member who is not here is dimmed rather than hidden: the row still reads,
+   and the whole group of them is quiet enough not to compete with the people
+   who can actually answer. Hovering brings it back to full strength, because
+   at that point somebody is asking about that member in particular. */
+.member--offline {
+  opacity: 0.42;
+}
+
+.member--offline:hover {
+  opacity: 1;
+}
+
 .member__body {
   display: flex;
   flex-direction: column;

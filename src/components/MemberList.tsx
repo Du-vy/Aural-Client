@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { useTranslation } from "@/lib/i18n";
 import { useSession } from "@/store/session";
-import { colorRoleOf, groupMembers } from "@/store/selectors";
+import { colorRoleOf, groupMembers, isOnline } from "@/store/selectors";
 import type { User } from "@/lib/protocol";
 import { Avatar } from "./Avatar";
 
@@ -11,7 +11,10 @@ interface MemberListProps {
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
 }
 
-/** Everyone connected, grouped by their highest hoisted role. */
+/**
+ * Everyone on the server, grouped by their highest hoisted role, with the
+ * members who are not connected gathered at the bottom.
+ */
 export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProps) {
   const { t } = useTranslation();
   const users = useSession((state) => state.users);
@@ -23,52 +26,61 @@ export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProp
   return (
     <aside className="members">
       <div className="members__list">
-        {groups.map((group) => (
-          <section key={group.key} className="members__group">
-            <h3 className="members__label" style={{ color: group.color ?? undefined }}>
-              {group.key === "members" ? t("common.online") : group.label} — {group.members.length}
-            </h3>
-            {group.members.map((user) => {
-              const color = colorRoleOf(user, roles)?.color;
-              const channel = user.channelId === null ? null : channels.get(user.channelId);
-              return (
-                <button
-                  key={user.id}
-                  className="member"
-                  onClick={(e) => onOpenMember(user.id, e.currentTarget.getBoundingClientRect())}
-                  onContextMenu={(event) => {
-                    if (onContextMenuMember) {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      onContextMenuMember(event, user);
-                    }
-                  }}
-                >
-                  <Avatar user={user} size="md" status={user.status} showStatus />
-                  <span className="member__body">
-                    <span className="member__name" style={{ color: color || undefined }}>
-                      {user.nickname}
+        {groups.map((group) => {
+          const count = group.members.length;
+          const heading =
+            group.key === "members"
+              ? t("members.online", { count })
+              : group.key === "offline"
+                ? t("members.offline", { count })
+                : t("members.roleGroup", { name: group.label, count });
+          return (
+            <section key={group.key} className="members__group">
+              <h3 className="members__label" style={{ color: group.color ?? undefined }}>
+                {heading}
+              </h3>
+              {group.members.map((user) => {
+                const color = colorRoleOf(user, roles)?.color;
+                const channel = user.channelId === null ? null : channels.get(user.channelId);
+                return (
+                  <button
+                    key={user.id}
+                    className={isOnline(user) ? "member" : "member member--offline"}
+                    onClick={(e) => onOpenMember(user.id, e.currentTarget.getBoundingClientRect())}
+                    onContextMenu={(event) => {
+                      if (onContextMenuMember) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onContextMenuMember(event, user);
+                      }
+                    }}
+                  >
+                    <Avatar user={user} size="md" status={user.status} showStatus />
+                    <span className="member__body">
+                      <span className="member__name" style={{ color: color || undefined }}>
+                        {user.nickname}
+                      </span>
+                      {(() => {
+                        const meta = channel
+                          ? channel.name
+                          : user.customStatus
+                            ? user.customStatus
+                            : user.registered
+                              ? t("common.member")
+                              : t("common.guest");
+                        return (
+                          <span className="member__meta" title={typeof meta === "string" ? meta : undefined}>
+                            {meta}
+                          </span>
+                        );
+                      })()}
                     </span>
-                    {(() => {
-                      const meta = channel
-                        ? channel.name
-                        : user.customStatus
-                          ? user.customStatus
-                          : user.registered
-                            ? t("common.member")
-                            : t("common.guest");
-                      return (
-                        <span className="member__meta" title={typeof meta === "string" ? meta : undefined}>
-                          {meta}
-                        </span>
-                      );
-                    })()}
-                  </span>
-                </button>
-              );
-            })}
-          </section>
-        ))}
+                  </button>
+                );
+              })}
+            </section>
+          );
+        })}
       </div>
     </aside>
   );
