@@ -157,7 +157,7 @@ export function UserSettingsDialog({
         <span className="settings-nav-item__label">{t("userPanel.disconnect")}</span>
       </button>
       <div className="settings-sidebar__version-wrap">
-        <span className="settings-sidebar__version">Aural Client v0.1.0</span>
+        <span className="settings-sidebar__version">Aural Client v0.5.0</span>
       </div>
     </div>
   );

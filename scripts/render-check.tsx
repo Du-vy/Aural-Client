@@ -142,7 +142,7 @@ const server: ServerInfo = {
   name: "Test Server",
   description: "A server used to render the client",
   protocolVersion: 1,
-  softwareVersion: "0.1.0",
+  softwareVersion: "0.5.0",
   maxUsers: 64,
   onlineUsers: 2,
   passwordProtected: false,
