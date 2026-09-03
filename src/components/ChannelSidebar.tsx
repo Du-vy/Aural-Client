@@ -5,6 +5,7 @@ import { Perm, has, resolveChannelPermissions, resolve } from "@/lib/permissions
 import type { Channel, Role, User, ChannelType } from "@/lib/protocol";
 import { readAccessibility } from "@/lib/storage";
 import { useSession, type Unread } from "@/store/session";
+import { useServers } from "@/store/servers";
 import {
   buildChannelTree,
   everyoneRoleId,
@@ -467,6 +468,8 @@ export function ChannelSidebar({
         onSelect={(userId) => onSelectConversation?.(userId)}
         onCloseConversation={onCloseConversation}
         onContextMenuMember={onContextMenuMember}
+        maxItems={3}
+        onViewAll={() => useServers.getState().setActiveSection("dms")}
       />
 
       {tree.length === 0 ? (

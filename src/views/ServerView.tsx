@@ -57,6 +57,7 @@ import {
   useConnection,
   useServerRegistry,
   useServers,
+  useTotalDmUnread,
   type CallLocation,
 } from "@/store/servers";
 import {
@@ -66,6 +67,8 @@ import {
   unreadTotals,
   useMyPermissions,
 } from "@/store/selectors";
+import { DirectMessagesSidebar } from "@/components/DirectMessagesSidebar";
+import { DirectMessagesHome } from "@/components/DirectMessagesHome";
 
 type Dialog =
   | { kind: "none" }
@@ -84,7 +87,7 @@ type Dialog =
   | { kind: "confirmMoveCall"; channel: Channel; call: CallLocation };
 
 type ContextMenuState =
-  | { kind: "user"; x: number; y: number; user: User }
+  | { kind: "user"; x: number; y: number; user: User; serverId?: string }
   | { kind: "channel"; x: number; y: number; channel: Channel }
   | { kind: "server"; x: number; y: number }
   | { kind: "rail"; x: number; y: number; entry: SavedServer }
@@ -120,6 +123,9 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   const saved = useServerRegistry((state) => state.saved);
   const openHere = useServerRegistry((state) => state.connections);
   const railNotice = useServerRegistry((state) => state.notice);
+  const activeSection = useServerRegistry((state) => state.activeSection);
+  const setActiveSection = useServerRegistry((state) => state.setActiveSection);
+  const totalDmUnread = useTotalDmUnread();
   const deleteChannel = useSession((state) => state.deleteChannel);
   const setRoleMembership = useSession((state) => state.setRoleMembership);
   const moveUser = useSession((state) => state.moveUser);
@@ -445,10 +451,22 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           label: t("contextMenu.message"),
           icon: <MessageSquareIcon size={16} />,
           onClick: () => {
-            setSelectedChannelId(null);
-            void openConversation(u.id).then(() => {
-              setActiveConversation(u.id);
-            });
+            const targetServer = contextMenu.serverId ?? serverId;
+            if (targetServer && targetServer !== serverId) {
+              useServers.getState().focus(targetServer);
+              const store = useServers.getState().connections.get(targetServer);
+              if (store) {
+                store.getState().setActiveChannel(null);
+                void store.getState().openConversation(u.id).then(() => {
+                  store.getState().setActiveConversation(u.id);
+                });
+              }
+            } else {
+              setSelectedChannelId(null);
+              void openConversation(u.id).then(() => {
+                setActiveConversation(u.id);
+              });
+            }
           },
         });
       }
@@ -605,11 +623,29 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
     >
       <nav className="rail" aria-label={t("connect.savedServers")}>
+        <button
+          type="button"
+          className={`rail__item rail__item--dms ${activeSection === "dms" ? "rail__item--active" : ""}`}
+          onClick={() => setActiveSection("dms")}
+          title={t("dm.directMessages")}
+          aria-label={t("dm.directMessages")}
+          aria-current={activeSection === "dms" ? "true" : undefined}
+        >
+          <AuralMark size={24} />
+          {totalDmUnread > 0 && activeSection !== "dms" ? (
+            <span className="rail__badge rail__badge--mention">
+              {totalDmUnread > 99 ? "99+" : totalDmUnread}
+            </span>
+          ) : null}
+        </button>
+
+        <div className="rail__separator" role="separator" aria-hidden="true" />
+
         {saved.map((entry) => (
           <RailServer
             key={entry.id}
             entry={entry}
-            active={entry.id === serverId}
+            active={activeSection === "server" && entry.id === serverId}
             onContextMenu={(event) => {
               event.preventDefault();
               setContextMenu({ kind: "rail", x: event.clientX, y: event.clientY, entry });
@@ -628,63 +664,96 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       </nav>
 
       <aside className="sidebar">
-        <header
-          className="sidebar__header"
-          style={{ cursor: "pointer" }}
-          onClick={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            setContextMenu({ kind: "server", x: rect.left, y: rect.bottom + 4 });
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
-          }}
-        >
-          <span className="sidebar__name" title={server.description || server.name}>
-            {server.name}
-          </span>
-          <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            <ChevronIcon size={14} />
-          </span>
-        </header>
+        {activeSection === "dms" ? (
+          <DirectMessagesSidebar
+            activeServerId={serverId}
+            activeUserId={activeConversationId}
+            onSelectConversation={(targetServerId, userId) => {
+              useServers.getState().focus(targetServerId);
+              const store = useServers.getState().connections.get(targetServerId);
+              if (store) {
+                store.getState().setActiveChannel(null);
+                void store.getState().openConversation(userId).then(() => {
+                  store.getState().setActiveConversation(userId);
+                });
+              }
+              setDrawerOpen(false);
+            }}
+            onCloseConversation={(targetServerId, userId) => {
+              const store = useServers.getState().connections.get(targetServerId);
+              store?.getState().closeConversation(userId);
+              if (targetServerId === serverId && userId === activeConversationId) {
+                setActiveConversation(null);
+              }
+            }}
+            onContextMenuMember={(e, u, targetServerId) => {
+              setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user: u, serverId: targetServerId });
+            }}
+            onOpenAccount={() => setDialog({ kind: "account" })}
+            onOpenStatus={() => setStatusOpen(true)}
+            onOpenVoiceSettings={() => setDialog({ kind: "account", tab: "voice" })}
+          />
+        ) : (
+          <>
+            <header
+              className="sidebar__header"
+              style={{ cursor: "pointer" }}
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setContextMenu({ kind: "server", x: rect.left, y: rect.bottom + 4 });
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
+              }}
+            >
+              <span className="sidebar__name" title={server.description || server.name}>
+                {server.name}
+              </span>
+              <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <ChevronIcon size={14} />
+              </span>
+            </header>
 
-        <ChannelSidebar
-          selectedChannelId={selectedChannelId}
-          onSelectChannel={(id) => {
-            setActiveConversation(null);
-            setSelectedChannelId(id);
-            setDrawerOpen(false);
-          }}
-          activeConversationId={activeConversationId}
-          onSelectConversation={(userId) => {
-            setSelectedChannelId(null);
-            setActiveConversation(userId);
-            setDrawerOpen(false);
-          }}
-          onCloseConversation={(userId) => {
-            closeConversation(userId);
-          }}
-          onJoinVoice={joinVoice}
-          onCreateChannel={(parentId) => setDialog({ kind: "channel", parentId })}
-          onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
-          onDeleteChannel={(channel) => setDialog({ kind: "confirmDeleteChannel", channel })}
-          onContextMenuChannel={(e, channel) => {
-            setContextMenu({ kind: "channel", x: e.clientX, y: e.clientY, channel });
-          }}
-          onContextMenuMember={(e, user) => {
-            setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
-          }}
-          onContextMenuServer={(e) => {
-            setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
-          }}
-        />
+            <ChannelSidebar
+              selectedChannelId={selectedChannelId}
+              onSelectChannel={(id) => {
+                setActiveConversation(null);
+                setSelectedChannelId(id);
+                setDrawerOpen(false);
+              }}
+              activeConversationId={activeConversationId}
+              onSelectConversation={(userId) => {
+                setSelectedChannelId(null);
+                setActiveConversation(userId);
+                setDrawerOpen(false);
+              }}
+              onCloseConversation={(userId) => {
+                closeConversation(userId);
+              }}
+              onJoinVoice={joinVoice}
+              onCreateChannel={(parentId) => setDialog({ kind: "channel", parentId })}
+              onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
+              onDeleteChannel={(channel) => setDialog({ kind: "confirmDeleteChannel", channel })}
+              onContextMenuChannel={(e, channel) => {
+                setContextMenu({ kind: "channel", x: e.clientX, y: e.clientY, channel });
+              }}
+              onContextMenuMember={(e, user) => {
+                setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
+              }}
+              onContextMenuServer={(e) => {
+                setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
+              }}
+            />
 
-        <VoicePanel onOpenVoiceSettings={() => setDialog({ kind: "account", tab: "voice" })} />
+            <VoicePanel onOpenVoiceSettings={() => setDialog({ kind: "account", tab: "voice" })} />
 
-        <UserPanel
-          onOpenAccount={() => setDialog({ kind: "account" })}
-          onOpenStatus={() => setStatusOpen(true)}
-        />
+            <UserPanel
+              onOpenAccount={() => setDialog({ kind: "account" })}
+              onOpenStatus={() => setStatusOpen(true)}
+            />
+          </>
+        )}
 
         <div
           className="sidebar__resizer"
@@ -697,112 +766,211 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       </aside>
 
       <main className="main">
-        <header className="topbar">
-          <button
-            className="iconbtn drawer-toggle"
-            onClick={() => setDrawerOpen((open) => !open)}
-            aria-label={t("server.channels")}
-          >
-            <MenuIcon size={18} />
-          </button>
+        {activeSection === "dms" ? (
+          activeConversationId !== null ? (
+            <>
+              <header className="topbar">
+                <button
+                  className="iconbtn drawer-toggle"
+                  onClick={() => setDrawerOpen((open) => !open)}
+                  aria-label={t("server.channels")}
+                >
+                  <MenuIcon size={18} />
+                </button>
 
-          <span className="topbar__title">
-            {activeConversationId !== null ? (
-              <>
-                <MessageSquareIcon size={17} />
-                <span>{activePeerName}</span>
-              </>
-            ) : selected ? (
-              <>
-                {selected.type === "voice" ? <VoiceIcon size={17} /> : <HashIcon size={17} />}
-                <span>{selected.name}</span>
-              </>
-            ) : (
-              <span>{server.name}</span>
-            )}
-          </span>
-          {activeConversationId !== null && activePeer?.customStatus ? (
-            <span className="topbar__topic">{activePeer.customStatus}</span>
-          ) : selected?.topic ? (
-            <span className="topbar__topic">{selected.topic}</span>
-          ) : null}
+                <div className="topbar__dm-info" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <span className="topbar__title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <MessageSquareIcon size={17} />
+                    <span>{activePeerName}</span>
+                  </span>
 
-          <span className="topbar__spacer" />
+                  {activePeer?.customStatus ? (
+                    <span className="topbar__topic">{activePeer.customStatus}</span>
+                  ) : null}
 
-          {activeConversationId !== null ? (
-            <button
-              className="iconbtn"
-              onClick={() => setActiveConversation(null)}
-              title={t("dm.close")}
-              aria-label={t("dm.close")}
-            >
-              <CloseIcon size={18} />
-            </button>
-          ) : null}
+                  {/* Server identification badge */}
+                  <span
+                    className="topbar__server-badge"
+                    title={`${server.name} • ${address?.label ?? address?.raw ?? serverId}`}
+                  >
+                    <FolderIcon size={12} />
+                    <span className="topbar__server-badge-name">{server.name}</span>
+                    <span className="topbar__server-badge-addr">({address?.label ?? address?.raw ?? serverId})</span>
+                  </span>
+                </div>
 
-          <SearchBar />
+                <span className="topbar__spacer" />
 
-          <button
-            className="iconbtn"
-            onClick={() => setMembersOpen((open) => !open)}
-            title={t("server.toggleMembers")}
-            aria-label={t("server.toggleMembers")}
-            aria-pressed={membersOpen}
-          >
-            <UsersIcon size={18} />
-          </button>
-        </header>
+                <button
+                  className="iconbtn"
+                  onClick={() => setActiveConversation(null)}
+                  title={t("dm.close")}
+                  aria-label={t("dm.close")}
+                >
+                  <CloseIcon size={18} />
+                </button>
+              </header>
 
-        {notice ?? railNotice ? (
-          <div className="notice">
-            <span>{notice ?? railNotice}</span>
-            <button
-              className="notice__close"
-              onClick={notice ? dismissNotice : () => useServers.getState().dismissNotice()}
-              aria-label={t("common.close")}
-            >
-              <CloseIcon size={15} />
-            </button>
-          </div>
-        ) : null}
+              <DirectMessagePanel
+                key={`${serverId}-${activeConversationId}`}
+                userId={activeConversationId}
+                onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
+                onContextMenuMember={(e, user) => {
+                  setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <header className="topbar">
+                <button
+                  className="iconbtn drawer-toggle"
+                  onClick={() => setDrawerOpen((open) => !open)}
+                  aria-label={t("server.channels")}
+                >
+                  <MenuIcon size={18} />
+                </button>
+                <span className="topbar__title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <AuralMark size={18} />
+                  <span>{t("dm.homeTitle")}</span>
+                </span>
+              </header>
 
-        {activeConversationId !== null ? (
-          <DirectMessagePanel
-            key={activeConversationId}
-            userId={activeConversationId}
-            onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
-            onContextMenuMember={(e, user) => {
-              setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
-            }}
-          />
-        ) : selected?.type === "text" ? (
-          <ChatPanel
-            key={selected.id}
-            channel={selected}
-            onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
-            onContextMenuMember={(e, user) => {
-              setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
-            }}
-          />
+              <DirectMessagesHome
+                onSelectConversation={(targetServerId, userId) => {
+                  useServers.getState().focus(targetServerId);
+                  const store = useServers.getState().connections.get(targetServerId);
+                  if (store) {
+                    store.getState().setActiveChannel(null);
+                    void store.getState().openConversation(userId).then(() => {
+                      store.getState().setActiveConversation(userId);
+                    });
+                  }
+                }}
+              />
+            </>
+          )
         ) : (
-          <div className="content">
-            <div className="placeholder">
-              <span className="placeholder__icon" style={{ color: "var(--accent)" }}>
-                <AuralMark size={30} />
+          <>
+            <header className="topbar">
+              <button
+                className="iconbtn drawer-toggle"
+                onClick={() => setDrawerOpen((open) => !open)}
+                aria-label={t("server.channels")}
+              >
+                <MenuIcon size={18} />
+              </button>
+
+              <span className="topbar__title">
+                {activeConversationId !== null ? (
+                  <>
+                    <MessageSquareIcon size={17} />
+                    <span>{activePeerName}</span>
+                  </>
+                ) : selected ? (
+                  <>
+                    {selected.type === "voice" ? <VoiceIcon size={17} /> : <HashIcon size={17} />}
+                    <span>{selected.name}</span>
+                  </>
+                ) : (
+                  <span>{server.name}</span>
+                )}
               </span>
-              <h2 className="placeholder__title">{server.name}</h2>
-              <p className="placeholder__body">
-                {server.description ||
-                  "Pick a text channel to read it, or a voice channel to join it."}
-              </p>
-              <p className="field__hint">
-                {t("connect.voiceModeServer")}:{" "}
-                {server.voiceMode === "client_host"
-                  ? t("connect.voiceModeClient")
-                  : t("connect.voiceModeServer")}
-              </p>
-            </div>
-          </div>
+              {activeConversationId !== null && activePeer?.customStatus ? (
+                <span className="topbar__topic">{activePeer.customStatus}</span>
+              ) : selected?.topic ? (
+                <span className="topbar__topic">{selected.topic}</span>
+              ) : null}
+
+              {activeConversationId !== null ? (
+                <span
+                  className="topbar__server-badge"
+                  title={`${server.name} • ${address?.label ?? address?.raw ?? serverId}`}
+                >
+                  <FolderIcon size={12} />
+                  <span className="topbar__server-badge-name">{server.name}</span>
+                  <span className="topbar__server-badge-addr">({address?.label ?? address?.raw ?? serverId})</span>
+                </span>
+              ) : null}
+
+              <span className="topbar__spacer" />
+
+              {activeConversationId !== null ? (
+                <button
+                  className="iconbtn"
+                  onClick={() => setActiveConversation(null)}
+                  title={t("dm.close")}
+                  aria-label={t("dm.close")}
+                >
+                  <CloseIcon size={18} />
+                </button>
+              ) : null}
+
+              <SearchBar />
+
+              <button
+                className="iconbtn"
+                onClick={() => setMembersOpen((open) => !open)}
+                title={t("server.toggleMembers")}
+                aria-label={t("server.toggleMembers")}
+                aria-pressed={membersOpen}
+              >
+                <UsersIcon size={18} />
+              </button>
+            </header>
+
+            {notice ?? railNotice ? (
+              <div className="notice">
+                <span>{notice ?? railNotice}</span>
+                <button
+                  className="notice__close"
+                  onClick={notice ? dismissNotice : () => useServers.getState().dismissNotice()}
+                  aria-label={t("common.close")}
+                >
+                  <CloseIcon size={15} />
+                </button>
+              </div>
+            ) : null}
+
+            {activeConversationId !== null ? (
+              <DirectMessagePanel
+                key={activeConversationId}
+                userId={activeConversationId}
+                onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
+                onContextMenuMember={(e, user) => {
+                  setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
+                }}
+              />
+            ) : selected?.type === "text" ? (
+              <ChatPanel
+                key={selected.id}
+                channel={selected}
+                onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
+                onContextMenuMember={(e, user) => {
+                  setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
+                }}
+              />
+            ) : (
+              <div className="content">
+                <div className="placeholder">
+                  <span className="placeholder__icon" style={{ color: "var(--accent)" }}>
+                    <AuralMark size={30} />
+                  </span>
+                  <h2 className="placeholder__title">{server.name}</h2>
+                  <p className="placeholder__body">
+                    {server.description ||
+                      "Pick a text channel to read it, or a voice channel to join it."}
+                  </p>
+                  <p className="field__hint">
+                    {t("connect.voiceModeServer")}:{" "}
+                    {server.voiceMode === "client_host"
+                      ? t("connect.voiceModeClient")
+                      : t("connect.voiceModeServer")}
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </main>
 
@@ -988,14 +1156,15 @@ function RailServer({
   return (
     <button
       className={classes.join(" ")}
-      onClick={() =>
+      onClick={() => {
+        useServers.getState().setActiveSection("server");
         void useServers
           .getState()
           .connect({ address: entry.address, nickname: entry.nickname })
           .catch(() => {
             // The connect screen renders the failure; the entry stays put.
-          })
-      }
+          });
+      }}
       onContextMenu={onContextMenu}
       title={title}
       aria-label={title}

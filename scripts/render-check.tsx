@@ -12,6 +12,7 @@
  */
 
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
+import type { Conversation } from "@/lib/protocol";
 
 GlobalRegistrator.register();
 
@@ -1460,6 +1461,282 @@ console.log("\nseveral servers at once");
   seed({ unread: new Map([[5, { count: 5, mention: false }]]), activeChannelId: null });
   useSession.setState({ serverId: "192.168.1.20:9871" });
   render("rail badge for a server in the background", <App />, ["rail__badge"]);
+  seed();
+}
+
+console.log("\ndedicated direct messages section");
+{
+  const server2Id = "192.168.1.50:9871";
+  const server2Connection = createConnection({
+    id: server2Id,
+    address: server2Id,
+    host: {
+      foreground: () => useServers.getState().foregroundId === server2Id,
+      ownsVoice: () => false,
+      callElsewhere: () => false,
+      takeVoice: () => undefined,
+      dropVoice: () => undefined,
+      savedChanged: () => undefined,
+      ended: () => undefined,
+    },
+  });
+
+  const carlos1: User = {
+    id: 10,
+    username: "carlos_dev",
+    nickname: "Carlos",
+    avatar: "",
+    status: "online",
+    roles: [1],
+    channelId: null,
+    registered: false,
+    online: true,
+  };
+
+  const carlos2: User = {
+    id: 20,
+    username: "carlos_gaming",
+    nickname: "Carlos",
+    avatar: "",
+    status: "online",
+    roles: [1],
+    channelId: null,
+    registered: false,
+    online: true,
+  };
+
+  const extraUser1: User = {
+    id: 11,
+    username: "alice",
+    nickname: "Alice",
+    avatar: "",
+    status: "online",
+    roles: [1],
+    channelId: null,
+    registered: false,
+    online: true,
+  };
+
+  const extraUser2: User = {
+    id: 12,
+    username: "charlie",
+    nickname: "Charlie",
+    avatar: "",
+    status: "idle",
+    roles: [1],
+    channelId: null,
+    registered: false,
+    online: true,
+  };
+
+  const extraUser3: User = {
+    id: 13,
+    username: "diana",
+    nickname: "Diana",
+    avatar: "",
+    status: "offline",
+    roles: [1],
+    channelId: null,
+    registered: false,
+    online: false,
+  };
+
+  const now = Math.floor(Date.now() / 1000);
+  const server1Conversations = new Map<number, Conversation>([
+    [
+      carlos1.id,
+      {
+        id: 1,
+        userId: carlos1.id,
+        lastMessageAt: now - 10,
+        unread: 1,
+        lastMessage: {
+          id: 100,
+          conversationId: 1,
+          userId: carlos1.id,
+          author: "Carlos",
+          content: "Hola desde Test Server!",
+          createdAt: now - 10,
+          editedAt: null,
+        },
+      },
+    ],
+    [
+      extraUser1.id,
+      {
+        id: 2,
+        userId: extraUser1.id,
+        lastMessageAt: now - 20,
+        unread: 0,
+        lastMessage: {
+          id: 101,
+          conversationId: 2,
+          userId: extraUser1.id,
+          author: "Alice",
+          content: "Hey there!",
+          createdAt: now - 20,
+          editedAt: null,
+        },
+      },
+    ],
+    [
+      extraUser2.id,
+      {
+        id: 3,
+        userId: extraUser2.id,
+        lastMessageAt: now - 30,
+        unread: 0,
+        lastMessage: {
+          id: 102,
+          conversationId: 3,
+          userId: extraUser2.id,
+          author: "Charlie",
+          content: "See you later",
+          createdAt: now - 30,
+          editedAt: null,
+        },
+      },
+    ],
+    [
+      extraUser3.id,
+      {
+        id: 4,
+        userId: extraUser3.id,
+        lastMessageAt: now - 40,
+        unread: 0,
+        lastMessage: {
+          id: 103,
+          conversationId: 4,
+          userId: extraUser3.id,
+          author: "Diana",
+          content: "Goodbye",
+          createdAt: now - 40,
+          editedAt: null,
+        },
+      },
+    ],
+  ]);
+
+  testConnection.setState({
+    serverId: testServerId,
+    status: "connected",
+    server: { ...server, name: "Test Server", directMessages: true },
+    users: new Map([
+      [admin.id, admin],
+      [carlos1.id, carlos1],
+      [extraUser1.id, extraUser1],
+      [extraUser2.id, extraUser2],
+      [extraUser3.id, extraUser3],
+    ]),
+    conversations: server1Conversations,
+  });
+
+  server2Connection.setState({
+    serverId: server2Id,
+    status: "connected",
+    server: { ...server, name: "Gaming Lounge", directMessages: true },
+    self: admin,
+    roles: new Map(roles.map((role) => [role.id, role])),
+    channels: new Map(),
+    users: new Map([
+      [admin.id, admin],
+      [carlos2.id, carlos2],
+    ]),
+    conversations: new Map([
+      [
+        carlos2.id,
+        {
+          id: 5,
+          userId: carlos2.id,
+          lastMessageAt: now - 5,
+          unread: 2,
+          lastMessage: {
+            id: 200,
+            conversationId: 5,
+            userId: carlos2.id,
+            author: "Carlos",
+            content: "Sale partida en Gaming Lounge?",
+            createdAt: now - 5,
+            editedAt: null,
+          },
+        },
+      ],
+    ]),
+    directHistory: new Map([
+      [
+        carlos2.id,
+        {
+          messages: [
+            {
+              id: 200,
+              conversationId: 5,
+              userId: carlos2.id,
+              author: "Carlos",
+              content: "Sale partida en Gaming Lounge?",
+              createdAt: now - 5,
+              editedAt: null,
+            },
+          ],
+          hasMore: false,
+          hasMoreAfter: false,
+          loading: false,
+          error: null,
+        },
+      ],
+    ]),
+  });
+
+  useServers.setState({
+    connections: new Map([
+      [testServerId, testConnection],
+      [server2Id, server2Connection],
+    ]),
+    order: [testServerId, server2Id],
+    foregroundId: testServerId,
+    activeSection: "server",
+  });
+
+  // 1. In Server mode: test the DM button at top of rail, separator, and DM capping in ChannelSidebar
+  render("rail has DM button, separator, and unread badge", <App />, [
+    "rail__item--dms",
+    "rail__separator",
+    "rail__badge--mention",
+    "dm-list__more",
+  ]);
+
+  // 2. Switch to Direct Messages mode
+  useServers.getState().setActiveSection("dms");
+  render("dedicated DM section home with sidebar and server badges", <App />, [
+    "rail__item--dms rail__item--active",
+    "dm-sidebar",
+    "dm-home",
+    "Test Server",
+    "Gaming Lounge",
+    "127.0.0.1:9871",
+    "192.168.1.50:9871",
+  ]);
+
+  // 3. Open conversation with Carlos from Server 2
+  useServers.getState().focus(server2Id);
+  server2Connection.setState({ activeConversationId: carlos2.id });
+  render("active DM conversation with Carlos on Server 2 shows disambiguation badge", <App />, [
+    "topbar__server-badge",
+    "Gaming Lounge",
+    "192.168.1.50:9871",
+    "Sale partida en Gaming Lounge?",
+  ]);
+
+  // 4. Interactive transitions
+  useServers.getState().setActiveSection("server");
+  checkThat("initially activeSection is server", useServers.getState().activeSection === "server");
+  useServers.getState().setActiveSection("dms");
+  checkThat("switching activeSection to dms works", useServers.getState().activeSection === "dms");
+  useServers.getState().setActiveSection("server");
+  checkThat("switching back to server works", useServers.getState().activeSection === "server");
+
+  // Reset back to defaults
+  useServers.getState().setActiveSection("server");
+  useServers.getState().focus(testServerId);
   seed();
 }
 

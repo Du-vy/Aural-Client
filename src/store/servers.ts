@@ -12,11 +12,12 @@
  * presence and a badge.
  */
 
+import { useEffect, useState } from "react";
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 
 import { parseAddress } from "@/lib/address";
-import { describeError } from "@/lib/protocol";
+import { describeError, type DirectMessage, type User } from "@/lib/protocol";
 import { listServers, removeServer, type SavedServer } from "@/lib/storage";
 import {
   createConnection,
@@ -52,7 +53,10 @@ export interface ServersState {
   notice: string | null;
   /** Saved server bookmarks, mirrored from localStorage. */
   saved: SavedServer[];
+  /** Whether the user is viewing a server or the dedicated Direct Messages section. */
+  activeSection: "server" | "dms";
 
+  setActiveSection(section: "server" | "dms"): void;
   /**
    * Opens a server, or brings it to the front when it is already open.
    *
@@ -130,6 +134,8 @@ export const useServers = createStore<ServersState>((set, get) => ({
   error: null,
   notice: null,
   saved: listServers(),
+  activeSection: "server",
+  setActiveSection: (section) => set({ activeSection: section }),
 
   async connect(options) {
     let id: string;
@@ -305,3 +311,130 @@ export function callLocation(): CallLocation | null {
     channelName: state.channels.get(channelId)?.name ?? "",
   };
 }
+
+/** One private conversation aggregated across any connected server. */
+export interface ServerConversationItem {
+  key: string;
+  serverId: string;
+  serverName: string;
+  serverAddress: string;
+  userId: number;
+  peer?: User;
+  lastMessage?: DirectMessage;
+  lastMessageAt: number;
+  unread: number;
+}
+
+function extractConversations(connections: Map<string, ConnectionStore>): ServerConversationItem[] {
+  const result: ServerConversationItem[] = [];
+  for (const [connectionId, store] of connections.entries()) {
+    const state = store.getState();
+    if (!(state.server?.directMessages ?? false)) continue;
+    const serverName = state.server?.name || state.address?.label || connectionId;
+    const serverAddress = state.address?.label || state.address?.raw || connectionId;
+    const serverId = state.serverId || connectionId;
+
+    for (const conv of state.conversations.values()) {
+      const peer = state.users.get(conv.userId);
+      result.push({
+        key: `${serverId}:${conv.userId}`,
+        serverId,
+        serverName,
+        serverAddress,
+        userId: conv.userId,
+        peer,
+        lastMessage: conv.lastMessage,
+        lastMessageAt: conv.lastMessageAt,
+        unread: conv.unread,
+      });
+    }
+  }
+  return result.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+}
+
+/**
+ * Collects every private conversation across all currently open server connections,
+ * keeping memory strictly bounded without fetching full message history.
+ */
+export function useAllConversations(): ServerConversationItem[] {
+  const connections = useServerRegistry((state) => state.connections);
+  const [items, setItems] = useState<ServerConversationItem[]>(() =>
+    extractConversations(connections)
+  );
+
+  useEffect(() => {
+    const unsubs: (() => void)[] = [];
+    const refresh = () => {
+      setItems(extractConversations(useServers.getState().connections));
+    };
+
+    refresh();
+
+    for (const store of connections.values()) {
+      unsubs.push(
+        store.subscribe((state, prev) => {
+          if (
+            state.conversations !== prev.conversations ||
+            state.users !== prev.users ||
+            state.server !== prev.server
+          ) {
+            refresh();
+          }
+        })
+      );
+    }
+
+    return () => {
+      for (const unsub of unsubs) unsub();
+    };
+  }, [connections]);
+
+  return items;
+}
+
+function calculateTotalDmUnread(connections: Map<string, ConnectionStore>): number {
+  let sum = 0;
+  for (const store of connections.values()) {
+    const state = store.getState();
+    if (state.conversations) {
+      for (const conv of state.conversations.values()) {
+        sum += conv.unread;
+      }
+    }
+  }
+  return sum;
+}
+
+/**
+ * Returns the total count of unread direct messages across all connected servers.
+ */
+export function useTotalDmUnread(): number {
+  const connections = useServerRegistry((state) => state.connections);
+  const [total, setTotal] = useState(() => calculateTotalDmUnread(connections));
+
+  useEffect(() => {
+    const unsubs: (() => void)[] = [];
+    const refresh = () => {
+      setTotal(calculateTotalDmUnread(useServers.getState().connections));
+    };
+
+    refresh();
+
+    for (const store of connections.values()) {
+      unsubs.push(
+        store.subscribe((state, prev) => {
+          if (state.conversations !== prev.conversations) {
+            refresh();
+          }
+        })
+      );
+    }
+
+    return () => {
+      for (const unsub of unsubs) unsub();
+    };
+  }, [connections]);
+
+  return total;
+}
+

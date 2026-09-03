@@ -819,6 +819,15 @@ export const de: TranslationSchema = {
     noPermission: "Du darfst hier keine privaten Nachrichten senden.",
     noAttachments: "Private Unterhaltungen übertragen keine Dateien.",
     unread: "{count} ungelesen",
+    directMessages: "Direktnachrichten",
+    viewAll: "Alle anzeigen ({count})",
+    searchPlaceholder: "Unterhaltungen oder Server durchsuchen",
+    allServers: "Alle Server",
+    onServer: "auf {server}",
+    homeTitle: "Direktnachrichten",
+    homeSubtitle: "Privat mit Mitgliedern auf allen verbundenen Servern chatten.",
+    noFilteredResults: "Keine Unterhaltungen für '{query}' gefunden",
+    startChat: "Chatten",
   },
   permissions: {
     names: {

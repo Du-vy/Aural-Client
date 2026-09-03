@@ -819,6 +819,15 @@ export const it: TranslationSchema = {
     noPermission: "Non hai il permesso di inviare messaggi privati qui.",
     noAttachments: "Le conversazioni private non trasportano file.",
     unread: "{count} non letti",
+    directMessages: "Messaggi diretti",
+    viewAll: "Mostra tutti ({count})",
+    searchPlaceholder: "Cerca conversazioni o server",
+    allServers: "Tutti i server",
+    onServer: "su {server}",
+    homeTitle: "Messaggi Diretti",
+    homeSubtitle: "Chatta in privato con i membri di tutti i server connessi.",
+    noFilteredResults: "Nessuna conversazione trovata per '{query}'",
+    startChat: "Chatta",
   },
   permissions: {
     names: {

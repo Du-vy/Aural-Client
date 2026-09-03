@@ -823,6 +823,15 @@ export const en = {
     noPermission: "You are not allowed to send private messages here.",
     noAttachments: "Private conversations do not carry files.",
     unread: "{count} unread",
+    directMessages: "Direct Messages",
+    viewAll: "View all ({count})",
+    searchPlaceholder: "Search conversations or servers",
+    allServers: "All servers",
+    onServer: "on {server}",
+    homeTitle: "Direct Messages",
+    homeSubtitle: "Chat privately with members across your connected servers.",
+    noFilteredResults: "No conversations found matching '{query}'",
+    startChat: "Chat",
   },
   permissions: {
     names: {

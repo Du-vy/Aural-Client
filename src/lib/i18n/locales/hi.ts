@@ -819,6 +819,15 @@ export const hi: TranslationSchema = {
     noPermission: "आपको यहाँ निजी संदेश भेजने की अनुमति नहीं है।",
     noAttachments: "निजी बातचीत में फ़ाइलें नहीं भेजी जा सकतीं।",
     unread: "{count} अपठित",
+    directMessages: "सीधे संदेश",
+    viewAll: "सभी देखें ({count})",
+    searchPlaceholder: "बातचीत या सर्वर खोजें",
+    allServers: "सभी सर्वर",
+    onServer: "{server} पर",
+    homeTitle: "सीधे संदेश",
+    homeSubtitle: "अपने सभी कनेक्टेड सर्वर पर सदस्यों से निजी तौर पर बात करें।",
+    noFilteredResults: "'{query}' के लिए कोई बातचीत नहीं मिली",
+    startChat: "चैट करें",
   },
   permissions: {
     names: {

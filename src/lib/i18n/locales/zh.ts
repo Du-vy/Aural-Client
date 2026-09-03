@@ -819,6 +819,15 @@ export const zh: TranslationSchema = {
     noPermission: "你没有权限在这里发送私信。",
     noAttachments: "私密会话不支持文件。",
     unread: "{count} 条未读",
+    directMessages: "私信",
+    viewAll: "查看全部 ({count})",
+    searchPlaceholder: "搜索会话或服务器",
+    allServers: "所有服务器",
+    onServer: "在 {server}",
+    homeTitle: "私信",
+    homeSubtitle: "与所有已连接服务器中的成员私下聊天。",
+    noFilteredResults: "未找到匹配“{query}”的会话",
+    startChat: "发消息",
   },
   permissions: {
     names: {

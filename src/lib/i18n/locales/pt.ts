@@ -818,7 +818,16 @@ export const pt: TranslationSchema = {
     selfDisabled: "Tens as mensagens privadas desligadas em Privacidade e Segurança.",
     noPermission: "Não tens permissão para enviar mensagens privadas aqui.",
     noAttachments: "As conversas privadas não transportam ficheiros.",
-    unread: "{count} por ler",
+    unread: "{count} não lidas",
+    directMessages: "Mensagens diretas",
+    viewAll: "Ver todas ({count})",
+    searchPlaceholder: "Pesquisar conversas ou servidores",
+    allServers: "Todos os servidores",
+    onServer: "em {server}",
+    homeTitle: "Mensagens Diretas",
+    homeSubtitle: "Converse em privado com membros em todos os seus servidores conectados.",
+    noFilteredResults: "Nenhuma conversa encontrada para '{query}'",
+    startChat: "Conversar",
   },
   permissions: {
     names: {

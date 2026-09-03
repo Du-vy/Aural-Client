@@ -12,6 +12,8 @@ interface DirectMessageListProps {
   onSelect(userId: number): void;
   onCloseConversation?(userId: number): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
+  maxItems?: number;
+  onViewAll?(): void;
 }
 
 /**
@@ -27,6 +29,8 @@ export function DirectMessageList({
   onSelect,
   onCloseConversation,
   onContextMenuMember,
+  maxItems,
+  onViewAll,
 }: DirectMessageListProps) {
   const { t } = useTranslation();
   const server = useSession((state) => state.server);
@@ -38,12 +42,19 @@ export function DirectMessageList({
     [conversations],
   );
 
+  const visible = useMemo(
+    () => (maxItems && maxItems > 0 ? ordered.slice(0, maxItems) : ordered),
+    [ordered, maxItems],
+  );
+
   if (!(server?.directMessages ?? false) || ordered.length === 0) return null;
 
   return (
     <section className="dm-list">
-      <h3 className="dm-list__label">{t("dm.title")}</h3>
-      {ordered.map((conversation) => {
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <h3 className="dm-list__label">{t("dm.title")}</h3>
+      </div>
+      {visible.map((conversation) => {
         const peer = users.get(conversation.userId);
         const name = peer?.nickname ?? t("common.member");
         const classes = ["dm-list__item"];
@@ -111,6 +122,17 @@ export function DirectMessageList({
           </div>
         );
       })}
+
+      {onViewAll && ordered.length > (maxItems ?? Infinity) ? (
+        <button
+          type="button"
+          className="dm-list__more"
+          onClick={onViewAll}
+          title={t("dm.viewAll", { count: ordered.length })}
+        >
+          {t("dm.viewAll", { count: ordered.length })}
+        </button>
+      ) : null}
     </section>
   );
 }

@@ -8,6 +8,7 @@ import { useSession } from "@/store/session";
 
 export function App() {
   const foregroundId = useServerRegistry((state) => state.foregroundId);
+  const activeSection = useServerRegistry((state) => state.activeSection);
   const status = useSession((state) => state.status);
   const [showConnect, setShowConnect] = useState(false);
 
@@ -30,11 +31,15 @@ export function App() {
         <ConnectView />
       ) : (
         <>
-          {/* Keyed by server: switching servers replaces the tree rather than
+          {/* Keyed by server in server mode: switching servers replaces the tree rather than
               re-pointing it, so nothing carries a channel id, a scroll offset
               or a draft from one server into another where it means something
-              else. */}
-          <ServerView key={foregroundId} onAddServer={() => setShowConnect(true)} />
+              else. In DM mode, keeping "dms" as key allows switching conversations
+              across servers without unmounting the DM view. */}
+          <ServerView
+            key={activeSection === "dms" ? "dms" : foregroundId}
+            onAddServer={() => setShowConnect(true)}
+          />
           {showConnect ? (
             <div style={{ position: "fixed", inset: 0, zIndex: 90, background: "var(--bg-main)" }}>
               <button
