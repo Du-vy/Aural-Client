@@ -11,11 +11,12 @@ import { useMentionAutocomplete } from "./useMentionAutocomplete";
 interface CreatePostDialogProps {
   channel: Channel;
   initialDate?: Date | null;
+  initialFiles?: File[] | null;
   onClose(): void;
   onCreated?(postId: number): void;
 }
 
-export function CreatePostDialog({ channel, initialDate, onClose, onCreated }: CreatePostDialogProps) {
+export function CreatePostDialog({ channel, initialDate, initialFiles, onClose, onCreated }: CreatePostDialogProps) {
   const { t } = useTranslation();
   const createPost = useSession((state) => state.createPost);
   const uploadAttachment = useSession((state) => state.uploadAttachment);
@@ -49,7 +50,7 @@ export function CreatePostDialog({ channel, initialDate, onClose, onCreated }: C
   const [location, setLocation] = useState("");
 
   // Media / Attachments
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<File[]>(() => initialFiles ?? []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [busy, setBusy] = useState(false);
@@ -69,13 +70,16 @@ export function CreatePostDialog({ channel, initialDate, onClose, onCreated }: C
         ? t("posts.newMedia")
         : t("posts.newTopic");
 
-  const titlePlaceholder = isAnnouncement
-    ? t("posts.announcementTitlePlaceholder")
-    : isCalendar
-      ? t("posts.eventTitlePlaceholder")
-      : isMedia
-        ? t("posts.mediaTitlePlaceholder")
-        : t("posts.topicTitlePlaceholder");
+  const titlePlaceholder =
+    files.length > 0
+      ? files[0]!.name
+      : isAnnouncement
+        ? t("posts.announcementTitlePlaceholder")
+        : isCalendar
+          ? t("posts.eventTitlePlaceholder")
+          : isMedia
+            ? t("posts.mediaTitlePlaceholder")
+            : t("posts.topicTitlePlaceholder");
 
   const submitLabel = isAnnouncement
     ? t("posts.createAnnouncement")
@@ -95,7 +99,7 @@ export function CreatePostDialog({ channel, initialDate, onClose, onCreated }: C
 
   function handleDropFiles(e: React.DragEvent) {
     e.preventDefault();
-    if (e.dataTransfer.files) {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const added = Array.from(e.dataTransfer.files);
       setFiles((prev) => [...prev, ...added]);
     }
@@ -103,7 +107,8 @@ export function CreatePostDialog({ channel, initialDate, onClose, onCreated }: C
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!title.trim()) return;
+    const effectiveTitle = title.trim() || files[0]?.name || "";
+    if (!effectiveTitle) return;
     if (isMedia && files.length === 0) {
       setError(t("posts.mediaRequired"));
       return;
@@ -145,7 +150,7 @@ export function CreatePostDialog({ channel, initialDate, onClose, onCreated }: C
 
       const post = await createPost({
         channelId: channel.id,
-        title: title.trim(),
+        title: effectiveTitle,
         content: content.trim() || undefined,
         event: eventDetails,
         attachments: attachmentIds,
@@ -161,6 +166,8 @@ export function CreatePostDialog({ channel, initialDate, onClose, onCreated }: C
     }
   }
 
+  const effectiveTitle = title.trim() || files[0]?.name || "";
+
   return (
     <Modal
       title={dialogTitle}
@@ -175,7 +182,7 @@ export function CreatePostDialog({ channel, initialDate, onClose, onCreated }: C
             className="btn btn--primary"
             type="submit"
             form="create-post-form"
-            disabled={busy || !title.trim() || (isMedia && files.length === 0)}
+            disabled={busy || !effectiveTitle || (isMedia && files.length === 0)}
           >
             {busy ? uploadProgress || t("common.loading") : submitLabel}
           </button>
@@ -185,6 +192,8 @@ export function CreatePostDialog({ channel, initialDate, onClose, onCreated }: C
       <form
         id="create-post-form"
         onSubmit={(e) => void handleSubmit(e)}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDropFiles}
         style={{ display: "flex", flexDirection: "column", gap: 16 }}
       >
         {error ? <div className="alert">{error}</div> : null}
@@ -199,7 +208,7 @@ export function CreatePostDialog({ channel, initialDate, onClose, onCreated }: C
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={titlePlaceholder}
-            required
+            required={files.length === 0 && !isMedia}
             autoFocus
             maxLength={256}
             disabled={busy}

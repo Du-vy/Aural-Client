@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type DragEvent } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { Perm, has } from "@/lib/permissions";
 import { useMyPermissions } from "@/store/selectors";
 import { useSession } from "@/store/session";
 import type { Channel } from "@/lib/protocol";
+import { formatBytes, parseBytes } from "@/lib/uploads";
 import { AnnouncementFeed } from "./AnnouncementFeed";
 import { CalendarChannelView } from "./CalendarChannelView";
 import { CreatePostDialog } from "./CreatePostDialog";
@@ -15,6 +16,7 @@ import {
   MediaIcon,
   MegaphoneIcon,
   PlusIcon,
+  UploadCloudIcon,
 } from "../Icons";
 
 interface PostChannelPanelProps {
@@ -24,6 +26,7 @@ interface PostChannelPanelProps {
 
 export function PostChannelPanel({ channel, onOpenMember }: PostChannelPanelProps) {
   const { t } = useTranslation();
+  const server = useSession((state) => state.server);
   const openPostChannel = useSession((state) => state.openPostChannel);
   const loadOlderPosts = useSession((state) => state.loadOlderPosts);
   const permissions = useMyPermissions();
@@ -35,11 +38,17 @@ export function PostChannelPanel({ channel, onOpenMember }: PostChannelPanelProp
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createDialogInitialDate, setCreateDialogInitialDate] = useState<Date | null>(null);
+  const [createDialogInitialFiles, setCreateDialogInitialFiles] = useState<File[] | null>(null);
+  const [dragDepth, setDragDepth] = useState(0);
 
   // Load initial posts on mount or channel change
   useEffect(() => {
     void openPostChannel(channel.id);
   }, [channel.id, openPostChannel]);
+
+  useEffect(() => {
+    setDragDepth(0);
+  }, [channel.id]);
 
   const canCreatePosts =
     has(permissions, Perm.CreatePosts) ||
@@ -54,6 +63,46 @@ export function PostChannelPanel({ channel, onOpenMember }: PostChannelPanelProp
         : channel.type === "media"
           ? t("posts.newMedia")
           : t("posts.newTopic");
+
+  function carriesFiles(event: DragEvent): boolean {
+    return [...(event.dataTransfer?.types ?? [])].includes("Files");
+  }
+
+  function handleDragEnter(event: DragEvent) {
+    if (createDialogOpen || !carriesFiles(event)) return;
+    event.preventDefault();
+    setDragDepth((d) => d + 1);
+  }
+
+  function handleDragOver(event: DragEvent) {
+    if (createDialogOpen || !carriesFiles(event)) return;
+    event.preventDefault();
+    const uploadsAllowed = canCreatePosts && (server?.uploads?.enabled ?? true);
+    event.dataTransfer.dropEffect = uploadsAllowed ? "copy" : "none";
+  }
+
+  function handleDragLeave(event: DragEvent) {
+    if (createDialogOpen || !carriesFiles(event)) return;
+    event.preventDefault();
+    setDragDepth((d) => Math.max(0, d - 1));
+  }
+
+  function handleDrop(event: DragEvent) {
+    setDragDepth(0);
+    if (createDialogOpen || !carriesFiles(event)) return;
+    event.preventDefault();
+    const uploadsAllowed = canCreatePosts && (server?.uploads?.enabled ?? true);
+    if (!uploadsAllowed) return;
+    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+      const dropped = Array.from(event.dataTransfer.files);
+      setCreateDialogInitialFiles(dropped);
+      setCreateDialogInitialDate(null);
+      setCreateDialogOpen(true);
+    }
+  }
+
+  const isDraggingFiles = dragDepth > 0;
+  const maxBytes = parseBytes(server?.uploads?.maxFileBytes);
 
   function renderChannelIcon() {
     switch (channel.type) {
@@ -71,7 +120,33 @@ export function PostChannelPanel({ channel, onOpenMember }: PostChannelPanelProp
   }
 
   return (
-    <main className="post-channel-panel">
+    <main
+      className="post-channel-panel"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDraggingFiles ? (
+        <div className="chatpanel__drop-overlay" aria-hidden="true">
+          <div className="chatpanel__drop-card">
+            <div className="chatpanel__drop-icon">
+              <UploadCloudIcon size={44} />
+            </div>
+            <h3 className="chatpanel__drop-title">
+              {canCreatePosts
+                ? t("attachments.dropHere", { channel: channel.name })
+                : t("attachments.notAllowed")}
+            </h3>
+            {canCreatePosts && maxBytes > 0 ? (
+              <p className="chatpanel__drop-hint">
+                {t("attachments.maxFileSize", { limit: formatBytes(maxBytes) })}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {/* Top Banner / Channel Action Header */}
       <div className="post-channel-header">
         <div className="post-channel-header__info">
@@ -90,6 +165,7 @@ export function PostChannelPanel({ channel, onOpenMember }: PostChannelPanelProp
             className="btn btn--primary post-channel-header__create-btn"
             onClick={() => {
               setCreateDialogInitialDate(null);
+              setCreateDialogInitialFiles(null);
               setCreateDialogOpen(true);
             }}
           >
@@ -116,6 +192,7 @@ export function PostChannelPanel({ channel, onOpenMember }: PostChannelPanelProp
             onOpenMember={onOpenMember}
             onRequestCreateEvent={(date) => {
               setCreateDialogInitialDate(date);
+              setCreateDialogInitialFiles(null);
               setCreateDialogOpen(true);
             }}
           />
@@ -153,7 +230,11 @@ export function PostChannelPanel({ channel, onOpenMember }: PostChannelPanelProp
         <CreatePostDialog
           channel={channel}
           initialDate={createDialogInitialDate}
-          onClose={() => setCreateDialogOpen(false)}
+          initialFiles={createDialogInitialFiles}
+          onClose={() => {
+            setCreateDialogOpen(false);
+            setCreateDialogInitialFiles(null);
+          }}
         />
       ) : null}
     </main>
