@@ -68,6 +68,7 @@ export const fr: TranslationSchema = {
     voiceChannels: "Salons vocaux",
     categories: "Catégories",
     createChannel: "Créer un salon",
+    createCategory: "Créer une catégorie",
     serverSettings: "Paramètres du serveur",
     claimAdmin: "Revendiquer la propriété du serveur",
     claimAdminPrompt: "Entrez le jeton de propriétaire affiché dans les journaux du serveur :",
@@ -78,6 +79,7 @@ export const fr: TranslationSchema = {
     members: "Membres",
     toggleMembers: "Afficher/Masquer la liste des membres",
     copyAddress: "Copier l'adresse du serveur",
+    copyName: "Copier le nom du serveur",
     copyId: "Copier l'ID",
     unnamedChannel: "salon-sans-nom",
     unnamedCategory: "Catégorie sans nom",
@@ -312,14 +314,18 @@ export const fr: TranslationSchema = {
     editChannel: "Modifier le salon",
     deleteChannel: "Supprimer le salon",
     createChannel: "Créer un salon",
+    editCategory: "Modifier la catégorie",
+    deleteCategory: "Supprimer la catégorie",
     changeNickname: "Changer de pseudonyme",
     resetNickname: "Réinitialiser le pseudonyme",
     roles: "Rôles",
     kickMember: "Expulser {name}",
     copyUserId: "Copier l'ID utilisateur",
     copyChannelId: "Copier l'ID du salon",
+    copyCategoryId: "Copier l'identifiant de la catégorie",
     serverSettings: "Paramètres du serveur",
     copyAddress: "Copier l'adresse",
+    copyServerName: "Copier le nom du serveur",
   },
   dialogs: {
     account: {
@@ -520,7 +526,9 @@ export const fr: TranslationSchema = {
     },
     channel: {
       createTitle: "Créer un salon",
+      createCategoryTitle: "Créer une catégorie",
       editTitle: "Modifier le salon",
+      editCategoryTitle: "Modifier la catégorie",
       channelType: "Type de salon",
       textType: "Salon textuel",
       textTypeDesc: "Publier des messages, des images et échanger sur des sujets.",
@@ -529,6 +537,7 @@ export const fr: TranslationSchema = {
       categoryType: "Catégorie",
       categoryTypeDesc: "Regrouper des salons sous un en-tête réductible.",
       channelName: "Nom du salon",
+      categoryName: "Nom de la catégorie",
       channelNamePlaceholder: "ex. general",
       categoryNamePlaceholder: "ex. Salons textuels",
       channelTopic: "Sujet du salon",
@@ -540,6 +549,7 @@ export const fr: TranslationSchema = {
       usersLimit: "{count} utilisateurs",
       save: "Enregistrer les modifications",
       create: "Créer le salon",
+      createCategory: "Créer une catégorie",
     },
     deleteMessage: {
       title: "Supprimer le message",
@@ -552,6 +562,7 @@ export const fr: TranslationSchema = {
       deleteChannelTitle: "Supprimer le salon",
       deleteChannelConfirm:
         "Voulez-vous vraiment supprimer #{name} ? Cette action est irréversible et tout l'historique sera définitivement perdu.",
+      deleteCategoryTitle: "Supprimer la catégorie",
       deleteCategoryConfirm:
         "Voulez-vous vraiment supprimer la catégorie '{name}' ? Les salons qu'elle contient ne seront pas supprimés.",
       kickUserTitle: "Expulser le membre",

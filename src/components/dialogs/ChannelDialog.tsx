@@ -79,16 +79,20 @@ export function ChannelDialog({
       title={
         isEditing
           ? isCategory
-            ? t("dialogs.channel.editTitle")
+            ? t("dialogs.channel.editCategoryTitle")
             : t("dialogs.channel.editTitle")
           : isCategory
-            ? t("dialogs.channel.categoryType")
+            ? t("dialogs.channel.createCategoryTitle")
             : t("dialogs.channel.createTitle")
       }
       subtitle={
         isEditing
-          ? t("common.save")
-          : t("dialogs.channel.textTypeDesc")
+          ? undefined
+          : isCategory
+            ? t("dialogs.channel.categoryTypeDesc")
+            : type === "voice"
+              ? t("dialogs.channel.voiceTypeDesc")
+              : t("dialogs.channel.textTypeDesc")
       }
       onClose={onClose}
       footer={
@@ -102,7 +106,11 @@ export function ChannelDialog({
             form="channel-form"
             disabled={busy || name.trim() === ""}
           >
-            {isEditing ? t("common.save") : t("dialogs.channel.create")}
+            {isEditing
+              ? t("common.save")
+              : isCategory
+                ? t("dialogs.channel.createCategory")
+                : t("dialogs.channel.create")}
           </button>
         </>
       }
@@ -134,7 +142,7 @@ export function ChannelDialog({
 
         <div className="field">
           <label className="field__label" htmlFor="channel-name">
-            {t("dialogs.channel.channelName")}
+            {isCategory ? t("dialogs.channel.categoryName") : t("dialogs.channel.channelName")}
           </label>
           <input
             id="channel-name"
@@ -142,7 +150,13 @@ export function ChannelDialog({
             value={name}
             onChange={(event) => setName(event.target.value)}
             maxLength={64}
-            placeholder={isCategory ? "General" : type === "voice" ? "Lobby" : "general"}
+            placeholder={
+              isCategory
+                ? t("dialogs.channel.categoryNamePlaceholder")
+                : type === "voice"
+                  ? "Lobby"
+                  : t("dialogs.channel.channelNamePlaceholder")
+            }
             required
             autoFocus
           />

@@ -227,7 +227,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           },
           {
             id: "create-category",
-            label: t("dialogs.channel.categoryType"),
+            label: t("server.createCategory"),
             icon: <FolderIcon size={16} />,
             onClick: () => setDialog({ kind: "channel", parentId: null, initialType: "category" }),
           },
@@ -243,7 +243,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         },
         {
           id: "copy-name",
-          label: t("contextMenu.copyAddress"),
+          label: t("contextMenu.copyServerName"),
           icon: <CopyIcon size={16} />,
           onClick: () => void navigator.clipboard.writeText(server.name),
         },
@@ -270,13 +270,13 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         entries.push(
           {
             id: "edit-channel",
-            label: isCat ? t("dialogs.channel.editTitle") : t("contextMenu.editChannel"),
+            label: isCat ? t("contextMenu.editCategory") : t("contextMenu.editChannel"),
             icon: <PencilIcon size={16} />,
             onClick: () => setDialog({ kind: "channel", editChannelId: ch.id }),
           },
           {
             id: "delete-channel",
-            label: isCat ? t("dialogs.confirm.deleteChannelTitle") : t("contextMenu.deleteChannel"),
+            label: isCat ? t("contextMenu.deleteCategory") : t("contextMenu.deleteChannel"),
             icon: <TrashIcon size={16} />,
             danger: true,
             onClick: () => setDialog({ kind: "confirmDeleteChannel", channel: ch }),
@@ -287,7 +287,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
 
       entries.push({
         id: "copy-id",
-        label: t("contextMenu.copyChannelId"),
+        label: isCat ? t("contextMenu.copyCategoryId") : t("contextMenu.copyChannelId"),
         icon: <CopyIcon size={16} />,
         onClick: () => void navigator.clipboard.writeText(String(ch.id)),
       });
@@ -682,7 +682,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       ) : null}
       {dialog.kind === "confirmDeleteChannel" ? (
         <ConfirmDialog
-          title={dialog.channel.type === "category" ? t("dialogs.confirm.deleteChannelTitle") : t("dialogs.confirm.deleteChannelTitle")}
+          title={dialog.channel.type === "category" ? t("dialogs.confirm.deleteCategoryTitle") : t("dialogs.confirm.deleteChannelTitle")}
           subtitle={
             dialog.channel.type === "category"
               ? t("dialogs.confirm.deleteCategoryConfirm", { name: dialog.channel.name })

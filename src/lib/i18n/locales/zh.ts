@@ -68,6 +68,7 @@ export const zh: TranslationSchema = {
     voiceChannels: "语音频道",
     categories: "分类",
     createChannel: "创建频道",
+    createCategory: "创建分类",
     serverSettings: "服务器设置",
     claimAdmin: "申领服务器所有权",
     claimAdminPrompt: "输入服务器日志中输出的拥有者令牌（Owner Token）：",
@@ -78,6 +79,7 @@ export const zh: TranslationSchema = {
     members: "成员",
     toggleMembers: "切换成员列表",
     copyAddress: "复制服务器地址",
+    copyName: "复制服务器名称",
     copyId: "复制 ID",
     unnamedChannel: "未命名频道",
     unnamedCategory: "未命名分类",
@@ -312,14 +314,18 @@ export const zh: TranslationSchema = {
     editChannel: "编辑频道",
     deleteChannel: "删除频道",
     createChannel: "创建频道",
+    editCategory: "编辑分类",
+    deleteCategory: "删除分类",
     changeNickname: "修改昵称",
     resetNickname: "重置昵称",
     roles: "身份组",
     kickMember: "踢出 {name}",
     copyUserId: "复制用户 ID",
     copyChannelId: "复制频道 ID",
+    copyCategoryId: "复制分类 ID",
     serverSettings: "服务器设置",
     copyAddress: "复制地址",
+    copyServerName: "复制服务器名称",
   },
   dialogs: {
     account: {
@@ -520,7 +526,9 @@ export const zh: TranslationSchema = {
     },
     channel: {
       createTitle: "创建频道",
+      createCategoryTitle: "创建分类",
       editTitle: "编辑频道",
+      editCategoryTitle: "编辑分类",
       channelType: "频道类型",
       textType: "文字频道",
       textTypeDesc: "发送消息、分享图片并就话题展开讨论。",
@@ -529,6 +537,7 @@ export const zh: TranslationSchema = {
       categoryType: "分类",
       categoryTypeDesc: "在可折叠标题下对多个频道进行归类分组。",
       channelName: "频道名称",
+      categoryName: "分类名称",
       channelNamePlaceholder: "例如 常规",
       categoryNamePlaceholder: "例如 文字频道",
       channelTopic: "频道主题",
@@ -540,6 +549,7 @@ export const zh: TranslationSchema = {
       usersLimit: "{count} 人",
       save: "保存更改",
       create: "创建频道",
+      createCategory: "创建分类",
     },
     deleteMessage: {
       title: "删除消息",
@@ -552,6 +562,7 @@ export const zh: TranslationSchema = {
       deleteChannelTitle: "删除频道",
       deleteChannelConfirm:
         "确定要删除 #{name} 吗？此操作无法撤销，所有聊天历史记录都将永久丢失。",
+      deleteCategoryTitle: "删除分类",
       deleteCategoryConfirm:
         "确定要删除分类“{name}”吗？其中的频道不会被删除。",
       kickUserTitle: "踢出成员",

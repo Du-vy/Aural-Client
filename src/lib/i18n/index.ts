@@ -114,7 +114,7 @@ function resolvePath(obj: unknown, path: string): unknown {
 
 function interpolate(template: string, params?: InterpolationParams): string {
   if (!params) return template;
-  return template.replace(/\{(\w+)\}/g, (match, key) => {
+  return template.replace(/\{{1,2}(\w+)\}{1,2}/g, (match, key) => {
     const value = params[key];
     return value !== undefined && value !== null ? String(value) : match;
   });

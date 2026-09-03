@@ -68,6 +68,7 @@ export const it: TranslationSchema = {
     voiceChannels: "Canali vocali",
     categories: "Categorie",
     createChannel: "Crea canale",
+    createCategory: "Crea categoria",
     serverSettings: "Impostazioni server",
     claimAdmin: "Rivendica proprietà del server",
     claimAdminPrompt: "Inserisci il token proprietario stampato nei log del server:",
@@ -78,6 +79,7 @@ export const it: TranslationSchema = {
     members: "Membri",
     toggleMembers: "Mostra/Nascondi elenco membri",
     copyAddress: "Copia indirizzo server",
+    copyName: "Copia nome del server",
     copyId: "Copia ID",
     unnamedChannel: "canale-senza-nome",
     unnamedCategory: "Categoria senza nome",
@@ -312,14 +314,18 @@ export const it: TranslationSchema = {
     editChannel: "Modifica canale",
     deleteChannel: "Elimina canale",
     createChannel: "Crea canale",
+    editCategory: "Modifica categoria",
+    deleteCategory: "Elimina categoria",
     changeNickname: "Cambia soprannome",
     resetNickname: "Reimposta soprannome",
     roles: "Ruoli",
     kickMember: "Espelli {name}",
     copyUserId: "Copia ID utente",
     copyChannelId: "Copia ID canale",
+    copyCategoryId: "Copia ID categoria",
     serverSettings: "Impostazioni server",
     copyAddress: "Copia indirizzo",
+    copyServerName: "Copia nome del server",
   },
   dialogs: {
     account: {
@@ -520,7 +526,9 @@ export const it: TranslationSchema = {
     },
     channel: {
       createTitle: "Crea canale",
+      createCategoryTitle: "Crea categoria",
       editTitle: "Modifica canale",
+      editCategoryTitle: "Modifica categoria",
       channelType: "Tipo di canale",
       textType: "Canale testuale",
       textTypeDesc: "Invia messaggi, immagini e discuti argomenti.",
@@ -529,6 +537,7 @@ export const it: TranslationSchema = {
       categoryType: "Categoria",
       categoryTypeDesc: "Raggruppa canali sotto un'intestazione comprimibile.",
       channelName: "Nome canale",
+      categoryName: "Nome della categoria",
       channelNamePlaceholder: "es. generale",
       categoryNamePlaceholder: "es. Canali testuali",
       channelTopic: "Argomento del canale",
@@ -540,6 +549,7 @@ export const it: TranslationSchema = {
       usersLimit: "{count} utenti",
       save: "Salva modifiche",
       create: "Crea canale",
+      createCategory: "Crea categoria",
     },
     deleteMessage: {
       title: "Elimina messaggio",
@@ -552,6 +562,7 @@ export const it: TranslationSchema = {
       deleteChannelTitle: "Elimina canale",
       deleteChannelConfirm:
         "Sei sicuro di voler eliminare #{name}? L'azione non può essere annullata e l'intera cronologia dei messaggi andrà persa definitivamente.",
+      deleteCategoryTitle: "Elimina categoria",
       deleteCategoryConfirm:
         "Sei sicuro di voler eliminare la categoria '{name}'? I canali al suo interno non saranno eliminati.",
       kickUserTitle: "Espelli membro",

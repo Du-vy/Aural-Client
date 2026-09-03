@@ -71,6 +71,7 @@ export const en = {
     voiceChannels: "Voice Channels",
     categories: "Categories",
     createChannel: "Create Channel",
+    createCategory: "Create Category",
     serverSettings: "Server Settings",
     claimAdmin: "Claim Server Ownership",
     claimAdminPrompt: "Enter the owner token printed in the server logs:",
@@ -81,6 +82,7 @@ export const en = {
     members: "Members",
     toggleMembers: "Toggle member list",
     copyAddress: "Copy Server Address",
+    copyName: "Copy Server Name",
     copyId: "Copy ID",
     unnamedChannel: "unnamed-channel",
     unnamedCategory: "Unnamed Category",
@@ -315,14 +317,18 @@ export const en = {
     editChannel: "Edit Channel",
     deleteChannel: "Delete Channel",
     createChannel: "Create Channel",
+    editCategory: "Edit Category",
+    deleteCategory: "Delete Category",
     changeNickname: "Change Nickname",
     resetNickname: "Reset Nickname",
     roles: "Roles",
     kickMember: "Kick {name}",
     copyUserId: "Copy User ID",
     copyChannelId: "Copy Channel ID",
+    copyCategoryId: "Copy Category ID",
     serverSettings: "Server Settings",
     copyAddress: "Copy Address",
+    copyServerName: "Copy Server Name",
   },
   dialogs: {
     account: {
@@ -523,7 +529,9 @@ export const en = {
     },
     channel: {
       createTitle: "Create Channel",
+      createCategoryTitle: "Create Category",
       editTitle: "Edit Channel",
+      editCategoryTitle: "Edit Category",
       channelType: "Channel Type",
       textType: "Text Channel",
       textTypeDesc: "Post messages, images, and discuss topics.",
@@ -532,6 +540,7 @@ export const en = {
       categoryType: "Category",
       categoryTypeDesc: "Group channels together under a collapsible header.",
       channelName: "Channel Name",
+      categoryName: "Category Name",
       channelNamePlaceholder: "e.g. general",
       categoryNamePlaceholder: "e.g. Text Channels",
       channelTopic: "Channel Topic",
@@ -543,6 +552,7 @@ export const en = {
       usersLimit: "{count} users",
       save: "Save Changes",
       create: "Create Channel",
+      createCategory: "Create Category",
     },
     deleteMessage: {
       title: "Delete Message",
@@ -555,6 +565,7 @@ export const en = {
       deleteChannelTitle: "Delete Channel",
       deleteChannelConfirm:
         "Are you sure you want to delete #{name}? This cannot be undone and all message history will be permanently lost.",
+      deleteCategoryTitle: "Delete Category",
       deleteCategoryConfirm:
         "Are you sure you want to delete category '{name}'? Channels inside will not be deleted.",
       kickUserTitle: "Kick Member",

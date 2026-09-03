@@ -68,6 +68,7 @@ export const hi: TranslationSchema = {
     voiceChannels: "वॉइस चैनल",
     categories: "श्रेणियां",
     createChannel: "चैनल बनाएं",
+    createCategory: "श्रेणी बनाएं",
     serverSettings: "सर्वर सेटिंग्स",
     claimAdmin: "सर्वर का स्वामित्व प्राप्त करें",
     claimAdminPrompt: "सर्वर लॉग में मुद्रित स्वामी टोकन दर्ज करें:",
@@ -78,6 +79,7 @@ export const hi: TranslationSchema = {
     members: "सदस्य",
     toggleMembers: "सदस्य सूची टॉगल करें",
     copyAddress: "सर्वर का पता कॉपी करें",
+    copyName: "सर्वर का नाम कॉपी करें",
     copyId: "आईडी कॉपी करें",
     unnamedChannel: "अनाम-चैनल",
     unnamedCategory: "अनाम श्रेणी",
@@ -312,14 +314,18 @@ export const hi: TranslationSchema = {
     editChannel: "चैनल संपादित करें",
     deleteChannel: "चैनल हटाएं",
     createChannel: "चैनल बनाएं",
+    editCategory: "श्रेणी संपादित करें",
+    deleteCategory: "श्रेणी हटाएं",
     changeNickname: "उपनाम बदलें",
     resetNickname: "उपनाम रीसेट करें",
     roles: "भूमिकाएं",
     kickMember: "{name} को निकालें",
     copyUserId: "उपयोगकर्ता आईडी कॉपी करें",
     copyChannelId: "चैनल आईडी कॉपी करें",
+    copyCategoryId: "श्रेणी आईडी कॉपी करें",
     serverSettings: "सर्वर सेटिंग्स",
     copyAddress: "पता कॉपी करें",
+    copyServerName: "सर्वर का नाम कॉपी करें",
   },
   dialogs: {
     account: {
@@ -520,7 +526,9 @@ export const hi: TranslationSchema = {
     },
     channel: {
       createTitle: "चैनल बनाएं",
+      createCategoryTitle: "श्रेणी बनाएं",
       editTitle: "चैनल संपादित करें",
+      editCategoryTitle: "श्रेणी संपादित करें",
       channelType: "चैनल का प्रकार",
       textType: "टेक्स्ट चैनल",
       textTypeDesc: "संदेश, छवियां पोस्ट करें और विषयों पर चर्चा करें।",
@@ -529,6 +537,7 @@ export const hi: TranslationSchema = {
       categoryType: "श्रेणी",
       categoryTypeDesc: "बंधने योग्य हेडर के तहत चैनलों को एक साथ समूहीकृत करें।",
       channelName: "चैनल का नाम",
+      categoryName: "श्रेणी का नाम",
       channelNamePlaceholder: "उदा. सामान्य",
       categoryNamePlaceholder: "उदा. टेक्स्ट चैनल",
       channelTopic: "चैनल का विषय",
@@ -540,6 +549,7 @@ export const hi: TranslationSchema = {
       usersLimit: "{count} उपयोगकर्ता",
       save: "बदलाव सहेजें",
       create: "चैनल बनाएं",
+      createCategory: "श्रेणी बनाएं",
     },
     deleteMessage: {
       title: "संदेश हटाएं",
@@ -552,6 +562,7 @@ export const hi: TranslationSchema = {
       deleteChannelTitle: "चैनल हटाएं",
       deleteChannelConfirm:
         "क्या आप वाकई #{name} को हटाना चाहते हैं? इसे पूर्ववत नहीं किया जा सकता और सभी संदेश इतिहास स्थायी रूप से खो जाएंगे।",
+      deleteCategoryTitle: "श्रेणी हटाएं",
       deleteCategoryConfirm:
         "क्या आप वाकई श्रेणी '{name}' को हटाना चाहते हैं? अंदर के चैनल नहीं हटाए जाएंगे।",
       kickUserTitle: "सदस्य को निकालें",
