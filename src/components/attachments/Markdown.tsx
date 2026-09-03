@@ -1,10 +1,16 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 
-import { parseMarkdown, type Block, type Inline } from "@/lib/markdown";
+import { parseInline, parseMarkdown, type Block, type Inline } from "@/lib/markdown";
 import { splitMentions, type MentionDirectory } from "@/lib/mentions";
 
 interface MarkdownProps {
   source: string;
+  /**
+   * When true, only inline formatting is applied and newlines become line
+   * breaks.  Use for embed descriptions and field values, which in Discord's
+   * format only support inline markdown — not lists, headings or code blocks.
+   */
+  embed?: boolean;
   mentions?: MentionDirectory;
   onOpenLink(url: string): void;
   onOpenMember?(userId: number, anchorRect?: DOMRect): void;
@@ -17,8 +23,36 @@ interface MarkdownProps {
  * child, which React escapes. A `.md` file in a channel was written by whoever
  * uploaded it, so that property is the whole point of rendering it this way.
  */
-export function Markdown({ source, mentions, onOpenLink, onOpenMember }: MarkdownProps) {
-  const blocks = useMemo(() => parseMarkdown(source), [source]);
+export function Markdown({ source, embed, mentions, onOpenLink, onOpenMember }: MarkdownProps) {
+  const blocks = useMemo(() => (embed ? [] : parseMarkdown(source)), [source, embed]);
+  const inlines = useMemo(
+    () =>
+      embed
+        ? source
+            .replace(/\r\n?/g, "\n")
+            .split("\n")
+            .map((line) => parseInline(line))
+        : null,
+    [source, embed],
+  );
+
+  if (inlines) {
+    return (
+      <span className="md md--embed">
+        {inlines.map((nodes, i) => (
+          <Fragment key={i}>
+            {i > 0 && <br />}
+            <InlineRun
+              nodes={nodes}
+              mentions={mentions}
+              onOpenLink={onOpenLink}
+              onOpenMember={onOpenMember}
+            />
+          </Fragment>
+        ))}
+      </span>
+    );
+  }
 
   return (
     <div className="md">

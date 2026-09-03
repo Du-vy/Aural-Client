@@ -32,6 +32,22 @@ export function formatDateTime(seconds: number): string {
   return `${date.toLocaleDateString(lang, { day: "2-digit", month: "2-digit", year: "numeric" })} ${date.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })}`;
 }
 
+/**
+ * A "smart" date and time:
+ *  - Today → "Today at 15:36"
+ *  - Yesterday → "Yesterday at 15:36"
+ *  - Older → compact date + time (e.g. "03/09/2026 15:36")
+ */
+export function formatSmartDateTime(seconds: number, now: Date = new Date()): string {
+  const date = new Date(seconds * MS);
+  const days = Math.round((startOfDay(now) - startOfDay(date)) / (24 * 60 * 60 * MS));
+  const time = formatTime(seconds);
+
+  if (days === 0) return t("chat.todayAt", { time });
+  if (days === 1) return t("chat.yesterdayAt", { time });
+  return formatDateTime(seconds);
+}
+
 /** A full date and time, for the tooltip on a timestamp. */
 export function formatFull(seconds: number): string {
   const lang = getLanguage();

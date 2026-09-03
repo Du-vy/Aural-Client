@@ -106,8 +106,8 @@ function drawOverlay(label: string, colour: string): Promise<Uint8Array | null> 
 
 async function overlayFor(summary: UnreadSummary): Promise<Uint8Array | null> {
   const label = summary.count > 99 ? "" : String(summary.count);
-  // The rail uses these same two colours for these same two meanings.
-  const colour = summary.mentions > 0 ? "#e5534b" : "#8a8f98";
+  // Mentions use danger red, general unreads use brand accent teal.
+  const colour = summary.mentions > 0 ? "#e5534b" : "#12b8a0";
   const key = `${label}:${colour}`;
 
   const cached = overlayCache.get(key);

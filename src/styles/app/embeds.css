@@ -544,6 +544,7 @@
   flex-direction: column;
   gap: 8px;
   margin-top: 4px;
+  width: 100%;
   max-width: 520px;
 }
 
@@ -554,12 +555,16 @@
   border-radius: var(--radius);
   padding: 12px 14px;
   animation: embed-fade-in 140ms ease-out;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .rich-embed__grid {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   align-items: flex-start;
+  width: 100%;
 }
 
 .rich-embed__main {
@@ -615,7 +620,8 @@
   font-size: var(--font-size-msg);
   color: var(--text-muted);
   line-height: 1.45;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* The Markdown renderer sets its own block spacing for a file preview, which is
@@ -627,15 +633,22 @@
   gap: 4px;
 }
 
+/* In embed mode the renderer is a <span> with only inline content and <br> for
+   newlines, matching Discord's treatment of embed descriptions. */
+.rich-embed__description .md--embed,
+.rich-embed__field-value .md--embed {
+  display: inline;
+}
+
 /*
- * Fields sit on a twelve-column grid: an inline one takes a third, a full one
- * takes the row. Three across is what Discord fits, and a monitoring alert that
- * sends six short fields is counting on getting two rows of three.
+ * Fields sit on a twelve-column grid: an inline one takes a third (or half when two),
+ * a full one takes the row. Discord expands embed content and wraps lines cleanly.
  */
 .rich-embed__fields {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  gap: 8px 12px;
+  gap: 8px 16px;
+  margin-top: 2px;
 }
 
 .rich-embed__field {
@@ -647,6 +660,10 @@
   grid-column: span 4;
 }
 
+.rich-embed__field--inline-half {
+  grid-column: span 6;
+}
+
 .rich-embed__field-name {
   font-size: 12px;
   font-weight: 700;
@@ -655,10 +672,11 @@
 }
 
 .rich-embed__field-value {
-  font-size: 13px;
-  color: var(--text-muted);
-  line-height: 1.4;
-  overflow-wrap: anywhere;
+  font-size: 13.5px;
+  color: var(--text);
+  line-height: 1.35;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /*

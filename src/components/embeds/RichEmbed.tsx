@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { useTranslation } from "@/lib/i18n";
 import type { Embed, EmbedMedia } from "@/lib/protocol";
-import { formatFull } from "@/lib/time";
+import { formatSmartDateTime } from "@/lib/time";
 import { Markdown } from "../attachments/Markdown";
 import { ImageLightbox, getFilenameFromUrl } from "../attachments/ImageLightbox";
 
@@ -82,27 +82,51 @@ function RichEmbed({ embed, onOpenLink }: { embed: Embed; onOpenLink(url: string
 
             {embed.description ? (
               <div className="rich-embed__description">
-                <Markdown source={embed.description} onOpenLink={onOpenLink} />
+                <Markdown source={embed.description} embed onOpenLink={onOpenLink} />
               </div>
             ) : null}
 
             {fields.length > 0 ? (
               <div className="rich-embed__fields">
-                {fields.map((field, index) => (
-                  <div
-                    key={index}
-                    className={
-                      field.inline ? "rich-embed__field rich-embed__field--inline" : "rich-embed__field"
+                {(() => {
+                  // Discord groups contiguous inline fields: if a group has 2 inline fields,
+                  // each gets half width (span 6); if 3 or more, they take a third (span 4).
+                  const spans = fields.map((f, i) => {
+                    if (!f.inline) return 12;
+                    let runLen = 1;
+                    let start = i;
+                    while (start > 0 && fields[start - 1]?.inline) {
+                      start--;
                     }
-                  >
-                    {field.name ? <div className="rich-embed__field-name">{field.name}</div> : null}
-                    {field.value ? (
-                      <div className="rich-embed__field-value">
-                        <Markdown source={field.value} onOpenLink={onOpenLink} />
+                    let end = i;
+                    while (end + 1 < fields.length && fields[end + 1]?.inline) {
+                      end++;
+                    }
+                    runLen = end - start + 1;
+                    return runLen === 2 ? 6 : 4;
+                  });
+
+                  return fields.map((field, index) => {
+                    const span = spans[index];
+                    const className =
+                      span === 6
+                        ? "rich-embed__field rich-embed__field--inline-half"
+                        : span === 4
+                        ? "rich-embed__field rich-embed__field--inline"
+                        : "rich-embed__field";
+
+                    return (
+                      <div key={index} className={className}>
+                        {field.name ? <div className="rich-embed__field-name">{field.name}</div> : null}
+                        {field.value ? (
+                          <div className="rich-embed__field-value">
+                            <Markdown source={field.value} embed onOpenLink={onOpenLink} />
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
-                ))}
+                    );
+                  });
+                })()}
               </div>
             ) : null}
 
@@ -252,5 +276,5 @@ export function colorOf(color: number | undefined): string | undefined {
 function formatTimestamp(raw: string): string {
   const at = Date.parse(raw);
   if (Number.isNaN(at)) return raw;
-  return formatFull(Math.floor(at / 1000));
+  return formatSmartDateTime(Math.floor(at / 1000));
 }

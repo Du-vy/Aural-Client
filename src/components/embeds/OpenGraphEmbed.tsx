@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatMetricCount, getLinkMetadata, type OgData } from "@/lib/opengraph";
-import { formatDateTime } from "@/lib/time";
+import { formatSmartDateTime } from "@/lib/time";
 import { ImageLightbox } from "../attachments/ImageLightbox";
 import { EyeIcon, HeartIcon, MessageSquareIcon, RepeatIcon } from "../Icons";
 
@@ -169,7 +169,7 @@ export function OpenGraphEmbed({ url, onOpenLink }: OpenGraphEmbedProps) {
               {data.timestamp && (
                 <span>
                   {typeof data.timestamp === "number"
-                    ? formatDateTime(data.timestamp)
+                    ? formatSmartDateTime(data.timestamp)
                     : String(data.timestamp)}
                 </span>
               )}
