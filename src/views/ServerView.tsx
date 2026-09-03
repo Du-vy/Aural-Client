@@ -6,14 +6,18 @@ import { DirectMessagePanel } from "@/components/DirectMessagePanel";
 import { ContextMenu, type MenuEntry } from "@/components/ContextMenu";
 import {
   AuralMark,
+  CalendarIcon,
   ChevronIcon,
   CloseIcon,
   CopyIcon,
   FolderIcon,
+  ForumIcon,
   GearIcon,
   HangUpIcon,
   HeadphonesIcon,
   HeadphonesOffIcon,
+  MediaIcon,
+  MegaphoneIcon,
   MicIcon,
   MicOffIcon,
   HashIcon,
@@ -42,6 +46,7 @@ import { MemberDialog } from "@/components/dialogs/MemberDialog";
 import { KickUserDialog } from "@/components/dialogs/KickUserDialog";
 import { NicknameDialog } from "@/components/dialogs/NicknameDialog";
 import { ServerSettingsDialog } from "@/components/dialogs/ServerSettingsDialog";
+import { PostChannelPanel } from "@/components/posts/PostChannelPanel";
 import {
   DEFAULT_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
@@ -50,7 +55,7 @@ import {
   writeSidebarWidth,
 } from "@/lib/storage";
 import { Perm, has } from "@/lib/permissions";
-import type { Channel, ChannelType, User } from "@/lib/protocol";
+import { isPostChannel, type Channel, type ChannelType, type User } from "@/lib/protocol";
 import type { SavedServer } from "@/lib/storage";
 import { useSession } from "@/store/session";
 import {
@@ -97,6 +102,24 @@ import { useTranslation } from "@/lib/i18n";
 
 interface ServerViewProps {
   onAddServer(): void;
+}
+
+function ChannelIcon({ type, size = 17 }: { type: ChannelType; size?: number }) {
+  switch (type) {
+    case "voice":
+      return <VoiceIcon size={size} />;
+    case "announcement":
+      return <MegaphoneIcon size={size} />;
+    case "calendar":
+      return <CalendarIcon size={size} />;
+    case "forum":
+      return <ForumIcon size={size} />;
+    case "media":
+      return <MediaIcon size={size} />;
+    case "text":
+    default:
+      return <HashIcon size={size} />;
+  }
 }
 
 export function ServerView({ onAddServer }: ServerViewProps) {
@@ -155,10 +178,10 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   useEffect(() => {
     if (activeConversationId !== null) return;
     if (selectedChannelId !== null && channels.has(selectedChannelId)) return;
-    const firstText = [...channels.values()]
-      .filter((channel) => channel.type === "text")
+    const firstReadable = [...channels.values()]
+      .filter((channel) => channel.type === "text" || isPostChannel(channel.type))
       .sort((a, b) => a.position - b.position)[0];
-    setSelectedChannelId(firstText?.id ?? null);
+    setSelectedChannelId(firstReadable?.id ?? null);
   }, [channels, selectedChannelId, activeConversationId]);
 
   // What is being read decides three things at once: where an arriving message
@@ -166,7 +189,9 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   // least-recently-read cut is allowed to take.
   useEffect(() => {
     const channel = selectedChannelId === null ? null : channels.get(selectedChannelId);
-    setActiveChannel(channel?.type === "text" ? channel.id : null);
+    setActiveChannel(
+      channel && (channel.type === "text" || isPostChannel(channel.type)) ? channel.id : null,
+    );
   }, [selectedChannelId, channels, setActiveChannel]);
 
   // A window behind something else is not being read, so what arrives in it
@@ -867,7 +892,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
                   </>
                 ) : selected ? (
                   <>
-                    {selected.type === "voice" ? <VoiceIcon size={17} /> : <HashIcon size={17} />}
+                    <ChannelIcon type={selected.type} size={17} />
                     <span>{selected.name}</span>
                   </>
                 ) : (
@@ -947,6 +972,12 @@ export function ServerView({ onAddServer }: ServerViewProps) {
                 onContextMenuMember={(e, user) => {
                   setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
                 }}
+              />
+            ) : selected && isPostChannel(selected.type) ? (
+              <PostChannelPanel
+                key={selected.id}
+                channel={selected}
+                onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
               />
             ) : (
               <div className="content">

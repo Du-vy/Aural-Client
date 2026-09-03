@@ -17,10 +17,14 @@ import { Avatar } from "./Avatar";
 import { DirectMessageList } from "./DirectMessageList";
 import {
   BroadcastIcon,
+  CalendarIcon,
   ChevronIcon,
   FolderIcon,
+  ForumIcon,
   HashIcon,
   HeadphonesOffIcon,
+  MediaIcon,
+  MegaphoneIcon,
   MicOffIcon,
   PlusIcon,
   TrashIcon,
@@ -779,6 +783,24 @@ interface ChannelRowProps {
   onDrop?(event: React.DragEvent): void;
 }
 
+function ChannelTypeIcon({ type, size = 16 }: { type: ChannelType; size?: number }) {
+  switch (type) {
+    case "voice":
+      return <VoiceIcon size={size} />;
+    case "announcement":
+      return <MegaphoneIcon size={size} />;
+    case "calendar":
+      return <CalendarIcon size={size} />;
+    case "forum":
+      return <ForumIcon size={size} />;
+    case "media":
+      return <MediaIcon size={size} />;
+    case "text":
+    default:
+      return <HashIcon size={size} />;
+  }
+}
+
 function ChannelRow({
   channel,
   self,
@@ -893,7 +915,7 @@ function ChannelRow({
         ) : null}
 
         <span className="channel__icon">
-          {isVoice ? <VoiceIcon size={16} /> : <HashIcon size={16} />}
+          <ChannelTypeIcon type={channel.type} size={16} />
         </span>
         <span className="channel__name">
           {channel.name}

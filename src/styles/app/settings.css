@@ -23,7 +23,7 @@
   display: flex;
   background: var(--bg-main);
   border-radius: var(--radius-xl);
-  border: 1px solid var(--border);
+  border: none;
   box-shadow: var(--shadow-overlay);
   overflow: hidden;
   position: relative;

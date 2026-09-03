@@ -43,6 +43,7 @@ export type ErrorCode =
   | "uploads_disabled"
   | "dm_disabled"
   | "dm_blocked"
+  | "post_locked"
   | "voice_disabled"
   | "voice_failed";
 
@@ -68,6 +69,12 @@ export const Op = {
   ChannelCreate: "channel.create",
   ChannelUpdate: "channel.update",
   ChannelDelete: "channel.delete",
+
+  PostCreate: "post.create",
+  PostList: "post.list",
+  PostUpdate: "post.update",
+  PostDelete: "post.delete",
+  PostRSVP: "post.rsvp",
 
   MessageSend: "message.send",
   MessageHistory: "message.history",
@@ -116,6 +123,11 @@ export const Ev = {
   ChannelUpdated: "channel.updated",
   ChannelDeleted: "channel.deleted",
 
+  PostCreated: "post.created",
+  PostUpdated: "post.updated",
+  PostDeleted: "post.deleted",
+  PostRSVP: "post.rsvp",
+
   MessageCreated: "message.created",
   MessageUpdated: "message.updated",
   MessageDeleted: "message.deleted",
@@ -138,7 +150,24 @@ export const Ev = {
   VoiceReset: "voice.reset",
 } as const;
 
-export type ChannelType = "category" | "text" | "voice";
+export type ChannelType =
+  | "category"
+  | "text"
+  | "voice"
+  | "announcement"
+  | "calendar"
+  | "forum"
+  | "media";
+
+/** Reports whether a channel type holds posts rather than an unthreaded stream of messages. */
+export function isPostChannel(channelType: ChannelType | string | undefined | null): boolean {
+  return (
+    channelType === "announcement" ||
+    channelType === "calendar" ||
+    channelType === "forum" ||
+    channelType === "media"
+  );
+}
 export type VoiceMode = "client_host" | "server_host";
 export type ManagedRole = "" | "everyone" | "registered" | "admin";
 
@@ -452,9 +481,59 @@ export interface EmbedField {
   inline?: boolean;
 }
 
-/** One post in a text channel. */
+/** When and where a calendar post happens. */
+export interface PostEventDetails {
+  /** Unix seconds. */
+  startsAt: number;
+  /** Unix seconds. Absent for an event with no stated finish. */
+  endsAt?: number;
+  allDay: boolean;
+  location?: string;
+}
+
+/** Counts the answers to a calendar post. */
+export interface PostRSVPSummary {
+  going: number;
+  maybe: number;
+  declined: number;
+  /**
+   * The answer of the identity this frame was sent to, or empty for somebody
+   * who has not answered.
+   */
+  own: string;
+}
+
+/** One entry in a channel that holds posts rather than an unthreaded stream. */
+export interface Post {
+  id: number;
+  channelId: number;
+  userId: number | null;
+  author: string;
+  title: string;
+  locked: boolean;
+  pinned: boolean;
+  createdAt: number;
+  editedAt: number | null;
+  /** The first message of the thread: what the author wrote, and its files. */
+  body?: Message;
+  /** How many messages hang off the post, not counting the body. */
+  comments: number;
+  /** When the thread was last added to, or creation time if no comments. */
+  lastCommentAt: number;
+  /** Set on, and only on, a post in a calendar channel. */
+  event?: PostEventDetails;
+  /** Travels with a calendar post: tallies and current user's RSVP. */
+  rsvp?: PostRSVPSummary;
+}
+
+/** One post in a text channel or a comment in a post thread. */
 export interface Message extends MessageBase {
   channelId: number;
+  /**
+   * Absent on a message written into a text channel; present on comments
+   * hanging off a post.
+   */
+  postId?: number;
 }
 
 /**
@@ -656,9 +735,54 @@ export interface ChannelDeleteRequest {
   channelId: number;
 }
 
+export interface PostCreateRequest {
+  channelId: number;
+  title: string;
+  content?: string;
+  attachments?: number[];
+  /** Required in calendar channels and refused everywhere else. */
+  event?: PostEventDetails;
+}
+
+export interface PostListRequest {
+  channelId: number;
+  /** Page backwards by post id, newest first. */
+  before?: number;
+  /** Window in time (Unix seconds), used for calendar channels. */
+  from?: number;
+  to?: number;
+  limit?: number;
+}
+
+export interface PostListResult {
+  channelId: number;
+  posts: Post[];
+  hasMore: boolean;
+}
+
+export interface PostUpdateRequest {
+  postId: number;
+  title?: string;
+  locked?: boolean;
+  pinned?: boolean;
+  event?: PostEventDetails;
+}
+
+export interface PostDeleteRequest {
+  postId: number;
+}
+
+export interface PostRSVPRequest {
+  postId: number;
+  /** "going" | "maybe" | "declined" | "" to withdraw */
+  response: string;
+}
+
 export interface MessageSendRequest {
   channelId: number;
   content: string;
+  /** Set when sending a comment on a post rather than into a text channel. */
+  postId?: number;
   /**
    * Ids returned by `POST /upload`. A message may carry files with no text of
    * its own, which is the one case where empty content is accepted.
@@ -667,13 +791,15 @@ export interface MessageSendRequest {
 }
 
 /**
- * One page of a channel.
+ * One page of a channel or of a post's comments.
  *
  * The three cursors are exclusive of one another and all are exclusive of the
  * message they name. Sending none of them reads the newest page.
  */
 export interface MessageHistoryRequest {
   channelId: number;
+  /** Set when reading comments under one post rather than channel timeline. */
+  postId?: number;
   /** Page backwards, stopping short of this id. */
   before?: number;
   /** Page forwards, starting past this id: the walk back to the present. */
@@ -686,6 +812,8 @@ export interface MessageHistoryRequest {
 /** Ordered oldest first, the order it is rendered in. */
 export interface MessageHistoryResult {
   channelId: number;
+  /** Echoes the thread the page came from. */
+  postId?: number;
   messages: Message[];
   /** Whether older messages remain before the first one here. */
   hasMore: boolean;
@@ -865,6 +993,23 @@ export interface ChannelEvent {
 export interface ChannelDeletedEvent {
   channelId: number;
   cascaded?: number[] | null;
+}
+
+export interface PostEvent {
+  post: Post;
+}
+
+export interface PostDeletedEvent {
+  postId: number;
+  channelId: number;
+}
+
+export interface PostRSVPEvent {
+  postId: number;
+  channelId: number;
+  userId: number;
+  response: string;
+  rsvp: PostRSVPSummary;
 }
 
 export interface MessageEvent {
@@ -1108,6 +1253,8 @@ export function describeError(error: unknown): string {
       return t("errors.dm_disabled");
     case "dm_blocked":
       return t("errors.dm_blocked");
+    case "post_locked":
+      return t("errors.post_locked");
     case "voice_disabled":
       return t("errors.voice_disabled");
     case "voice_failed":

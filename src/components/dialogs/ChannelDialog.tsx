@@ -92,7 +92,15 @@ export function ChannelDialog({
             ? t("dialogs.channel.categoryTypeDesc")
             : type === "voice"
               ? t("dialogs.channel.voiceTypeDesc")
-              : t("dialogs.channel.textTypeDesc")
+              : type === "announcement"
+                ? t("dialogs.channel.announcementTypeDesc")
+                : type === "calendar"
+                  ? t("dialogs.channel.calendarTypeDesc")
+                  : type === "forum"
+                    ? t("dialogs.channel.forumTypeDesc")
+                    : type === "media"
+                      ? t("dialogs.channel.mediaTypeDesc")
+                      : t("dialogs.channel.textTypeDesc")
       }
       onClose={onClose}
       footer={
@@ -135,6 +143,10 @@ export function ChannelDialog({
             >
               <option value="text">{t("dialogs.channel.textType")}</option>
               <option value="voice">{t("dialogs.channel.voiceType")}</option>
+              <option value="announcement">{t("dialogs.channel.announcementType")}</option>
+              <option value="calendar">{t("dialogs.channel.calendarType")}</option>
+              <option value="forum">{t("dialogs.channel.forumType")}</option>
+              <option value="media">{t("dialogs.channel.mediaType")}</option>
               <option value="category">{t("dialogs.channel.categoryType")}</option>
             </select>
           </div>
@@ -155,7 +167,15 @@ export function ChannelDialog({
                 ? t("dialogs.channel.categoryNamePlaceholder")
                 : type === "voice"
                   ? "Lobby"
-                  : t("dialogs.channel.channelNamePlaceholder")
+                  : type === "announcement"
+                    ? "announcements"
+                    : type === "calendar"
+                      ? "events"
+                      : type === "forum"
+                        ? "discussions"
+                        : type === "media"
+                          ? "gallery"
+                          : t("dialogs.channel.channelNamePlaceholder")
             }
             required
             autoFocus

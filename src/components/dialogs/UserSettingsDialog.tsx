@@ -108,8 +108,6 @@ export function UserSettingsDialog({
           id: "startup",
           label: t("dialogs.userSettings.tabStartup"),
           icon: <MonitorIcon size={16} />,
-          badge: t("dialogs.userSettings.soonBadge"),
-          badgeType: "soon",
         },
       ],
     },

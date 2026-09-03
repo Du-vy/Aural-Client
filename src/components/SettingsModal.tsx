@@ -28,6 +28,7 @@ export interface SettingsModalProps {
   onSave?(): void;
   onReset?(): void;
   saveBusy?: boolean;
+  className?: string;
 }
 
 export function SettingsModal({
@@ -42,6 +43,7 @@ export function SettingsModal({
   onSave,
   onReset,
   saveBusy = false,
+  className,
 }: SettingsModalProps) {
   const { t } = useTranslation();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -73,7 +75,7 @@ export function SettingsModal({
       role="dialog"
       aria-modal="true"
     >
-      <div className="settings-shell">
+      <div className={`settings-shell ${className ?? ""}`.trim()}>
         {/* Left Sidebar */}
         <aside className="settings-sidebar">
           {headerElement ? (

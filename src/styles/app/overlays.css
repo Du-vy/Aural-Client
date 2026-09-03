@@ -156,6 +156,7 @@
   flex-direction: column;
   background: var(--bg-main);
   border-radius: var(--radius-lg);
+  border: none;
   box-shadow: var(--shadow-overlay);
   overflow: hidden;
 }

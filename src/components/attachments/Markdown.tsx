@@ -1,10 +1,13 @@
 import { useMemo } from "react";
 
 import { parseMarkdown, type Block, type Inline } from "@/lib/markdown";
+import { splitMentions, type MentionDirectory } from "@/lib/mentions";
 
 interface MarkdownProps {
   source: string;
+  mentions?: MentionDirectory;
   onOpenLink(url: string): void;
+  onOpenMember?(userId: number, anchorRect?: DOMRect): void;
 }
 
 /**
@@ -14,19 +17,35 @@ interface MarkdownProps {
  * child, which React escapes. A `.md` file in a channel was written by whoever
  * uploaded it, so that property is the whole point of rendering it this way.
  */
-export function Markdown({ source, onOpenLink }: MarkdownProps) {
+export function Markdown({ source, mentions, onOpenLink, onOpenMember }: MarkdownProps) {
   const blocks = useMemo(() => parseMarkdown(source), [source]);
 
   return (
     <div className="md">
       {blocks.map((block, index) => (
-        <MarkdownBlock key={index} block={block} onOpenLink={onOpenLink} />
+        <MarkdownBlock
+          key={index}
+          block={block}
+          mentions={mentions}
+          onOpenLink={onOpenLink}
+          onOpenMember={onOpenMember}
+        />
       ))}
     </div>
   );
 }
 
-function MarkdownBlock({ block, onOpenLink }: { block: Block; onOpenLink(url: string): void }) {
+function MarkdownBlock({
+  block,
+  mentions,
+  onOpenLink,
+  onOpenMember,
+}: {
+  block: Block;
+  mentions?: MentionDirectory;
+  onOpenLink(url: string): void;
+  onOpenMember?(userId: number, anchorRect?: DOMRect): void;
+}) {
   switch (block.type) {
     case "heading": {
       // The level decides the class rather than the tag: a preview sits inside
@@ -34,7 +53,12 @@ function MarkdownBlock({ block, onOpenLink }: { block: Block; onOpenLink(url: st
       // page outline that a quoted file has no business claiming.
       return (
         <p className={`md__h md__h--${block.level}`}>
-          <InlineRun nodes={block.children} onOpenLink={onOpenLink} />
+          <InlineRun
+            nodes={block.children}
+            mentions={mentions}
+            onOpenLink={onOpenLink}
+            onOpenMember={onOpenMember}
+          />
         </p>
       );
     }
@@ -42,7 +66,12 @@ function MarkdownBlock({ block, onOpenLink }: { block: Block; onOpenLink(url: st
     case "paragraph":
       return (
         <p className="md__p">
-          <InlineRun nodes={block.children} onOpenLink={onOpenLink} />
+          <InlineRun
+            nodes={block.children}
+            mentions={mentions}
+            onOpenLink={onOpenLink}
+            onOpenMember={onOpenMember}
+          />
         </p>
       );
 
@@ -84,7 +113,12 @@ function MarkdownBlock({ block, onOpenLink }: { block: Block; onOpenLink(url: st
               <tr>
                 {block.header.map((cell, index) => (
                   <th key={index}>
-                    <InlineRun nodes={cell} onOpenLink={onOpenLink} />
+                    <InlineRun
+                      nodes={cell}
+                      mentions={mentions}
+                      onOpenLink={onOpenLink}
+                      onOpenMember={onOpenMember}
+                    />
                   </th>
                 ))}
               </tr>
@@ -94,7 +128,12 @@ function MarkdownBlock({ block, onOpenLink }: { block: Block; onOpenLink(url: st
                 <tr key={rowIndex}>
                   {row.map((cell, cellIndex) => (
                     <td key={cellIndex}>
-                      <InlineRun nodes={cell} onOpenLink={onOpenLink} />
+                      <InlineRun
+                        nodes={cell}
+                        mentions={mentions}
+                        onOpenLink={onOpenLink}
+                        onOpenMember={onOpenMember}
+                      />
                     </td>
                   ))}
                 </tr>
@@ -109,29 +148,83 @@ function MarkdownBlock({ block, onOpenLink }: { block: Block; onOpenLink(url: st
   }
 }
 
-function InlineRun({ nodes, onOpenLink }: { nodes: Inline[]; onOpenLink(url: string): void }) {
+function InlineRun({
+  nodes,
+  mentions,
+  onOpenLink,
+  onOpenMember,
+}: {
+  nodes: Inline[];
+  mentions?: MentionDirectory;
+  onOpenLink(url: string): void;
+  onOpenMember?(userId: number, anchorRect?: DOMRect): void;
+}) {
   return (
     <>
       {nodes.map((node, index) => {
         switch (node.type) {
-          case "text":
-            return <span key={index}>{node.value}</span>;
+          case "text": {
+            if (!mentions || !node.value.includes("@")) {
+              return <span key={index}>{node.value}</span>;
+            }
+            const tokens = splitMentions(node.value, mentions);
+            return (
+              <span key={index}>
+                {tokens.map((token, tIdx) =>
+                  token.type === "mention" ? (
+                    <span
+                      key={tIdx}
+                      className="mention"
+                      onClick={(e) => {
+                        if (token.target.kind === "user" && onOpenMember) {
+                          e.stopPropagation();
+                          onOpenMember(token.target.id, e.currentTarget.getBoundingClientRect());
+                        }
+                      }}
+                      role={token.target.kind === "user" ? "button" : undefined}
+                      tabIndex={token.target.kind === "user" ? 0 : undefined}
+                      style={{ cursor: token.target.kind === "user" ? "pointer" : undefined }}
+                    >
+                      {token.value}
+                    </span>
+                  ) : (
+                    token.value
+                  ),
+                )}
+              </span>
+            );
+          }
           case "strong":
             return (
               <strong key={index}>
-                <InlineRun nodes={node.children} onOpenLink={onOpenLink} />
+                <InlineRun
+                  nodes={node.children}
+                  mentions={mentions}
+                  onOpenLink={onOpenLink}
+                  onOpenMember={onOpenMember}
+                />
               </strong>
             );
           case "em":
             return (
               <em key={index}>
-                <InlineRun nodes={node.children} onOpenLink={onOpenLink} />
+                <InlineRun
+                  nodes={node.children}
+                  mentions={mentions}
+                  onOpenLink={onOpenLink}
+                  onOpenMember={onOpenMember}
+                />
               </em>
             );
           case "strike":
             return (
               <s key={index}>
-                <InlineRun nodes={node.children} onOpenLink={onOpenLink} />
+                <InlineRun
+                  nodes={node.children}
+                  mentions={mentions}
+                  onOpenLink={onOpenLink}
+                  onOpenMember={onOpenMember}
+                />
               </s>
             );
           case "code":

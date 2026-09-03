@@ -27,6 +27,7 @@ import {
   Op,
   PROTOCOL_VERSION,
   describeError,
+  isPostChannel,
   type Attachment,
   type Channel,
   type ChannelDeletedEvent,
@@ -48,6 +49,13 @@ import {
   type MessageHistoryResult,
   type MessageSearchHit,
   type MessageSearchResult,
+  type Post,
+  type PostCreateRequest,
+  type PostDeletedEvent,
+  type PostEvent,
+  type PostListResult,
+  type PostRSVPEvent,
+  type PostUpdateRequest,
   type Ready,
   type Role,
   type RoleDeletedEvent,
@@ -329,6 +337,10 @@ export interface ConnectionState {
    * throughout for a connection in the background.
    */
   history: Map<number, ChannelHistory>;
+  /** Posts for announcement, calendar, forum, and media channels, keyed by channel id. */
+  posts: Map<number, { posts: Post[]; hasMore: boolean; loading: boolean; error: string | null }>;
+  /** Comments for open post threads, keyed by post id. */
+  postComments: Map<number, { messages: Message[]; hasMore: boolean; loading: boolean; error: string | null }>;
   /** What is waiting, per channel. Held whether or not the messages are. */
   unread: Map<number, Unread>;
   /** The channel being read on this connection, or null. */
@@ -459,6 +471,17 @@ export interface ConnectionState {
   ): RunningUpload;
   editMessage(messageId: number, content: string): Promise<void>;
   deleteMessage(messageId: number): Promise<void>;
+
+  /** Opens an announcement, calendar, forum, or media channel and loads its posts. */
+  openPostChannel(channelId: number, options?: { from?: number; to?: number }): Promise<void>;
+  loadOlderPosts(channelId: number): Promise<void>;
+  createPost(input: PostCreateRequest): Promise<Post>;
+  updatePost(input: PostUpdateRequest): Promise<void>;
+  deletePost(postId: number): Promise<void>;
+  rsvpPost(postId: number, response: string): Promise<void>;
+  openPostComments(channelId: number, postId: number): Promise<void>;
+  loadOlderPostComments(channelId: number, postId: number): Promise<void>;
+  sendPostComment(channelId: number, postId: number, content: string, attachments?: number[]): Promise<void>;
 
   /**
    * Opens the conversation with somebody: loads its newest page, and puts it
@@ -975,7 +998,49 @@ export function createConnection({
         tag: `channel:${message.channelId}`,
         open: () => {
           host.reveal("server");
-          void get().openChannel(message.channelId);
+          const ch = get().channels.get(message.channelId);
+          if (ch && isPostChannel(ch.type)) {
+            void get().openPostChannel(message.channelId);
+          } else {
+            void get().openChannel(message.channelId);
+          }
+        },
+      });
+    }
+
+    /** Counts an arriving post against the channel it landed in. */
+    function notePostUnread(post: Post): void {
+      const state = get();
+      if (!state.channels.has(post.channelId)) return;
+      if (state.self && post.userId === state.self.id) {
+        clearUnread(post.channelId);
+        return;
+      }
+      const watching =
+        host.foreground() && state.activeChannelId === post.channelId && !windowHidden();
+      if (watching) return;
+
+      const bodyText = post.body?.content ?? "";
+      const content = bodyText ? `${post.title}: ${bodyText}` : post.title;
+      const mention = mentionsSelf(content, state.self, state.roles);
+      const current = state.unread.get(post.channelId) ?? { count: 0, mention: false };
+      const unread = new Map(state.unread);
+      unread.set(post.channelId, {
+        count: current.count + 1,
+        mention: current.mention || mention,
+      });
+      set({ unread });
+
+      announceMessage({
+        author: post.author,
+        content,
+        channel: state.channels.get(post.channelId)?.name ?? "",
+        mention,
+        direct: false,
+        tag: `channel:${post.channelId}:post:${post.id}`,
+        open: () => {
+          host.reveal("server");
+          void get().openPostChannel(post.channelId);
         },
       });
     }
@@ -1145,18 +1210,21 @@ export function createConnection({
           const event = payload as ChannelDeletedEvent;
           const channels = new Map(state.channels);
           const history = new Map(state.history);
+          const posts = new Map(state.posts);
           const unread = new Map(state.unread);
           const cascaded = Array.isArray(event.cascaded) ? event.cascaded : [];
           const forgotten = [event.channelId, ...cascaded];
           for (const channelId of forgotten) {
             channels.delete(channelId);
             history.delete(channelId);
+            posts.delete(channelId);
             unread.delete(channelId);
             readAt.delete(channelId);
           }
           set({
             channels,
             history,
+            posts,
             unread,
             activeChannelId:
               state.activeChannelId !== null && forgotten.includes(state.activeChannelId)
@@ -1169,9 +1237,113 @@ export function createConnection({
           return;
         }
 
+        case Ev.PostCreated: {
+          const { post } = payload as PostEvent;
+          notePostUnread(post);
+          const current = state.posts.get(post.channelId);
+          if (!current) return;
+          if (current.posts.some((p) => p.id === post.id)) return;
+          const posts = new Map(state.posts);
+          posts.set(post.channelId, {
+            ...current,
+            posts: [post, ...current.posts],
+          });
+          set({ posts });
+          return;
+        }
+
+        case Ev.PostUpdated: {
+          const { post } = payload as PostEvent;
+          const current = state.posts.get(post.channelId);
+          if (!current) return;
+          const posts = new Map(state.posts);
+          posts.set(post.channelId, {
+            ...current,
+            posts: current.posts.map((p) => {
+              if (p.id !== post.id) return p;
+              return {
+                ...post,
+                rsvp: post.rsvp ? { ...post.rsvp, own: post.rsvp.own || p.rsvp?.own || "" } : undefined,
+              };
+            }),
+          });
+          set({ posts });
+          return;
+        }
+
+        case Ev.PostDeleted: {
+          const event = payload as PostDeletedEvent;
+          const current = state.posts.get(event.channelId);
+          const posts = new Map(state.posts);
+          if (current) {
+            posts.set(event.channelId, {
+              ...current,
+              posts: current.posts.filter((p) => p.id !== event.postId),
+            });
+          }
+          const postComments = new Map(state.postComments);
+          postComments.delete(event.postId);
+          set({ posts, postComments });
+          return;
+        }
+
+        case Ev.PostRSVP: {
+          const event = payload as PostRSVPEvent;
+          const current = state.posts.get(event.channelId);
+          if (!current) return;
+          const posts = new Map(state.posts);
+          posts.set(event.channelId, {
+            ...current,
+            posts: current.posts.map((p) => {
+              if (p.id !== event.postId) return p;
+              const isSelf = event.userId === state.self?.id;
+              const ownAnswer = isSelf ? event.response : (p.rsvp?.own ?? "");
+              return {
+                ...p,
+                rsvp: {
+                  going: event.rsvp.going,
+                  maybe: event.rsvp.maybe,
+                  declined: event.rsvp.declined,
+                  own: ownAnswer,
+                },
+              };
+            }),
+          });
+          set({ posts });
+          return;
+        }
+
         case Ev.MessageCreated: {
           const { message } = payload as MessageEvent;
           noteUnread(message);
+
+          if (message.postId) {
+            // A comment under a post
+            const currentChannel = state.posts.get(message.channelId);
+            if (currentChannel) {
+              const posts = new Map(state.posts);
+              posts.set(message.channelId, {
+                ...currentChannel,
+                posts: currentChannel.posts.map((p) =>
+                  p.id === message.postId
+                    ? { ...p, comments: p.comments + 1, lastCommentAt: message.createdAt }
+                    : p,
+                ),
+              });
+              set({ posts });
+            }
+
+            const held = state.postComments.get(message.postId);
+            if (held && !held.messages.some((m) => m.id === message.id)) {
+              const postComments = new Map(state.postComments);
+              postComments.set(message.postId, {
+                ...held,
+                messages: [...held.messages, message],
+              });
+              set({ postComments });
+            }
+            return;
+          }
 
           // A channel this client has never opened is left alone: it will fetch
           // the newest page, this message included, when it is first opened. A
@@ -1196,6 +1368,19 @@ export function createConnection({
 
         case Ev.MessageUpdated: {
           const { message } = payload as MessageEvent;
+          if (message.postId) {
+            const held = state.postComments.get(message.postId);
+            if (held) {
+              const postComments = new Map(state.postComments);
+              postComments.set(message.postId, {
+                ...held,
+                messages: held.messages.map((m) => (m.id === message.id ? message : m)),
+              });
+              set({ postComments });
+            }
+            return;
+          }
+
           const current = state.history.get(message.channelId);
           if (!current) return;
 
@@ -1210,6 +1395,29 @@ export function createConnection({
 
         case Ev.MessageDeleted: {
           const event = payload as MessageDeletedEvent;
+          for (const [postId, held] of state.postComments.entries()) {
+            if (held.messages.some((m) => m.id === event.messageId)) {
+              const postComments = new Map(state.postComments);
+              postComments.set(postId, {
+                ...held,
+                messages: held.messages.filter((m) => m.id !== event.messageId),
+              });
+              const currentChannel = state.posts.get(event.channelId);
+              let posts = state.posts;
+              if (currentChannel) {
+                posts = new Map(state.posts);
+                posts.set(event.channelId, {
+                  ...currentChannel,
+                  posts: currentChannel.posts.map((p) =>
+                    p.id === postId ? { ...p, comments: Math.max(0, p.comments - 1) } : p,
+                  ),
+                });
+              }
+              set({ postComments, posts });
+              return;
+            }
+          }
+
           const current = state.history.get(event.channelId);
           if (!current) return;
 
@@ -1355,6 +1563,8 @@ export function createConnection({
         channels: new Map(),
         roles: new Map(),
         history: new Map(),
+        posts: new Map(),
+        postComments: new Map(),
         unread: new Map(),
         activeChannelId: null,
         conversations: new Map(),
@@ -1481,6 +1691,8 @@ export function createConnection({
       channels: new Map(),
       roles: new Map(),
       history: new Map(),
+      posts: new Map(),
+      postComments: new Map(),
       unread: new Map(),
       activeChannelId: null,
       conversations: new Map(),
@@ -1651,6 +1863,8 @@ export function createConnection({
           channels: new Map(),
           roles: new Map(),
           history: new Map(),
+          posts: new Map(),
+          postComments: new Map(),
           unread: new Map(),
           activeChannelId: null,
           conversations: new Map(),
@@ -1690,6 +1904,8 @@ export function createConnection({
         readAt.clear();
         set({
           history: new Map(),
+          posts: new Map(),
+          postComments: new Map(),
           activeChannelId: null,
           directHistory: new Map(),
           activeConversationId: null,
@@ -2154,6 +2370,228 @@ export function createConnection({
 
       async deleteMessage(messageId) {
         await requireGateway().request(Op.MessageDelete, { messageId });
+      },
+
+      async openPostChannel(channelId, options) {
+        touch(channelId);
+        const current = get().posts.get(channelId);
+        if (current && current.loading) return;
+
+        const postsMap = new Map(get().posts);
+        postsMap.set(channelId, {
+          posts: current?.posts ?? [],
+          hasMore: current?.hasMore ?? false,
+          loading: true,
+          error: null,
+        });
+        set({ posts: postsMap });
+
+        try {
+          const res = await requireGateway().request<PostListResult>(Op.PostList, {
+            channelId,
+            from: options?.from,
+            to: options?.to,
+          });
+          const nextMap = new Map(get().posts);
+          nextMap.set(channelId, {
+            posts: res.posts,
+            hasMore: res.hasMore,
+            loading: false,
+            error: null,
+          });
+          set({ posts: nextMap });
+        } catch (error) {
+          const nextMap = new Map(get().posts);
+          nextMap.set(channelId, {
+            posts: current?.posts ?? [],
+            hasMore: current?.hasMore ?? false,
+            loading: false,
+            error: describeError(error),
+          });
+          set({ posts: nextMap });
+        }
+      },
+
+      async loadOlderPosts(channelId) {
+        const current = get().posts.get(channelId);
+        if (!current || current.loading || !current.hasMore) return;
+        const oldest = current.posts.at(-1);
+        if (!oldest) return;
+
+        const postsMap = new Map(get().posts);
+        postsMap.set(channelId, { ...current, loading: true, error: null });
+        set({ posts: postsMap });
+
+        try {
+          const res = await requireGateway().request<PostListResult>(Op.PostList, {
+            channelId,
+            before: oldest.id,
+          });
+          const nextMap = new Map(get().posts);
+          const seen = new Set(current.posts.map((p) => p.id));
+          const newPosts = res.posts.filter((p) => !seen.has(p.id));
+          nextMap.set(channelId, {
+            posts: [...current.posts, ...newPosts],
+            hasMore: res.hasMore,
+            loading: false,
+            error: null,
+          });
+          set({ posts: nextMap });
+        } catch (error) {
+          const nextMap = new Map(get().posts);
+          nextMap.set(channelId, { ...current, loading: false, error: describeError(error) });
+          set({ posts: nextMap });
+        }
+      },
+
+      async createPost(input) {
+        const res = await requireGateway().request<PostEvent>(Op.PostCreate, input);
+        const current = get().posts.get(input.channelId);
+        if (current) {
+          const postsMap = new Map(get().posts);
+          if (!current.posts.some((p) => p.id === res.post.id)) {
+            postsMap.set(input.channelId, {
+              ...current,
+              posts: [res.post, ...current.posts],
+            });
+            set({ posts: postsMap });
+          }
+        }
+        return res.post;
+      },
+
+      async updatePost(input) {
+        const res = await requireGateway().request<PostEvent>(Op.PostUpdate, input);
+        const post = res.post;
+        const current = get().posts.get(post.channelId);
+        if (current) {
+          const postsMap = new Map(get().posts);
+          postsMap.set(post.channelId, {
+            ...current,
+            posts: current.posts.map((p) => (p.id === post.id ? post : p)),
+          });
+          set({ posts: postsMap });
+        }
+      },
+
+      async deletePost(postId) {
+        const res = await requireGateway().request<PostDeletedEvent>(Op.PostDelete, { postId });
+        const current = get().posts.get(res.channelId);
+        if (current) {
+          const postsMap = new Map(get().posts);
+          postsMap.set(res.channelId, {
+            ...current,
+            posts: current.posts.filter((p) => p.id !== postId),
+          });
+          set({ posts: postsMap });
+        }
+        const postComments = new Map(get().postComments);
+        postComments.delete(postId);
+        set({ postComments });
+      },
+
+      async rsvpPost(postId, response) {
+        const res = await requireGateway().request<PostRSVPEvent>(Op.PostRSVP, { postId, response });
+        const current = get().posts.get(res.channelId);
+        if (current) {
+          const postsMap = new Map(get().posts);
+          postsMap.set(res.channelId, {
+            ...current,
+            posts: current.posts.map((p) => {
+              if (p.id !== postId) return p;
+              return {
+                ...p,
+                rsvp: {
+                  going: res.rsvp.going,
+                  maybe: res.rsvp.maybe,
+                  declined: res.rsvp.declined,
+                  own: res.rsvp.own || response,
+                },
+              };
+            }),
+          });
+          set({ posts: postsMap });
+        }
+      },
+
+      async openPostComments(channelId, postId) {
+        const current = get().postComments.get(postId);
+        if (current && current.loading) return;
+
+        const commentsMap = new Map(get().postComments);
+        commentsMap.set(postId, {
+          messages: current?.messages ?? [],
+          hasMore: current?.hasMore ?? false,
+          loading: true,
+          error: null,
+        });
+        set({ postComments: commentsMap });
+
+        try {
+          const res = await requireGateway().request<MessageHistoryResult>(Op.MessageHistory, {
+            channelId,
+            postId,
+          });
+          const nextMap = new Map(get().postComments);
+          nextMap.set(postId, {
+            messages: res.messages,
+            hasMore: res.hasMore,
+            loading: false,
+            error: null,
+          });
+          set({ postComments: nextMap });
+        } catch (error) {
+          const nextMap = new Map(get().postComments);
+          nextMap.set(postId, {
+            messages: current?.messages ?? [],
+            hasMore: current?.hasMore ?? false,
+            loading: false,
+            error: describeError(error),
+          });
+          set({ postComments: nextMap });
+        }
+      },
+
+      async loadOlderPostComments(channelId, postId) {
+        const current = get().postComments.get(postId);
+        if (!current || current.loading || !current.hasMore) return;
+        const oldest = current.messages[0];
+        if (!oldest) return;
+
+        const commentsMap = new Map(get().postComments);
+        commentsMap.set(postId, { ...current, loading: true, error: null });
+        set({ postComments: commentsMap });
+
+        try {
+          const res = await requireGateway().request<MessageHistoryResult>(Op.MessageHistory, {
+            channelId,
+            postId,
+            before: oldest.id,
+          });
+          const nextMap = new Map(get().postComments);
+          const held = current.messages;
+          const merged = mergeMessages(res.messages, held);
+          nextMap.set(postId, {
+            messages: merged,
+            hasMore: res.hasMore,
+            loading: false,
+            error: null,
+          });
+          set({ postComments: nextMap });
+        } catch (error) {
+          const nextMap = new Map(get().postComments);
+          nextMap.set(postId, { ...current, loading: false, error: describeError(error) });
+          set({ postComments: nextMap });
+        }
+      },
+
+      async sendPostComment(channelId, postId, content, attachments) {
+        await requireGateway().request<MessageEvent>(Op.MessageSend, {
+          channelId,
+          postId,
+          content,
+          ...(attachments && attachments.length > 0 ? { attachments } : {}),
+        });
       },
 
       async listWebhooks(channelId) {

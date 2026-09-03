@@ -50,7 +50,7 @@
   --radius-full: 9999px;
 
   --shadow-raised: 0 4px 16px rgba(0, 0, 0, 0.32);
-  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.5);
+  --shadow-overlay: 0 24px 72px -8px rgba(0, 0, 0, 0.7), 0 12px 28px -4px rgba(0, 0, 0, 0.45);
 
   --rail-width: 72px;
   --sidebar-width: 248px;

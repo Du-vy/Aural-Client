@@ -23,10 +23,16 @@
 .topbar__title {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   font-size: var(--font-size-title, 15px);
   font-weight: 600;
   min-width: 0;
+  line-height: 1.2;
+}
+
+.topbar__title svg {
+  display: block;
+  flex-shrink: 0;
 }
 
 .topbar__topic {

@@ -1196,8 +1196,18 @@
 }
 
 .channel__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   color: var(--text-dim);
+  line-height: 1;
+}
+
+.channel__icon svg {
+  display: block;
 }
 
 .channel__name {
@@ -1205,6 +1215,7 @@
   min-width: 0;
   font-size: var(--font-size-msg, 14px);
   font-weight: 500;
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

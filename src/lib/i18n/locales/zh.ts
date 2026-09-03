@@ -1,6 +1,6 @@
-import type { TranslationSchema } from "./en";
+import type { DeepPartial, TranslationSchema } from "../types";
 
-export const zh: TranslationSchema = {
+export const zh: DeepPartial<TranslationSchema> = {
   common: {
     save: "保存更改",
     saved: "已保存",

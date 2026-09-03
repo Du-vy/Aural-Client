@@ -40,6 +40,11 @@ export const Perm = {
    * letting them rename a channel.
    */
   ManageWebhooks: 1n << 13n,
+  /**
+   * Start an entry in a channel that holds them: an announcement, a forum
+   * topic, a media item, an event.
+   */
+  CreatePosts: 1n << 14n,
 
   KickUsers: 1n << 16n,
   MoveUsers: 1n << 17n,
@@ -64,6 +69,7 @@ export const PERMISSION_ORDER: PermissionName[] = [
   "Register",
   "AttachFiles",
   "SendDirectMessages",
+  "CreatePosts",
   "ManageChannels",
   "ManageRoles",
   "ManageServer",
@@ -89,6 +95,7 @@ export const PERMISSION_HELP: Record<PermissionName, string> = {
   Register: "Claim their identity as an account",
   AttachFiles: "Post files alongside a message",
   SendDirectMessages: "Write to another member privately",
+  CreatePosts: "Start an entry in an announcement, forum, media or calendar channel",
   ManageChannels: "Create, edit and delete channels",
   ManageRoles: "Manage roles and channel permissions",
   ManageServer: "Rename the server",
