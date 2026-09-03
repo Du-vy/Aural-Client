@@ -380,27 +380,41 @@
 
 /* --- the soundboard's management screen ----------------------------------- */
 
+.sound-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
 .sound-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 0;
-  border-top: 1px solid var(--border);
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  transition: all var(--speed) ease;
 }
 
-.sound-row:first-child {
-  border-top: none;
+.sound-row:hover {
+  background: var(--hover);
+  border-color: var(--border-strong);
 }
 
 .sound-row__glyph {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
-  background: var(--bg-overlay);
-  font-size: 16px;
+  background: var(--bg-input);
+  font-size: 18px;
   flex-shrink: 0;
+  border: 1px solid var(--border);
 }
 
 .sound-row__body {
@@ -412,6 +426,7 @@
 
 .sound-row__name {
   font-size: 14px;
+  font-weight: 600;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -426,7 +441,7 @@
 .sound-row__volume {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   width: 120px;
   flex-shrink: 0;
 }
@@ -434,6 +449,7 @@
 .sound-row__volume input {
   width: 100%;
   accent-color: var(--accent);
+  cursor: pointer;
 }
 
 /* --- the trimmer ---------------------------------------------------------- */

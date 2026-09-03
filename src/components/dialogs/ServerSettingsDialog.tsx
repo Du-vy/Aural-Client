@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "@/lib/i18n";
 import {
-  PERMISSION_ORDER,
   Perm,
   format,
   getPermissionHelp,
@@ -9,6 +8,7 @@ import {
   has,
   isSet,
   parse,
+  type PermissionName,
 } from "@/lib/permissions";
 import { describeError, type Role, type VoiceSettings, type Webhook } from "@/lib/protocol";
 import { formatDateTime } from "@/lib/time";
@@ -34,6 +34,7 @@ import {
   VoiceIcon,
   WebhookIcon,
   LogOutIcon,
+  SearchIcon,
 } from "../Icons";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ServerAuditPage } from "./server-settings/AuditPage";
@@ -177,7 +178,7 @@ export function ServerSettingsDialog({
         </span>
       </button>
       <div className="settings-sidebar__version-wrap">
-        <span className="settings-sidebar__version">Aural Protocol v0.1</span>
+        <span className="settings-sidebar__version">Aural Client v0.7.0</span>
       </div>
     </div>
   );
@@ -371,7 +372,7 @@ function ServerOverviewPage() {
         </form>
 
         {/* Server Icon & Details */}
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="settings-card">
             <h3 className="settings-card__title">
               {t("dialogs.serverSettings.overview.serverIcon")}
@@ -392,7 +393,7 @@ function ServerOverviewPage() {
             </div>
           </div>
 
-          <div className="settings-card" style={{ marginTop: 16 }}>
+          <div className="settings-card">
             <h3 className="settings-card__title">
               {t("dialogs.serverSettings.overview.serverInfoTitle")}
             </h3>
@@ -421,7 +422,7 @@ function ServerOverviewPage() {
       </div>
 
       {/* Claim Server Administrator Section */}
-      <div className="settings-card" style={{ marginTop: 16 }}>
+      <div className="settings-card">
         <h3 className="settings-card__title">
           {t("dialogs.serverSettings.overview.ownershipTitle")}
         </h3>
@@ -617,6 +618,65 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
     }
   }
 
+  const [searchPerm, setSearchPerm] = useState("");
+
+  const PERMISSION_CATEGORIES = useMemo(() => [
+    {
+      id: "general",
+      nameKey: "dialogs.serverSettings.roles.categoryGeneral",
+      fallbackName: "General",
+      permissions: ["ViewChannel", "ChangeNickname", "Register", "ViewAuditLog"] as PermissionName[],
+    },
+    {
+      id: "text",
+      nameKey: "dialogs.serverSettings.roles.categoryText",
+      fallbackName: "Canales de Texto y Chat",
+      permissions: [
+        "SendMessages",
+        "AttachFiles",
+        "SendDirectMessages",
+        "CreatePosts",
+        "ManageMessages",
+      ] as PermissionName[],
+    },
+    {
+      id: "voice",
+      nameKey: "dialogs.serverSettings.roles.categoryVoice",
+      fallbackName: "Canales de Voz y Audio",
+      permissions: [
+        "Connect",
+        "Speak",
+        "UseSoundboard",
+        "MoveUsers",
+        "MuteUsers",
+        "DeafenUsers",
+      ] as PermissionName[],
+    },
+    {
+      id: "management",
+      nameKey: "dialogs.serverSettings.roles.categoryManagement",
+      fallbackName: "Gestión y Moderación",
+      permissions: [
+        "ManageChannels",
+        "ManageRoles",
+        "ManageServer",
+        "ManageNicknames",
+        "ManageWebhooks",
+        "ManageExpressions",
+        "KickUsers",
+        "BanUsers",
+      ] as PermissionName[],
+    },
+    {
+      id: "advanced",
+      nameKey: "dialogs.serverSettings.roles.categoryAdvanced",
+      fallbackName: "Permisos Avanzados",
+      permissions: ["Administrator"] as PermissionName[],
+    },
+  ], []);
+
+  const query = searchPerm.trim().toLowerCase();
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {error ? <div className="alert alert--danger">{error}</div> : null}
@@ -688,30 +748,76 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
           </p>
         ) : null}
 
-        <div className="permlist" style={{ marginTop: 10 }}>
-          {PERMISSION_ORDER.map((permission) => {
-            const bit = Perm[permission];
-            const locked = !editable || !has(myPermissions, bit);
+        <div style={{ position: "relative", marginTop: 12, marginBottom: 8 }}>
+          <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", display: "flex", pointerEvents: "none" }}>
+            <SearchIcon size={14} />
+          </span>
+          <input
+            type="text"
+            className="input"
+            style={{ paddingLeft: 32, fontSize: 13, height: 36 }}
+            placeholder={t("dialogs.serverSettings.roles.searchPermissions" as never) || "Buscar permisos..."}
+            value={searchPerm}
+            onChange={(e) => setSearchPerm(e.target.value)}
+          />
+        </div>
+
+        <div>
+          {PERMISSION_CATEGORIES.map((category) => {
+            const matching = category.permissions.filter((p) => {
+              if (!query) return true;
+              return (
+                getPermissionName(p).toLowerCase().includes(query) ||
+                getPermissionHelp(p).toLowerCase().includes(query)
+              );
+            });
+            if (matching.length === 0) return null;
+
+            const enabledCount = category.permissions.filter((p) => isSet(mask, Perm[p])).length;
+
             return (
-              <label
-                key={permission}
-                className={locked ? "perm perm--locked" : "perm"}
-                title={locked && editable ? t("errors.forbidden") : undefined}
-              >
-                <input
-                  type="checkbox"
-                  checked={isSet(mask, bit)}
-                  disabled={locked}
-                  onChange={(event) => {
-                    setMask((current) => (event.target.checked ? current | bit : current & ~bit));
-                    setSaved(false);
-                  }}
-                />
-                <span>
-                  <span className="perm__name">{getPermissionName(permission)}</span>
-                  <span className="perm__help">{getPermissionHelp(permission)}</span>
-                </span>
-              </label>
+              <div key={category.id} className="perm-category">
+                <div className="perm-category__header">
+                  <span className="perm-category__title">
+                    {t(category.nameKey as never) || category.fallbackName}
+                  </span>
+                  <span className="perm-category__count">
+                    {enabledCount} / {category.permissions.length}
+                  </span>
+                </div>
+
+                <div className="permlist">
+                  {matching.map((permission) => {
+                    const bit = Perm[permission];
+                    const locked = !editable || !has(myPermissions, bit);
+                    const isAdmin = permission === "Administrator";
+                    return (
+                      <label
+                        key={permission}
+                        className={`perm ${locked ? "perm--locked" : ""} ${isAdmin ? "perm--admin" : ""}`}
+                        title={locked && editable ? t("errors.forbidden") : undefined}
+                      >
+                        <div className="perm__info">
+                          <span className="perm__name">{getPermissionName(permission)}</span>
+                          <span className="perm__help">{getPermissionHelp(permission)}</span>
+                        </div>
+                        <span className="settings-switch">
+                          <input
+                            type="checkbox"
+                            checked={isSet(mask, bit)}
+                            disabled={locked}
+                            onChange={(event) => {
+                              setMask((current) => (event.target.checked ? current | bit : current & ~bit));
+                              setSaved(false);
+                            }}
+                          />
+                          <span className="settings-switch__slider" />
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>
@@ -1127,8 +1233,8 @@ function ServerWebhooksCard() {
   return (
     <>
       <div className="settings-card settings-card--integration">
-        <div className="settings-card__header">
-          <div className="settings-card__header-info">
+        <div className="settings-card__header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+          <div className="settings-card__header-info" style={{ flex: 1, minWidth: 0 }}>
             <div className="webhook-card__service">
               <span className="settings-card__service-icon webhook-card__icon">
                 <WebhookIcon size={20} />
@@ -1144,6 +1250,19 @@ function ServerWebhooksCard() {
               {t("dialogs.serverSettings.integrations.webhooksCompat")}
             </p>
           </div>
+
+          {allowed && !creating ? (
+            <button
+              type="button"
+              className="btn btn--primary btn--sm"
+              style={{ flexShrink: 0, marginTop: 4 }}
+              onClick={() => setCreating(true)}
+              disabled={busy}
+            >
+              <PlusIcon size={14} />
+              {t("dialogs.serverSettings.integrations.createWebhook")}
+            </button>
+          ) : null}
         </div>
 
         {!allowed ? (
@@ -1153,9 +1272,11 @@ function ServerWebhooksCard() {
         ) : (
           <>
             {webhooks.length === 0 ? (
-              <p className="webhook-card__empty">
-                {t("dialogs.serverSettings.integrations.empty")}
-              </p>
+              <div className="webhook-card__empty" style={{ padding: "24px 16px", textAlign: "center", background: "var(--bg-input)", border: "1px dashed var(--border)", borderRadius: "var(--radius-md)", marginTop: 14 }}>
+                <p className="settings-card__subtitle" style={{ margin: 0 }}>
+                  {t("dialogs.serverSettings.integrations.empty")}
+                </p>
+              </div>
             ) : (
               <ul className="webhook-list">
                 {webhooks.map((webhook) => {
@@ -1495,192 +1616,204 @@ function ServerVoicePage() {
         <p className="field__hint">{t("dialogs.serverSettings.voice.readOnly")}</p>
       ) : null}
 
-      <fieldset disabled={!canManage || saving} style={{ border: 0, padding: 0, margin: 0 }}>
-        <div className="settings-card">
-          <div className="settings-row">
-            <div className="settings-row__info">
-              <h4 className="settings-card__title">{t("dialogs.serverSettings.voice.enabled")}</h4>
-              <p className="settings-card__subtitle">
-                {t("dialogs.serverSettings.voice.enabledDesc")}
-              </p>
-            </div>
-            <label className="settings-switch">
-              <input
-                type="checkbox"
-                checked={draft.enabled}
-                onChange={(e) => patch({ enabled: e.target.checked })}
-              />
-              <span className="settings-switch__slider" />
-            </label>
-          </div>
-        </div>
-
-        <div className="settings-card" style={{ marginTop: 16 }}>
-          <h3 className="settings-card__title">{t("dialogs.serverSettings.voice.mode")}</h3>
-          <div className="settings-radio-group" style={{ marginTop: 12 }}>
-            <label className={`settings-radio-card ${draft.mode === "server_host" ? "settings-radio-card--active" : ""}`}>
-              <input
-                type="radio"
-                name="voice-mode"
-                checked={draft.mode === "server_host"}
-                onChange={() => patch({ mode: "server_host" })}
-              />
-              <span className="settings-radio-card__body">
-                <span className="settings-radio-card__title">
-                  {t("dialogs.serverSettings.voice.modeServer")}
-                </span>
-                <span className="settings-card__subtitle">
-                  {t("dialogs.serverSettings.voice.modeServerDesc")}
-                </span>
-              </span>
-            </label>
-            <label className={`settings-radio-card ${draft.mode === "client_host" ? "settings-radio-card--active" : ""}`}>
-              <input
-                type="radio"
-                name="voice-mode"
-                checked={draft.mode === "client_host"}
-                onChange={() => patch({ mode: "client_host" })}
-              />
-              <span className="settings-radio-card__body">
-                <span className="settings-radio-card__title">
-                  {t("dialogs.serverSettings.voice.modeClient")}
-                </span>
-                <span className="settings-card__subtitle">
-                  {t("dialogs.serverSettings.voice.modeClientDesc")}
-                </span>
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <div className="settings-card" style={{ marginTop: 16 }}>
-          <h3 className="settings-card__title">{t("dialogs.serverSettings.voice.quality")}</h3>
-
-          <div className="field" style={{ marginTop: 14 }}>
-            <label className="field__label" htmlFor="voice-sample-rate">
-              {t("dialogs.serverSettings.voice.sampleRate")}
-            </label>
-            <select
-              id="voice-sample-rate"
-              className="select"
-              value={draft.sampleRate}
-              onChange={(e) => patch({ sampleRate: Number(e.target.value) })}
-            >
-              {SAMPLE_RATES.map((rate) => (
-                <option key={rate} value={rate}>
-                  {(rate / 1000).toLocaleString()} kHz
-                </option>
-              ))}
-            </select>
-            <p className="field__hint">{t("dialogs.serverSettings.voice.sampleRateDesc")}</p>
-          </div>
-
-          <div className="settings-grid-2" style={{ marginTop: 14 }}>
-            <div className="field">
-              <label className="field__label" htmlFor="voice-min-bitrate">
-                {t("dialogs.serverSettings.voice.bitrateRange")}
-              </label>
-              <div className="voice-device-row">
-                <input
-                  id="voice-min-bitrate"
-                  className="input"
-                  type="number"
-                  min={6}
-                  max={510}
-                  value={Math.round(draft.minBitrate / 1000)}
-                  onChange={(e) => patch({ minBitrate: Number(e.target.value) * 1000 })}
-                />
-                <span className="field__hint">—</span>
-                <input
-                  className="input"
-                  type="number"
-                  min={6}
-                  max={510}
-                  value={Math.round(draft.maxBitrate / 1000)}
-                  onChange={(e) => patch({ maxBitrate: Number(e.target.value) * 1000 })}
-                />
-                <span className="field__hint">kb/s</span>
-              </div>
-              <p className="field__hint">{t("dialogs.serverSettings.voice.bitrateRangeDesc")}</p>
-            </div>
-
-            <div className="field">
-              <label className="field__label" htmlFor="voice-bitrate">
-                {t("dialogs.serverSettings.voice.bitrateDefault")}
-              </label>
-              <input
-                id="voice-bitrate"
-                type="range"
-                className="slider"
-                min={draft.minBitrate}
-                max={draft.maxBitrate}
-                step={1000}
-                value={Math.min(Math.max(draft.bitrate, draft.minBitrate), draft.maxBitrate)}
-                onChange={(e) => patch({ bitrate: Number(e.target.value) })}
-              />
-              <p className="field__hint">{kb(draft.bitrate)}</p>
-            </div>
-          </div>
-
-          <div className="field" style={{ marginTop: 14 }}>
-            <label className="field__label" htmlFor="voice-max-participants">
-              {t("dialogs.serverSettings.voice.maxParticipants")}
-            </label>
-            <input
-              id="voice-max-participants"
-              className="input"
-              type="number"
-              min={0}
-              max={512}
-              value={draft.maxParticipants}
-              onChange={(e) => patch({ maxParticipants: Number(e.target.value) })}
-            />
-            <p className="field__hint">
-              {draft.maxParticipants === 0
-                ? t("dialogs.serverSettings.voice.unlimited")
-                : t("dialogs.serverSettings.voice.maxParticipantsDesc")}
-            </p>
-          </div>
-        </div>
-
-        <div className="settings-card" style={{ marginTop: 16 }}>
-          {(
-            [
-              ["fec", "fec", "fecDesc"],
-              ["dtx", "dtx", "dtxDesc"],
-              ["stereo", "stereo", "stereoDesc"],
-            ] as const
-          ).map(([key, title, description], index) => (
-            <div
-              key={key}
-              className="settings-row"
-              style={
-                index === 0
-                  ? undefined
-                  : { marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }
-              }
-            >
+      <fieldset disabled={!canManage || saving} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Group 1: Voice Service & Routing */}
+        <div className="settings-group">
+          <div className="settings-group__item">
+            <div className="settings-row">
               <div className="settings-row__info">
-                <h4 className="settings-card__title">
-                  {t(`dialogs.serverSettings.voice.${title}`)}
-                </h4>
-                <p className="settings-card__subtitle">
-                  {t(`dialogs.serverSettings.voice.${description}`)}
+                <h4 className="settings-card__title" style={{ margin: 0 }}>{t("dialogs.serverSettings.voice.enabled")}</h4>
+                <p className="settings-card__subtitle" style={{ marginTop: 2 }}>
+                  {t("dialogs.serverSettings.voice.enabledDesc")}
                 </p>
               </div>
               <label className="settings-switch">
                 <input
                   type="checkbox"
-                  checked={draft[key]}
-                  onChange={(e) => patch({ [key]: e.target.checked } as Partial<VoiceSettings>)}
+                  checked={draft.enabled}
+                  onChange={(e) => patch({ enabled: e.target.checked })}
                 />
                 <span className="settings-switch__slider" />
               </label>
             </div>
-          ))}
+          </div>
+
+          <div className="settings-group__item">
+            <h4 className="settings-card__title" style={{ margin: 0 }}>{t("dialogs.serverSettings.voice.mode")}</h4>
+            <div className="settings-radio-group" style={{ marginTop: 12 }}>
+              <label className={`settings-radio-card ${draft.mode === "server_host" ? "settings-radio-card--active" : ""}`}>
+                <input
+                  type="radio"
+                  name="voice-mode"
+                  checked={draft.mode === "server_host"}
+                  onChange={() => patch({ mode: "server_host" })}
+                />
+                <span className="settings-radio-card__body">
+                  <span className="settings-radio-card__title">
+                    {t("dialogs.serverSettings.voice.modeServer")}
+                  </span>
+                  <span className="settings-card__subtitle">
+                    {t("dialogs.serverSettings.voice.modeServerDesc")}
+                  </span>
+                </span>
+              </label>
+              <label className={`settings-radio-card ${draft.mode === "client_host" ? "settings-radio-card--active" : ""}`}>
+                <input
+                  type="radio"
+                  name="voice-mode"
+                  checked={draft.mode === "client_host"}
+                  onChange={() => patch({ mode: "client_host" })}
+                />
+                <span className="settings-radio-card__body">
+                  <span className="settings-radio-card__title">
+                    {t("dialogs.serverSettings.voice.modeClient")}
+                  </span>
+                  <span className="settings-card__subtitle">
+                    {t("dialogs.serverSettings.voice.modeClientDesc")}
+                  </span>
+                </span>
+              </label>
+            </div>
+          </div>
         </div>
 
-        <div className="settings-card" style={{ marginTop: 16 }}>
+        {/* Group 2: Audio Quality & Performance */}
+        <div className="settings-group">
+          <div className="settings-group__header">
+            <div>
+              <h3 className="settings-card__title" style={{ margin: 0 }}>{t("dialogs.serverSettings.voice.quality")}</h3>
+              <p className="settings-card__subtitle" style={{ margin: "2px 0 0" }}>
+                {t("dialogs.serverSettings.voice.sampleRateDesc")}
+              </p>
+            </div>
+          </div>
+
+          <div className="settings-group__item">
+            <div className="field">
+              <label className="field__label" htmlFor="voice-sample-rate">
+                {t("dialogs.serverSettings.voice.sampleRate")}
+              </label>
+              <select
+                id="voice-sample-rate"
+                className="select"
+                value={draft.sampleRate}
+                onChange={(e) => patch({ sampleRate: Number(e.target.value) })}
+              >
+                {SAMPLE_RATES.map((rate) => (
+                  <option key={rate} value={rate}>
+                    {(rate / 1000).toLocaleString()} kHz
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="settings-grid-2" style={{ marginTop: 14 }}>
+              <div className="field">
+                <label className="field__label" htmlFor="voice-min-bitrate">
+                  {t("dialogs.serverSettings.voice.bitrateRange")}
+                </label>
+                <div className="voice-device-row">
+                  <input
+                    id="voice-min-bitrate"
+                    className="input"
+                    type="number"
+                    min={6}
+                    max={510}
+                    value={Math.round(draft.minBitrate / 1000)}
+                    onChange={(e) => patch({ minBitrate: Number(e.target.value) * 1000 })}
+                  />
+                  <span className="field__hint">—</span>
+                  <input
+                    className="input"
+                    type="number"
+                    min={6}
+                    max={510}
+                    value={Math.round(draft.maxBitrate / 1000)}
+                    onChange={(e) => patch({ maxBitrate: Number(e.target.value) * 1000 })}
+                  />
+                  <span className="field__hint">kb/s</span>
+                </div>
+                <p className="field__hint">{t("dialogs.serverSettings.voice.bitrateRangeDesc")}</p>
+              </div>
+
+              <div className="field">
+                <label className="field__label" htmlFor="voice-bitrate">
+                  {t("dialogs.serverSettings.voice.bitrateDefault")}
+                </label>
+                <input
+                  id="voice-bitrate"
+                  type="range"
+                  className="slider"
+                  min={draft.minBitrate}
+                  max={draft.maxBitrate}
+                  step={1000}
+                  value={Math.min(Math.max(draft.bitrate, draft.minBitrate), draft.maxBitrate)}
+                  onChange={(e) => patch({ bitrate: Number(e.target.value) })}
+                />
+                <p className="field__hint">{kb(draft.bitrate)}</p>
+              </div>
+            </div>
+
+            <div className="field" style={{ marginTop: 14 }}>
+              <label className="field__label" htmlFor="voice-max-participants">
+                {t("dialogs.serverSettings.voice.maxParticipants")}
+              </label>
+              <input
+                id="voice-max-participants"
+                className="input"
+                type="number"
+                min={0}
+                max={512}
+                value={draft.maxParticipants}
+                onChange={(e) => patch({ maxParticipants: Number(e.target.value) })}
+              />
+              <p className="field__hint">
+                {draft.maxParticipants === 0
+                  ? t("dialogs.serverSettings.voice.unlimited")
+                  : t("dialogs.serverSettings.voice.maxParticipantsDesc")}
+              </p>
+            </div>
+          </div>
+
+          <div className="settings-group__item">
+            {(
+              [
+                ["fec", "fec", "fecDesc"],
+                ["dtx", "dtx", "dtxDesc"],
+                ["stereo", "stereo", "stereoDesc"],
+              ] as const
+            ).map(([key, title, description], index) => (
+              <div
+                key={key}
+                className="settings-row"
+                style={
+                  index === 0
+                    ? undefined
+                    : { marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }
+                }
+              >
+                <div className="settings-row__info">
+                  <h4 className="settings-card__title" style={{ margin: 0 }}>
+                    {t(`dialogs.serverSettings.voice.${title}`)}
+                  </h4>
+                  <p className="settings-card__subtitle" style={{ marginTop: 2 }}>
+                    {t(`dialogs.serverSettings.voice.${description}`)}
+                  </p>
+                </div>
+                <label className="settings-switch">
+                  <input
+                    type="checkbox"
+                    checked={draft[key]}
+                    onChange={(e) => patch({ [key]: e.target.checked } as Partial<VoiceSettings>)}
+                  />
+                  <span className="settings-switch__slider" />
+                </label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-card">
           <h3 className="settings-card__title">{t("dialogs.serverSettings.voice.deployment")}</h3>
           <p className="settings-card__subtitle">
             {t("dialogs.serverSettings.voice.deploymentDesc")}
@@ -1688,17 +1821,17 @@ function ServerVoicePage() {
         </div>
 
         {error ? (
-          <p className="field__error" style={{ marginTop: 12 }}>
+          <p className="field__error" style={{ marginTop: 0 }}>
             {error}
           </p>
         ) : null}
         {saved ? (
-          <p className="field__hint" style={{ marginTop: 12 }}>
+          <p className="field__hint" style={{ marginTop: 0 }}>
             {t("dialogs.serverSettings.voice.saved")}
           </p>
         ) : null}
 
-        <div style={{ marginTop: 16 }}>
+        <div>
           <button type="submit" className="btn btn--primary" disabled={!canManage || saving}>
             {t("dialogs.serverSettings.voice.save")}
           </button>

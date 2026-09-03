@@ -235,6 +235,7 @@
 .settings-section {
   display: flex;
   flex-direction: column;
+  gap: 20px;
   animation: fadeIn var(--speed) ease;
 }
 
@@ -250,11 +251,11 @@
 }
 
 .settings-section__header {
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 .settings-section > .alert {
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 .settings-section__title {
@@ -342,6 +343,33 @@
 
 .settings-group__item + .settings-group__item {
   border-top: 1px solid var(--border);
+}
+
+.settings-group__header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Sibling spacing between cards and groups when not managed by flex gap */
+.settings-card + .settings-card,
+.settings-group + .settings-group,
+.settings-card + .settings-group,
+.settings-group + .settings-card {
+  margin-top: 18px;
+}
+
+.settings-section > .settings-card + .settings-card,
+.settings-section > .settings-group + .settings-group,
+.settings-section > .settings-card + .settings-group,
+.settings-section > .settings-group + .settings-card,
+.settings-form > .settings-card + .settings-card,
+.settings-form > .settings-group + .settings-group {
+  margin-top: 0;
 }
 
 .settings-card--highlight {

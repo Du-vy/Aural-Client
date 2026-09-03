@@ -472,42 +472,97 @@
 .permlist {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
+}
+
+.perm-category {
+  margin-top: 20px;
+}
+
+.perm-category:first-child {
+  margin-top: 0;
+}
+
+.perm-category__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
+
+.perm-category__title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.perm-category__count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
 }
 
 .perm {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  transition: background var(--speed) ease;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  transition: background var(--speed) ease, border-color var(--speed) ease;
+  cursor: pointer;
+  user-select: none;
 }
 
 .perm:hover {
   background: var(--hover);
+  border-color: var(--border-strong);
 }
 
-.perm input {
-  margin-top: 3px;
-  accent-color: var(--accent);
-  width: 15px;
-  height: 15px;
-  flex-shrink: 0;
+.perm__info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
 }
 
 .perm__name {
+  display: block;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
 }
 
 .perm__help {
-  font-size: 12px;
-  color: var(--text-dim);
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
 .perm--locked {
-  opacity: 0.45;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.perm--admin {
+  border-color: rgba(224, 160, 48, 0.45);
+  background: rgba(224, 160, 48, 0.04);
+}
+
+.perm--admin:hover {
+  border-color: var(--warning);
+  background: rgba(224, 160, 48, 0.09);
 }
 
 /* --- responsive ----------------------------------------------------------- */

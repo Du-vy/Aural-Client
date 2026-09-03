@@ -132,163 +132,182 @@ export function ServerAutoModPage() {
         <p className="settings-section__desc">{t("dialogs.serverSettings.automod.desc")}</p>
       </header>
 
-      <div className="settings-card">
-        <Toggle
-          label={t("dialogs.serverSettings.automod.enabled")}
-          hint={t("dialogs.serverSettings.automod.enabledHint")}
-          checked={config.enabled}
-          onChange={(enabled) => patch({ enabled })}
-        />
+      <div className="settings-group">
+        <div className="settings-group__item">
+          <Toggle
+            label={t("dialogs.serverSettings.automod.enabled")}
+            hint={t("dialogs.serverSettings.automod.enabledHint")}
+            checked={config.enabled}
+            onChange={(enabled) => patch({ enabled })}
+          />
+        </div>
 
-        <RolePicker
-          label={t("dialogs.serverSettings.automod.exemptRoles")}
-          hint={t("dialogs.serverSettings.automod.exemptRolesHint")}
-          roles={assignableRoles}
-          selected={config.exemptRoles}
-          onChange={(exemptRoles) => patch({ exemptRoles })}
-        />
+        <div className="settings-group__item">
+          <RolePicker
+            label={t("dialogs.serverSettings.automod.exemptRoles")}
+            hint={t("dialogs.serverSettings.automod.exemptRolesHint")}
+            roles={assignableRoles}
+            selected={config.exemptRoles}
+            onChange={(exemptRoles) => patch({ exemptRoles })}
+          />
+        </div>
 
-        <div className="field">
-          <span className="field__label">
-            {t("dialogs.serverSettings.automod.exemptChannels")}
-          </span>
-          <p className="field__hint">{t("dialogs.serverSettings.automod.exemptChannelsHint")}</p>
-          <div className="chip-row">
-            {writableChannels.map((channel) => {
-              const on = config.exemptChannels.includes(channel.id);
-              return (
-                <button
-                  key={channel.id}
-                  type="button"
-                  className={on ? "chip chip--on" : "chip"}
-                  onClick={() =>
-                    patch({
-                      exemptChannels: on
-                        ? config.exemptChannels.filter((id) => id !== channel.id)
-                        : [...config.exemptChannels, channel.id],
-                    })
-                  }
-                >
-                  #{channel.name}
-                </button>
-              );
-            })}
+        <div className="settings-group__item">
+          <div className="field">
+            <span className="field__label">
+              {t("dialogs.serverSettings.automod.exemptChannels")}
+            </span>
+            <p className="field__hint">{t("dialogs.serverSettings.automod.exemptChannelsHint")}</p>
+            <div className="chip-row chip-row--wrap" style={{ marginTop: 4 }}>
+              {writableChannels.map((channel) => {
+                const on = config.exemptChannels.includes(channel.id);
+                return (
+                  <button
+                    key={channel.id}
+                    type="button"
+                    className={on ? "chip chip--on" : "chip"}
+                    onClick={() =>
+                      patch({
+                        exemptChannels: on
+                          ? config.exemptChannels.filter((id) => id !== channel.id)
+                          : [...config.exemptChannels, channel.id],
+                      })
+                    }
+                  >
+                    #{channel.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
 
-      <RuleCard
-        rule="words"
-        value={config.words}
-        roles={assignableRoles}
-        onPatch={(changes) => patchRule("words", changes)}
-        disabled={!config.enabled}
-      >
-        <WordList
-          words={config.words.words}
-          onChange={(words) => patchRule("words", { words })}
-        />
-        <Toggle
-          label={t("dialogs.serverSettings.automod.wholeWord")}
-          hint={t("dialogs.serverSettings.automod.wholeWordHint")}
-          checked={config.words.wholeWord}
-          onChange={(wholeWord) => patchRule("words", { wholeWord })}
-        />
-      </RuleCard>
+      <div className="settings-group">
+        <div className="settings-group__header">
+          <div>
+            <h3 className="settings-card__title" style={{ margin: 0 }}>
+              {t("dialogs.serverSettings.automod.rulesTitle")}
+            </h3>
+            <p className="settings-card__subtitle" style={{ margin: "2px 0 0" }}>
+              {t("dialogs.serverSettings.automod.rulesDesc")}
+            </p>
+          </div>
+        </div>
 
-      <RuleCard
-        rule="links"
-        value={config.links}
-        roles={assignableRoles}
-        onPatch={(changes) => patchRule("links", changes)}
-        disabled={!config.enabled}
-      >
-        <WordList
-          label={t("dialogs.serverSettings.automod.allowedDomains")}
-          hint={t("dialogs.serverSettings.automod.allowedDomainsHint")}
-          placeholder="github.com"
-          words={config.links.allowedDomains}
-          onChange={(allowedDomains) => patchRule("links", { allowedDomains })}
-        />
-      </RuleCard>
+        <RuleCard
+          rule="words"
+          value={config.words}
+          roles={assignableRoles}
+          onPatch={(changes) => patchRule("words", changes)}
+          disabled={!config.enabled}
+        >
+          <WordList
+            words={config.words.words}
+            onChange={(words) => patchRule("words", { words })}
+          />
+          <Toggle
+            label={t("dialogs.serverSettings.automod.wholeWord")}
+            hint={t("dialogs.serverSettings.automod.wholeWordHint")}
+            checked={config.words.wholeWord}
+            onChange={(wholeWord) => patchRule("words", { wholeWord })}
+          />
+        </RuleCard>
 
-      <RuleCard
-        rule="mentions"
-        value={config.mentions}
-        roles={assignableRoles}
-        onPatch={(changes) => patchRule("mentions", changes)}
-        disabled={!config.enabled}
-      >
-        <NumberField
-          label={t("dialogs.serverSettings.automod.mentionLimit")}
-          value={config.mentions.limit}
-          min={1}
-          max={50}
-          onChange={(limit) => patchRule("mentions", { limit })}
-        />
-      </RuleCard>
+        <RuleCard
+          rule="links"
+          value={config.links}
+          roles={assignableRoles}
+          onPatch={(changes) => patchRule("links", changes)}
+          disabled={!config.enabled}
+        >
+          <WordList
+            label={t("dialogs.serverSettings.automod.allowedDomains")}
+            hint={t("dialogs.serverSettings.automod.allowedDomainsHint")}
+            placeholder="github.com"
+            words={config.links.allowedDomains}
+            onChange={(allowedDomains) => patchRule("links", { allowedDomains })}
+          />
+        </RuleCard>
 
-      <RuleCard
-        rule="caps"
-        value={config.caps}
-        roles={assignableRoles}
-        onPatch={(changes) => patchRule("caps", changes)}
-        disabled={!config.enabled}
-      >
-        <NumberField
-          label={t("dialogs.serverSettings.automod.capsPercent")}
-          value={config.caps.percent}
-          min={10}
-          max={100}
-          onChange={(percent) => patchRule("caps", { percent })}
-        />
-        <NumberField
-          label={t("dialogs.serverSettings.automod.capsMinLength")}
-          value={config.caps.minLength}
-          min={4}
-          max={500}
-          onChange={(minLength) => patchRule("caps", { minLength })}
-        />
-      </RuleCard>
+        <RuleCard
+          rule="mentions"
+          value={config.mentions}
+          roles={assignableRoles}
+          onPatch={(changes) => patchRule("mentions", changes)}
+          disabled={!config.enabled}
+        >
+          <NumberField
+            label={t("dialogs.serverSettings.automod.mentionLimit")}
+            value={config.mentions.limit}
+            min={1}
+            max={50}
+            onChange={(limit) => patchRule("mentions", { limit })}
+          />
+        </RuleCard>
 
-      <RuleCard
-        rule="flood"
-        value={config.flood}
-        roles={assignableRoles}
-        onPatch={(changes) => patchRule("flood", changes)}
-        disabled={!config.enabled}
-      >
-        <NumberField
-          label={t("dialogs.serverSettings.automod.floodMessages")}
-          value={config.flood.messages}
-          min={2}
-          max={30}
-          onChange={(messages) => patchRule("flood", { messages })}
-        />
-        <NumberField
-          label={t("dialogs.serverSettings.automod.floodSeconds")}
-          value={config.flood.seconds}
-          min={1}
-          max={60}
-          onChange={(seconds) => patchRule("flood", { seconds })}
-        />
-      </RuleCard>
+        <RuleCard
+          rule="caps"
+          value={config.caps}
+          roles={assignableRoles}
+          onPatch={(changes) => patchRule("caps", changes)}
+          disabled={!config.enabled}
+        >
+          <NumberField
+            label={t("dialogs.serverSettings.automod.capsPercent")}
+            value={config.caps.percent}
+            min={10}
+            max={100}
+            onChange={(percent) => patchRule("caps", { percent })}
+          />
+          <NumberField
+            label={t("dialogs.serverSettings.automod.capsMinLength")}
+            value={config.caps.minLength}
+            min={4}
+            max={500}
+            onChange={(minLength) => patchRule("caps", { minLength })}
+          />
+        </RuleCard>
 
-      <RuleCard
-        rule="repetition"
-        value={config.repetition}
-        roles={assignableRoles}
-        onPatch={(changes) => patchRule("repetition", changes)}
-        disabled={!config.enabled}
-      >
-        <NumberField
-          label={t("dialogs.serverSettings.automod.repetitionTimes")}
-          value={config.repetition.times}
-          min={2}
-          max={20}
-          onChange={(times) => patchRule("repetition", { times })}
-        />
-      </RuleCard>
+        <RuleCard
+          rule="flood"
+          value={config.flood}
+          roles={assignableRoles}
+          onPatch={(changes) => patchRule("flood", changes)}
+          disabled={!config.enabled}
+        >
+          <NumberField
+            label={t("dialogs.serverSettings.automod.floodMessages")}
+            value={config.flood.messages}
+            min={2}
+            max={30}
+            onChange={(messages) => patchRule("flood", { messages })}
+          />
+          <NumberField
+            label={t("dialogs.serverSettings.automod.floodSeconds")}
+            value={config.flood.seconds}
+            min={1}
+            max={60}
+            onChange={(seconds) => patchRule("flood", { seconds })}
+          />
+        </RuleCard>
+
+        <RuleCard
+          rule="repetition"
+          value={config.repetition}
+          roles={assignableRoles}
+          onPatch={(changes) => patchRule("repetition", changes)}
+          disabled={!config.enabled}
+        >
+          <NumberField
+            label={t("dialogs.serverSettings.automod.repetitionTimes")}
+            value={config.repetition.times}
+            min={2}
+            max={20}
+            onChange={(times) => patchRule("repetition", { times })}
+          />
+        </RuleCard>
+      </div>
 
       {error ? <p className="settings-inline-error">{error}</p> : null}
       {saved ? (
@@ -329,44 +348,76 @@ interface RuleCardProps {
 }
 
 /**
- * One rule: whether it runs, what it does when it matches, who it spares, and
- * whatever it needs beyond that.
- *
- * The per-rule exemption is offered on every one of them because it is what
- * makes the feature usable: staff are usually exempt from everything, and one
- * rule — no links, most often — is very often lifted for a single role that
- * nothing else applies to.
+ * One rule row inside the unified rules group.
  */
 function RuleCard({ rule, value, roles, disabled, onPatch, children }: RuleCardProps) {
   const { t } = useTranslation();
 
   return (
-    <div className={disabled ? "settings-card settings-card--dim" : "settings-card"}>
-      <div className="settings-card__header">
-        <span className="settings-card__service-icon" aria-hidden="true">
-          <FilterIcon size={18} />
-        </span>
-        <div className="settings-card__header-info">
-          <h3 className="settings-card__title">
-            {t(`dialogs.serverSettings.automod.rules.${rule}.title` as never)}
-          </h3>
-          <p className="settings-card__subtitle">
-            {t(`dialogs.serverSettings.automod.rules.${rule}.desc` as never)}
-          </p>
+    <div className={`settings-group__item ${disabled ? "settings-card--dim" : ""}`}>
+      <div className="settings-row" style={{ alignItems: "flex-start" }}>
+        <div style={{ display: "flex", gap: 12, flex: 1, minWidth: 0, alignItems: "flex-start" }}>
+          <span
+            className="settings-card__service-icon"
+            aria-hidden="true"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: "var(--radius-sm)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: value.enabled ? "var(--accent-soft)" : "var(--bg-input)",
+              color: value.enabled ? "var(--accent)" : "var(--text-dim)",
+              flexShrink: 0,
+              marginTop: 2,
+            }}
+          >
+            <FilterIcon size={18} />
+          </span>
+          <div className="settings-card__header-info" style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <h4 className="settings-card__title" style={{ margin: 0 }}>
+                {t(`dialogs.serverSettings.automod.rules.${rule}.title` as never)}
+              </h4>
+              {value.enabled ? (
+                <span className="chip chip--on" style={{ padding: "1px 7px", fontSize: 11 }}>
+                  {t(`dialogs.serverSettings.automod.actions.${value.action}` as never)}
+                </span>
+              ) : null}
+            </div>
+            <p className="settings-card__subtitle" style={{ marginTop: 3 }}>
+              {t(`dialogs.serverSettings.automod.rules.${rule}.desc` as never)}
+            </p>
+          </div>
         </div>
+
+        <label className="settings-switch" style={{ marginLeft: 12, marginTop: 4 }}>
+          <input
+            type="checkbox"
+            checked={value.enabled}
+            disabled={disabled}
+            onChange={(e) => onPatch({ enabled: e.target.checked })}
+          />
+          <span className="settings-switch__slider" />
+        </label>
       </div>
 
-      <Toggle
-        label={t("dialogs.serverSettings.automod.ruleEnabled")}
-        checked={value.enabled}
-        onChange={(enabled) => onPatch({ enabled })}
-      />
-
       {value.enabled ? (
-        <>
-          <div className="field">
+        <div
+          className="settings-card--inset"
+          style={{
+            padding: 14,
+            borderRadius: "var(--radius-md)",
+            marginTop: 14,
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+          }}
+        >
+          <div className="field" style={{ marginTop: 0 }}>
             <span className="field__label">{t("dialogs.serverSettings.automod.action")}</span>
-            <div className="chip-row">
+            <div className="chip-row chip-row--wrap" style={{ marginTop: 4 }}>
               {(["block", "censor"] as AutoModAction[]).map((action) => {
                 if (action === "censor" && !CAN_CENSOR[rule]) return null;
                 return (
@@ -391,7 +442,7 @@ function RuleCard({ rule, value, roles, disabled, onPatch, children }: RuleCardP
           />
 
           {children}
-        </>
+        </div>
       ) : null}
     </div>
   );
@@ -409,13 +460,16 @@ function Toggle({
   onChange(value: boolean): void;
 }) {
   return (
-    <label className="settings-toggle">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span className="settings-toggle__body">
-        <span className="settings-toggle__label">{label}</span>
-        {hint ? <span className="field__hint">{hint}</span> : null}
-      </span>
-    </label>
+    <div className="settings-row" style={{ padding: "4px 0" }}>
+      <div className="settings-row__info">
+        <span className="settings-toggle__label" style={{ fontWeight: 600 }}>{label}</span>
+        {hint ? <p className="field__hint" style={{ margin: "2px 0 0" }}>{hint}</p> : null}
+      </div>
+      <label className="settings-switch">
+        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+        <span className="settings-switch__slider" />
+      </label>
+    </div>
   );
 }
 
@@ -467,7 +521,7 @@ function RolePicker({
     <div className="field">
       <span className="field__label">{label}</span>
       {hint ? <p className="field__hint">{hint}</p> : null}
-      <div className="chip-row">
+      <div className="chip-row chip-row--wrap" style={{ marginTop: 4 }}>
         {roles.map((role) => {
           const on = selected.includes(role.id);
           return (

@@ -136,23 +136,44 @@ function ExpressionGroup({ kind, items, allowed, limit, maxBytes }: GroupProps) 
 
   return (
     <div className="settings-card">
-      <div className="settings-card__header">
-        <span className="settings-card__service-icon" aria-hidden="true">
-          {kind === "emoji" ? <SmileyIcon size={18} /> : <StickerIcon size={18} />}
-        </span>
-        <div className="settings-card__header-info">
-          <h3 className="settings-card__title">
-            {t(`dialogs.serverSettings.emojis.${kind}Title` as never)}
-          </h3>
-          <p className="settings-card__subtitle">
-            {t("dialogs.serverSettings.emojis.slotsAvailable", {
-              used: items.length,
-              total: limit,
-            })}
-            {maxBytes > 0 ? ` · ${t("dialogs.serverSettings.emojis.maxSize", {
-              size: formatBytes(maxBytes),
-            })}` : ""}
-          </p>
+      <div className="settings-card__header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+          <span
+            className="settings-card__service-icon"
+            aria-hidden="true"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: "var(--radius-sm)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "var(--accent-soft)",
+              color: "var(--accent)",
+              flexShrink: 0,
+            }}
+          >
+            {kind === "emoji" ? <SmileyIcon size={20} /> : <StickerIcon size={20} />}
+          </span>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <h3 className="settings-card__title" style={{ margin: 0 }}>
+                {t(`dialogs.serverSettings.emojis.${kind}Title` as never)}
+              </h3>
+              <span className="settings-badge" style={{ background: "var(--bg-overlay)", border: "1px solid var(--border)", fontSize: 11 }}>
+                {items.length} / {limit || "∞"}
+              </span>
+            </div>
+            <p className="settings-card__subtitle" style={{ marginTop: 2 }}>
+              {t("dialogs.serverSettings.emojis.slotsAvailable", {
+                used: items.length,
+                total: limit,
+              })}
+              {maxBytes > 0 ? ` · ${t("dialogs.serverSettings.emojis.maxSize", {
+                size: formatBytes(maxBytes),
+              })}` : ""}
+            </p>
+          </div>
         </div>
 
         {allowed ? (
@@ -182,11 +203,13 @@ function ExpressionGroup({ kind, items, allowed, limit, maxBytes }: GroupProps) 
 
       {error ? <p className="settings-inline-error">{error}</p> : null}
       {full ? (
-        <p className="settings-card__subtitle">{t("dialogs.serverSettings.emojis.full")}</p>
+        <p className="settings-card__subtitle" style={{ marginTop: 10 }}>{t("dialogs.serverSettings.emojis.full")}</p>
       ) : null}
 
       {items.length === 0 ? (
-        <p className="settings-card__subtitle">{t("dialogs.serverSettings.emojis.empty")}</p>
+        <div style={{ padding: "28px 16px", textAlign: "center", background: "var(--bg-input)", border: "1px dashed var(--border)", borderRadius: "var(--radius-md)", marginTop: 14 }}>
+          <p className="settings-card__subtitle" style={{ margin: 0 }}>{t("dialogs.serverSettings.emojis.empty")}</p>
+        </div>
       ) : (
         <ul className="expression-grid">
           {items.map((item) => (
