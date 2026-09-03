@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 
 import { CloseIcon } from "@/components/Icons";
+import { useTranslation } from "@/lib/i18n";
 import { preloadNotificationSound } from "@/lib/notificationSounds";
 import { readNotifications } from "@/lib/storage";
+import { setTrayLabels } from "@/lib/systemSettings";
 import { startUnreadBadgeSync } from "@/lib/unreadBadge";
 import { ConnectView } from "@/views/ConnectView";
 import { ServerView } from "@/views/ServerView";
@@ -14,11 +16,24 @@ export function App() {
   const activeSection = useServerRegistry((state) => state.activeSection);
   const status = useSession((state) => state.status);
   const [showConnect, setShowConnect] = useState(false);
+  const { t, language } = useTranslation();
 
   // The taskbar count follows every connection, not the one on screen, so it
   // is started here rather than anywhere inside the server view: that tree is
   // replaced whenever the foreground server changes.
   useEffect(() => startUnreadBadgeSync(), []);
+
+  // The tray menu is built during startup, before anything that knows which
+  // language this is being read in has loaded, so it is written in English and
+  // corrected from here — again whenever the language changes, because a tray
+  // menu left in the old one is the only part of the client that would not
+  // have followed.
+  useEffect(() => {
+    void setTrayLabels(
+      t("dialogs.userSettings.startup.trayOpen"),
+      t("dialogs.userSettings.startup.trayQuit"),
+    );
+  }, [t, language]);
 
   // Connecting from the overlay puts you on the new server, so the overlay has
   // done its job and should get out of the way. It is the change of server

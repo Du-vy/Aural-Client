@@ -17,10 +17,30 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 # image-png is what lets the taskbar overlay icon be handed to the window as
 # PNG bytes: without it Tauri has no decoder and the badge silently does not
-# appear.
-tauri = { version = "2", features = ["image-png"] }
+# appear. tray-icon is the same story for the tray: without it the builder
+# exists but does nothing.
+tauri = { version = "2", features = ["image-png", "tray-icon"] }
 rfd = "0.15"
 tauri-plugin-notification = "2"
+
+# The system settings file: the handful of answers that have to be readable
+# before the webview that would otherwise hold them exists.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+
+# Launching with the session is a registry key on Windows, a LaunchAgent plist
+# on macOS and a .desktop file on Linux, and is nothing at all on a phone --
+# which is also why the plugin does not build for one. It is driven from Rust
+# rather than from the page, so the whole system settings page is one command.
+#
+# A second launch has to reach the first window rather than open its own. That
+# matters most for the two settings that hide the window: somebody who cannot
+# see Aural will try the shortcut again, and without this they would get a
+# second copy holding the same session rather than the one already running.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
 
 # Answering the webview's own microphone prompt needs the handle underneath it.
 # Both are already in the tree by way of tauri and wry, and both are pinned to

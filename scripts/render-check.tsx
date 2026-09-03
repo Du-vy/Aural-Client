@@ -155,6 +155,76 @@ function render(name: string, element: React.ReactElement, expected: string[] = 
   }
 }
 
+/**
+ * The same, for a component with nothing to show until a promise settles.
+ *
+ * `await act` is what flushes the effect, the call it makes, and the state
+ * update its answer causes. The synchronous version above would photograph the
+ * loading state and prove nothing about the page.
+ */
+async function renderAsync(
+  name: string,
+  element: React.ReactElement,
+  expected: string[] = [],
+): Promise<void> {
+  checks += 1;
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  try {
+    await act(async () => {
+      root.render(element);
+    });
+    const html = container.innerHTML.length > 0 ? container.innerHTML : document.body.innerHTML;
+    if (html.length === 0) throw new Error("rendered nothing");
+    for (const needle of expected) {
+      if (!html.includes(needle)) throw new Error(`rendered without ${JSON.stringify(needle)}`);
+    }
+    console.log(`  ok    ${name}`);
+  } catch (error) {
+    console.error(`  FAIL  ${name}: ${error instanceof Error ? error.message : String(error)}`);
+    failed = true;
+  } finally {
+    try {
+      await act(async () => {
+        root.unmount();
+      });
+    } catch {
+      // Unmount failures are not what this check is about.
+    }
+    container.remove();
+  }
+}
+
+/**
+ * Runs something with a stub desktop shell in place.
+ *
+ * Node is a browser as far as this script is concerned, so anything gated on
+ * running inside Tauri takes its other branch and is never rendered. These two
+ * globals are exactly what `isTauri` and `invoke` look at, so installing them
+ * around a render is what puts the desktop half of a page on screen — and
+ * removing them afterwards keeps every other check on the browser path each
+ * one was written for.
+ */
+async function withDesktopShell(
+  answer: (command: string, args: Record<string, unknown>) => unknown,
+  body: () => Promise<void>,
+): Promise<void> {
+  const globals = globalThis as Record<string, unknown>;
+  globals.isTauri = true;
+  globals.__TAURI_INTERNALS__ = {
+    invoke: (command: string, args: Record<string, unknown>) =>
+      Promise.resolve(answer(command, args ?? {})),
+  };
+  try {
+    await body();
+  } finally {
+    delete globals.isTauri;
+    delete globals.__TAURI_INTERNALS__;
+  }
+}
+
 const noop = () => undefined;
 
 const server: ServerInfo = {
@@ -458,7 +528,54 @@ render("user settings, voice", <UserSettingsDialog initialTab="voice" onClose={n
 render("user settings, appearance", <UserSettingsDialog initialTab="appearance" onClose={noop} />, ["Interface Themes", "Message Density"]);
 render("user settings, language", <UserSettingsDialog initialTab="language" onClose={noop} />, ["Interface Language", "Español"]);
 render("user settings, notifications", <UserSettingsDialog initialTab="notifications" onClose={noop} />, ["Notification Sound", "Only mentions", "Chime"]);
-render("user settings, startup", <UserSettingsDialog initialTab="startup" onClose={noop} />, ["Launch Aural on System Startup"]);
+// The system settings page is the one page with no browser half: every switch
+// on it is held by the shell or by the operating system. So it is checked
+// twice — once as a browser sees it, where the honest answer is that there is
+// nothing here to change, and once against a stub shell, which is the only way
+// the four switches are ever rendered by this script at all.
+render("user settings, startup, in a browser", <UserSettingsDialog initialTab="startup" onClose={noop} />, [
+  "desktop client",
+]);
+await withDesktopShell(
+  (command) =>
+    command === "get_system_settings"
+      ? {
+          launchOnStartup: true,
+          startMinimized: false,
+          closeToTray: true,
+          hardwareAcceleration: true,
+          hardwareAccelerationSupported: true,
+          trayAvailable: true,
+        }
+      : undefined,
+  () =>
+    renderAsync("user settings, startup, on the desktop", <UserSettingsDialog initialTab="startup" onClose={noop} />, [
+      "Launch Aural on System Startup",
+      "Minimize to Tray on Close",
+      "Hardware Acceleration",
+    ]),
+);
+// And once more with the shell reporting what it cannot do, because a disabled
+// switch with a reason beside it is a different render from a working one.
+await withDesktopShell(
+  (command) =>
+    command === "get_system_settings"
+      ? {
+          launchOnStartup: false,
+          startMinimized: false,
+          closeToTray: true,
+          hardwareAcceleration: true,
+          hardwareAccelerationSupported: false,
+          trayAvailable: false,
+        }
+      : undefined,
+  () =>
+    renderAsync(
+      "user settings, startup, with no tray and no GPU switch",
+      <UserSettingsDialog initialTab="startup" onClose={noop} />,
+      ["could not create a tray icon", "macOS does not offer a switch", "disabled"],
+    ),
+);
 render(
   "delete message dialog",
   <DeleteMessageDialog
