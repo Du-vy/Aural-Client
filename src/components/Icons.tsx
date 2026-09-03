@@ -523,4 +523,14 @@ export const UploadCloudIcon = icon(
   </>,
 );
 
+export const AccessibilityIcon = icon(
+  <>
+    <circle cx="12" cy="4" r="2" />
+    <path d="M4 8.5h16" />
+    <path d="M12 8.5V14" />
+    <path d="M12 14l-3.5 6.5" />
+    <path d="M12 14l3.5 6.5" />
+  </>,
+);
+
 

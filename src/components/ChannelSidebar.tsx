@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { Perm, has, resolveChannelPermissions, resolve } from "@/lib/permissions";
 import type { Channel, Role, User, ChannelType } from "@/lib/protocol";
+import { readAccessibility } from "@/lib/storage";
 import { useSession, type Unread } from "@/store/session";
 import {
   buildChannelTree,
@@ -828,15 +829,42 @@ function ChannelRow({
         onClick={(e) => {
           if ((e.target as HTMLElement).closest(".channel__action")) return;
           if (disabled) return;
-          if (isVoice) onJoin();
-          else onSelect();
+          if (isVoice) {
+            const acc = readAccessibility();
+            if (acc.doubleClickToJoinVoice) {
+              onSelect();
+            } else {
+              onJoin();
+            }
+          } else {
+            onSelect();
+          }
+        }}
+        onDoubleClick={(e) => {
+          if ((e.target as HTMLElement).closest(".channel__action")) return;
+          if (disabled) return;
+          if (isVoice) {
+            const acc = readAccessibility();
+            if (acc.doubleClickToJoinVoice) {
+              onJoin();
+            }
+          }
         }}
         onKeyDown={(e) => {
           if (disabled) return;
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            if (isVoice) onJoin();
-            else onSelect();
+            if (isVoice) {
+              const acc = readAccessibility();
+              if (acc.doubleClickToJoinVoice) {
+                // If double-click is required, pressing Enter joins
+                onJoin();
+              } else {
+                onJoin();
+              }
+            } else {
+              onSelect();
+            }
           }
         }}
         draggable={canManage}

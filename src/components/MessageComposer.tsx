@@ -22,6 +22,7 @@ import {
   type MentionTarget,
 } from "@/lib/mentions";
 import { describeError, type Attachment, type UploadLimits } from "@/lib/protocol";
+import { readAccessibility } from "@/lib/storage";
 import { UploadCancelled, formatBytes, parseBytes } from "@/lib/uploads";
 import { AttachmentTray, type PendingFile } from "./AttachmentTray";
 import { EmojiPicker, type PickerTab } from "./EmojiPicker";
@@ -388,9 +389,17 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       }
     }
 
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      void submit();
+    const acc = readAccessibility();
+    if (acc.sendWithCtrlEnter) {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        void submit();
+      }
+    } else {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        void submit();
+      }
     }
   }
 

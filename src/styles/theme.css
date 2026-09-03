@@ -177,3 +177,32 @@ textarea {
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
 }
+
+/* --- Accessibility: Always Underline Links --------------------------------- */
+[data-underline-links="true"] a,
+[data-underline-links="true"] .msg__text a,
+[data-underline-links="true"] .mention {
+  text-decoration: underline !important;
+}
+
+/* --- Accessibility: Reduce Transparency ------------------------------------ */
+[data-reduce-transparency="true"] {
+  --bg-overlay: #141518;
+}
+
+[data-reduce-transparency="true"] *,
+[data-reduce-transparency="true"] *::before,
+[data-reduce-transparency="true"] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+[data-reduce-transparency="true"] .menu,
+[data-reduce-transparency="true"] .picker,
+[data-reduce-transparency="true"] .settings-shell,
+[data-reduce-transparency="true"] .modal,
+[data-reduce-transparency="true"] .msg__actions {
+  background: var(--bg-overlay) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}

@@ -254,6 +254,72 @@ export function initAnimations(): boolean {
   return enabled;
 }
 
+/* --- Accessibility settings (client-side) ----------------------------------- */
+
+const ACCESSIBILITY_KEY = "aural.accessibility.v1";
+
+export interface AccessibilitySettings {
+  doubleClickToJoinVoice: boolean;
+  confirmVoiceDisconnect: boolean;
+  sendWithCtrlEnter: boolean;
+  alwaysUnderlineLinks: boolean;
+  reduceTransparency: boolean;
+  micAudioCues: boolean;
+}
+
+export const DEFAULT_ACCESSIBILITY: AccessibilitySettings = {
+  doubleClickToJoinVoice: false,
+  confirmVoiceDisconnect: false,
+  sendWithCtrlEnter: false,
+  alwaysUnderlineLinks: false,
+  reduceTransparency: false,
+  micAudioCues: false,
+};
+
+export function readAccessibility(): AccessibilitySettings {
+  try {
+    const raw = localStorage.getItem(ACCESSIBILITY_KEY);
+    if (!raw) return { ...DEFAULT_ACCESSIBILITY };
+    const parsed = JSON.parse(raw) as Partial<AccessibilitySettings>;
+    return {
+      ...DEFAULT_ACCESSIBILITY,
+      ...parsed,
+    };
+  } catch {
+    return { ...DEFAULT_ACCESSIBILITY };
+  }
+}
+
+export function writeAccessibility(settings: Partial<AccessibilitySettings>): AccessibilitySettings {
+  try {
+    const current = readAccessibility();
+    const updated: AccessibilitySettings = { ...current, ...settings };
+    localStorage.setItem(ACCESSIBILITY_KEY, JSON.stringify(updated));
+    applyAccessibilityAttributes(updated);
+    return updated;
+  } catch {
+    return { ...DEFAULT_ACCESSIBILITY, ...settings };
+  }
+}
+
+function applyAccessibilityAttributes(settings: AccessibilitySettings): void {
+  if (typeof document === "undefined") return;
+  document.documentElement.setAttribute(
+    "data-underline-links",
+    settings.alwaysUnderlineLinks ? "true" : "false"
+  );
+  document.documentElement.setAttribute(
+    "data-reduce-transparency",
+    settings.reduceTransparency ? "true" : "false"
+  );
+}
+
+export function initAccessibility(): AccessibilitySettings {
+  const settings = readAccessibility();
+  applyAccessibilityAttributes(settings);
+  return settings;
+}
+
 
 
 

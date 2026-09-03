@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { canOpenPrivacySettings, openPrivacySettings } from "@/lib/open";
+import { readAccessibility } from "@/lib/storage";
+import { playMuteCue } from "@/lib/audioCues";
+import { ConfirmDialog } from "./dialogs/ConfirmDialog";
 import { useCall, useServerRegistry, useServers } from "@/store/servers";
 import { useVoice } from "@/store/voice";
 import {
@@ -31,6 +35,7 @@ interface VoicePanelProps {
  */
 export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
   const { t } = useTranslation();
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const self = useCall((state) => state.self);
   const channels = useCall((state) => state.channels);
   const users = useCall((state) => state.users);
@@ -117,7 +122,13 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
         </span>
         <button
           className="iconbtn iconbtn--danger"
-          onClick={() => void leaveChannel()}
+          onClick={() => {
+            if (readAccessibility().confirmVoiceDisconnect) {
+              setConfirmLeave(true);
+            } else {
+              void leaveChannel();
+            }
+          }}
           title={t("voice.disconnect")}
           aria-label={t("voice.disconnect")}
         >
@@ -170,7 +181,10 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
         <div className="voicepanel__actions">
           <button
             className={muted ? "iconbtn iconbtn--danger" : "iconbtn"}
-            onClick={() => void toggleMute()}
+            onClick={() => {
+              playMuteCue(!muted);
+              void toggleMute();
+            }}
             disabled={own?.mute && !own.selfMute}
             title={
               own?.mute && !own.selfMute
@@ -211,6 +225,17 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
             <GearIcon size={17} />
           </button>
         </div>
+      ) : null}
+
+      {confirmLeave ? (
+        <ConfirmDialog
+          title={t("voice.confirmDisconnectTitle")}
+          subtitle={t("voice.confirmDisconnectDesc")}
+          confirmText={t("voice.disconnect")}
+          danger
+          onConfirm={() => void leaveChannel()}
+          onClose={() => setConfirmLeave(false)}
+        />
       ) : null}
     </div>
   );
