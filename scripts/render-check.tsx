@@ -665,6 +665,21 @@ render(
   ["mention", "@Bob", "@Admin", "@everyone", "@nobody"],
 );
 
+// The same message as a webhook posts it: ids rather than names, drawn as the
+// names they reach.
+render(
+  "message naming a member and a role by id",
+  <MessageContent
+    content={`thanks <@${guest.id}>, <@&3> and <@&1> — not <@4242>`}
+    editedAt={null}
+    mentions={mentionDirectory}
+    self={admin}
+    onOpenLink={noop}
+    onOpenMember={noop}
+  />,
+  ["mention", "@Bob", "@Admin", "@everyone", "&lt;@4242&gt;"],
+);
+
 // The picker over the composer, offering everybody when nothing is typed yet.
 render(
   "the mention picker",
@@ -1414,6 +1429,18 @@ console.log("\nseveral servers at once");
     mentionsSelf("@Admin look at this", admin, seededRoles),
   );
   checkThat("and everyone means everyone", mentionsSelf("@everyone stand up", guest, seededRoles));
+
+  // An id lights the same badge a name does, or the webhook that posted it
+  // would name somebody who is never told.
+  checkThat("an id names the person it points at", mentionsSelf(`ping <@${admin.id}>`, admin));
+  checkThat("and nobody else", !mentionsSelf(`ping <@${guest.id}>`, admin));
+  checkThat("a role id reaches everyone holding it", mentionsSelf("ping <@&3>", admin, seededRoles));
+  checkThat("and only them", !mentionsSelf("ping <@&3>", guest, seededRoles));
+  checkThat(
+    "the everyone role by id still means everyone",
+    mentionsSelf("ping <@&1>", guest, seededRoles),
+  );
+  checkThat("an id nobody answers to names nobody", !mentionsSelf("ping <@4242>", admin, seededRoles));
 }
 
 {
@@ -1431,6 +1458,23 @@ console.log("\nseveral servers at once");
   checkThat("an email address is not somebody being named", named("write to bob@b.example").length === 0);
   checkThat("a role can be named as well as a person", named("@Admin please")[0]?.target.kind === "role");
   checkThat("and everyone is a name of its own", named("@everyone")[0]?.target.kind === "keyword");
+
+  // The second spelling, which a Discord-shaped webhook posts and this client
+  // only ever reads.
+  checkThat("an id reaches the member it names", named(`hi <@${guest.id}>`)[0]?.target.id === guest.id);
+  checkThat("and is drawn as their name, not as the id", named(`<@${guest.id}>`)[0]?.value === "@Bob");
+  checkThat("a role is named by id with an &", named("<@&3> please")[0]?.target.kind === "role");
+  checkThat(
+    "the everyone role by id is the keyword that replaced it",
+    named("<@&1>")[0]?.target.kind === "keyword",
+  );
+  checkThat("an id nobody answers to is left as typed", named("<@4242> at all").length === 0);
+  checkThat("something that is not an id is not one", named("<@nobody> or <@1a>").length === 0);
+  checkThat("nor is one left unclosed", named("<@11 still text").length === 0);
+  checkThat(
+    "words either side of an id are kept",
+    splitMentions(`a <@${guest.id}> b`, mentionDirectory).length === 3,
+  );
 
   // The picker follows the caret rather than the end of the box.
   checkThat("typing an @ starts a name", findMentionQuery("hey @bo", 7)?.query === "bo");
@@ -1797,6 +1841,7 @@ console.log("\nwebhooks");
       { name: "Mount", value: "/", inline: false },
     ],
     thumbnail: { url: "https://example.com/thumb.png" },
+    image: { url: "https://example.com/graph.png", width: 800, height: 400 },
   };
 
   // A webhook message: no account behind it, so the badge and the picture come
@@ -1901,6 +1946,10 @@ console.log("\nwebhooks");
       "rich-embed__field--inline",
       "Host",
       "Mount",
+      // Both pictures open full size, so both are buttons rather than bare
+      // images: a click handler on an image alone cannot be reached by keyboard.
+      "rich-embed__image-btn",
+      "rich-embed__thumbnail-btn",
       "rich-embed__thumbnail",
       "rich-embed__footer",
       // The description is Markdown, so the link in it becomes a link.
@@ -1914,6 +1963,48 @@ console.log("\nwebhooks");
     "just this",
   ]);
   render("no embeds draws nothing at all", <RichEmbeds embeds={[]} onOpenLink={noop} />, []);
+
+  // Clicking either picture opens the lightbox over the conversation.
+  for (const [what, picture] of [
+    ["the big picture", "rich-embed__image-btn"],
+    ["the thumbnail", "rich-embed__thumbnail-btn"],
+  ] as const) {
+    checks += 1;
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+      act(() => {
+        root.render(<RichEmbeds embeds={[alertEmbed]} onOpenLink={noop} />);
+      });
+      const button = container.querySelector<HTMLButtonElement>(`.${picture}`);
+      if (!button) throw new Error("no button to click");
+      act(() => {
+        button.click();
+      });
+      // The lightbox mounts over the page rather than inside the card.
+      if (!document.body.innerHTML.includes("lightbox")) {
+        throw new Error("clicking it opened nothing");
+      }
+      console.log(`  ok    clicking ${what} of a card opens it full size`);
+    } catch (error) {
+      console.error(
+        `  FAIL  clicking ${what} of a card opens it full size: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      failed = true;
+    } finally {
+      try {
+        act(() => {
+          root.unmount();
+        });
+      } catch {
+        // Unmount failures are not what this check is about.
+      }
+      container.remove();
+    }
+  }
 
   checkThat("a colour becomes a hex string", colorOf(0xe5534b) === "#e5534b");
   checkThat("a colour keeps its leading zeroes", colorOf(0x0000ff) === "#0000ff");

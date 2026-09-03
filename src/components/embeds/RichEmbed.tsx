@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { useTranslation } from "@/lib/i18n";
-import type { Embed } from "@/lib/protocol";
+import type { Embed, EmbedMedia } from "@/lib/protocol";
 import { formatFull } from "@/lib/time";
 import { Markdown } from "../attachments/Markdown";
 import { ImageLightbox, getFilenameFromUrl } from "../attachments/ImageLightbox";
@@ -41,12 +41,15 @@ export function RichEmbeds({ embeds, onOpenLink }: RichEmbedsProps) {
 }
 
 function RichEmbed({ embed, onOpenLink }: { embed: Embed; onOpenLink(url: string): void }) {
-  const { t } = useTranslation();
-  const [viewing, setViewing] = useState(false);
+  // Which picture the lightbox is showing, rather than a flag: a card has two,
+  // and either of them can be the one that was opened.
+  const [viewing, setViewing] = useState<EmbedMedia | null>(null);
   const [imageBroken, setImageBroken] = useState(false);
+  const [thumbnailBroken, setThumbnailBroken] = useState(false);
 
   const accent = colorOf(embed.color);
-  const image = imageBroken ? undefined : embed.image?.url;
+  const image = imageBroken ? undefined : embed.image;
+  const thumbnail = thumbnailBroken ? undefined : embed.thumbnail;
   const fields = embed.fields ?? [];
 
   return (
@@ -103,15 +106,12 @@ function RichEmbed({ embed, onOpenLink }: { embed: Embed; onOpenLink(url: string
               </div>
             ) : null}
 
-            {image ? (
-              <img
-                src={image}
-                alt={t("embeds.imageAttachment")}
+            {image?.url ? (
+              <EmbedPicture
+                media={image}
                 className="rich-embed__image"
-                referrerPolicy="no-referrer"
-                loading="lazy"
-                onError={() => setImageBroken(true)}
-                onClick={() => setViewing(true)}
+                onOpen={() => setViewing(image)}
+                onBroken={() => setImageBroken(true)}
               />
             ) : null}
 
@@ -135,30 +135,76 @@ function RichEmbed({ embed, onOpenLink }: { embed: Embed; onOpenLink(url: string
             ) : null}
           </div>
 
-          {embed.thumbnail?.url ? (
-            <img
-              src={embed.thumbnail.url}
-              alt=""
+          {thumbnail?.url ? (
+            <EmbedPicture
+              media={thumbnail}
               className="rich-embed__thumbnail"
-              referrerPolicy="no-referrer"
-              loading="lazy"
-              aria-hidden="true"
+              onOpen={() => setViewing(thumbnail)}
+              onBroken={() => setThumbnailBroken(true)}
             />
           ) : null}
         </div>
       </div>
 
-      {viewing && image ? (
+      {viewing?.url ? (
         <ImageLightbox
-          url={image}
-          filename={getFilenameFromUrl(image)}
-          width={embed.image?.width}
-          height={embed.image?.height}
-          onOpenExternal={() => onOpenLink(image)}
-          onClose={() => setViewing(false)}
+          url={viewing.url}
+          filename={getFilenameFromUrl(viewing.url)}
+          width={viewing.width}
+          height={viewing.height}
+          onOpenExternal={() => onOpenLink(viewing.url!)}
+          onClose={() => setViewing(null)}
         />
       ) : null}
     </>
+  );
+}
+
+/**
+ * One of a card's two pictures, opened full size on a click.
+ *
+ * Both of them open, which is what Discord does and what anybody who has used
+ * one expects: a monitoring graph arrives as the big picture and a build's
+ * status icon as the thumbnail, and either can be the one worth looking at
+ * closely.
+ *
+ * It is a button rather than an image with a click handler so that it can be
+ * reached from the keyboard, exactly as an attached image is. The picture
+ * itself is hidden from assistive technology and the button carries the label,
+ * so the two are announced once rather than twice.
+ */
+function EmbedPicture({
+  media,
+  className,
+  onOpen,
+  onBroken,
+}: {
+  media: EmbedMedia;
+  className: string;
+  onOpen(): void;
+  onBroken(): void;
+}) {
+  const { t } = useTranslation();
+  const name = getFilenameFromUrl(media.url ?? "");
+
+  return (
+    <button
+      type="button"
+      className={`${className}-btn`}
+      onClick={onOpen}
+      title={t("attachments.openImage", { name })}
+      aria-label={t("attachments.openImage", { name })}
+    >
+      <img
+        src={media.url}
+        alt=""
+        className={className}
+        referrerPolicy="no-referrer"
+        loading="lazy"
+        aria-hidden="true"
+        onError={onBroken}
+      />
+    </button>
   );
 }
 

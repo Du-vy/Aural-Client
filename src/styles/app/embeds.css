@@ -661,21 +661,59 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * Both pictures of a card open full size, as they do in Discord, so both are
+ * buttons: a click handler on an image alone cannot be reached from a keyboard.
+ * The button is only a hit area — it carries the label and contributes nothing
+ * of its own to the layout.
+ */
+.rich-embed__image-btn,
+.rich-embed__thumbnail-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  display: block;
+  transition: opacity var(--speed) ease;
+}
+
+.rich-embed__image-btn:hover,
+.rich-embed__thumbnail-btn:hover {
+  opacity: 0.85;
+}
+
+.rich-embed__image-btn:focus-visible,
+.rich-embed__thumbnail-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.rich-embed__image-btn {
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.rich-embed__thumbnail-btn {
+  flex: none;
+}
+
 .rich-embed__image {
+  display: block;
   max-width: 100%;
   max-height: 300px;
   border-radius: var(--radius-sm);
   object-fit: contain;
-  cursor: pointer;
-  align-self: flex-start;
 }
 
 .rich-embed__thumbnail {
+  display: block;
   width: 72px;
   height: 72px;
   border-radius: var(--radius-sm);
   object-fit: cover;
-  flex: none;
 }
 
 .rich-embed__footer {

@@ -9,6 +9,14 @@
  * throughout the history; and it renders as a mention only when it resolves.
  * An `@` in front of a name nobody answers to stays the characters somebody
  * typed, because pretending otherwise would be the client inventing a person.
+ *
+ * There is a second spelling, `<@12>` and `<@&3>`, which names an id instead
+ * of a name. It exists because that is what a Discord-shaped webhook posts,
+ * and this server answers on Discord's own webhook path: a service already
+ * written against that API changes one URL and its mentions keep working.
+ * It is read but never written. The picker goes on inserting `@name`, so
+ * nothing this client sends depends on a reader who understands the form,
+ * and the raw text of a message stays something a person can read.
  */
 
 import type { Role, User } from "./protocol";
@@ -22,6 +30,14 @@ export const MENTION_SUGGESTIONS = 8;
 
 /** The longest `@…` still taken for somebody being named rather than prose. */
 export const MAX_MENTION_QUERY = 32;
+
+/**
+ * How many digits of `<@…>` are read before it stops being an id.
+ *
+ * Ids here are small, and Discord's snowflakes are twenty digits; twenty-four
+ * is past both and still short enough that a wall of digits costs nothing.
+ */
+const MAX_MENTION_ID_DIGITS = 24;
 
 /**
  * A character that continues a word.
@@ -61,6 +77,13 @@ export interface MentionDirectory {
   targets: readonly MentionTarget[];
   /** Each lowercased spelling, to what it names. */
   byName: ReadonlyMap<string, MentionTarget>;
+  /**
+   * Each `<@id>` and `<@&id>`, to what it names.
+   *
+   * Keyed by the whole body between the brackets, `&` and all, so a user and a
+   * role that share an id stay two different keys.
+   */
+  byId: ReadonlyMap<string, MentionTarget>;
   /** The longest spelling held, which bounds how far a match looks ahead. */
   longest: number;
 }
@@ -69,6 +92,7 @@ export interface MentionDirectory {
 export const EMPTY_MENTIONS: MentionDirectory = {
   targets: [],
   byName: new Map(),
+  byId: new Map(),
   longest: 0,
 };
 
@@ -80,6 +104,16 @@ export interface MentionQuery {
   end: number;
   /** What was typed after the `@`, which may be empty. */
   query: string;
+}
+
+/**
+ * How a target is keyed by id: `12` for a user, `&3` for a role.
+ *
+ * It is the text between the brackets of the mention itself, so writing a key
+ * and reading one are the same operation spelled once.
+ */
+function idKey(kind: MentionKind, id: number): string {
+  return kind === "role" ? `&${id}` : `${id}`;
 }
 
 /**
@@ -108,10 +142,15 @@ export function buildMentions(
     });
   }
 
+  let everyoneRoleId: number | null = null;
   for (const role of roles.values()) {
     // The managed everyone role is the `@everyone` keyword under another name,
-    // and offering both would be offering one thing twice.
-    if (role.managed === "everyone") continue;
+    // and offering both would be offering one thing twice. Its id is kept, so
+    // a webhook naming it by id still reaches the keyword standing for it.
+    if (role.managed === "everyone") {
+      everyoneRoleId = role.id;
+      continue;
+    }
     targets.push({
       kind: "role",
       id: role.id,
@@ -122,15 +161,25 @@ export function buildMentions(
     });
   }
 
+  const everyone: MentionTarget = {
+    kind: "keyword",
+    id: 0,
+    name: EVERYONE,
+    alias: null,
+    color: null,
+    user: null,
+  };
   if (keywords) {
-    for (const name of [EVERYONE, HERE]) {
-      targets.push({ kind: "keyword", id: 0, name, alias: null, color: null, user: null });
-    }
+    targets.push(everyone);
+    targets.push({ kind: "keyword", id: 0, name: HERE, alias: null, color: null, user: null });
   }
 
   const byName = new Map<string, MentionTarget>();
+  const byId = new Map<string, MentionTarget>();
   let longest = 0;
   for (const target of targets) {
+    // A keyword names no record, so there is no id that could reach it.
+    if (target.kind !== "keyword") byId.set(idKey(target.kind, target.id), target);
     for (const spelling of [target.name, target.alias]) {
       if (!spelling) continue;
       const key = spelling.toLowerCase();
@@ -141,7 +190,12 @@ export function buildMentions(
     }
   }
 
-  return { targets, byName, longest };
+  // `<@&1>` is the everyone role, which is drawn as the keyword that replaced
+  // it. Without this the id would resolve to nothing while still lighting an
+  // unread badge, and the two halves would disagree about the same message.
+  if (everyoneRoleId !== null && keywords) byId.set(idKey("role", everyoneRoleId), everyone);
+
+  return { targets, byName, byId, longest };
 }
 
 export type MentionToken =
@@ -170,6 +224,30 @@ function matchName(
   return null;
 }
 
+/**
+ * Reads a `<@12>` or `<@&3>` starting at the `<`.
+ *
+ * The id is bounded so a long run of digits cannot be walked over on every
+ * `<@` in a message, and it must be digits only: anything else between the
+ * brackets is not this form, and is left to be read as the text it is.
+ */
+function matchId(
+  text: string,
+  from: number,
+  directory: MentionDirectory,
+): { target: MentionTarget; length: number } | null {
+  if (text[from + 1] !== "@") return null;
+  let at = from + 2;
+  if (text[at] === "&") at += 1;
+  const digits = at;
+  while (at < text.length && at - digits < MAX_MENTION_ID_DIGITS && text[at]! >= "0" && text[at]! <= "9") {
+    at += 1;
+  }
+  if (at === digits || text[at] !== ">") return null;
+  const target = directory.byId.get(text.slice(from + 2, at));
+  return target ? { target, length: at + 1 - from } : null;
+}
+
 /** Splits text into what it says and who it names. */
 export function splitMentions(text: string, directory: MentionDirectory): MentionToken[] {
   if (text === "") return [];
@@ -187,8 +265,16 @@ export function splitMentions(text: string, directory: MentionDirectory): Mentio
   };
 
   while (at < text.length) {
-    const opens = text[at] === "@" && (at === 0 || !WORDISH.test(text[at - 1]!));
-    const found = opens ? matchName(text, at + 1, directory) : null;
+    // An `<@id>` is looked for first. It cannot be confused with a name — the
+    // two start on different characters — so the order is only about which
+    // test is cheaper to fail.
+    let found = text[at] === "<" ? matchId(text, at, directory) : null;
+    let consumed = found?.length ?? 0;
+    if (!found) {
+      const opens = text[at] === "@" && (at === 0 || !WORDISH.test(text[at - 1]!));
+      found = opens ? matchName(text, at + 1, directory) : null;
+      consumed = found ? 1 + found.length : 0;
+    }
     if (!found) {
       plain += text[at];
       at += 1;
@@ -196,9 +282,10 @@ export function splitMentions(text: string, directory: MentionDirectory): Mentio
     }
     flush();
     // The canonical name is drawn rather than what was typed, so a lowercased
-    // nickname and the username behind it both read as the person they reached.
+    // nickname, the username behind it and a bare id all read as the person
+    // they reached.
     tokens.push({ type: "mention", value: `@${found.target.name}`, target: found.target });
-    at += 1 + found.length;
+    at += consumed;
   }
 
   flush();
@@ -218,6 +305,23 @@ function spellingsOf(self: User, roles?: ReadonlyMap<number, Role>): string[] {
     }
   }
   return spellings;
+}
+
+/**
+ * Every `<@id>` that reaches one user: their own, and each role they hold.
+ *
+ * The everyone role is included here where it is left out of the spellings,
+ * because a webhook naming that role by its id means everyone by it — there is
+ * no `<@…>` for the `@everyone` keyword to have covered it already.
+ */
+function idsOf(self: User, roles?: ReadonlyMap<number, Role>): string[] {
+  const ids = [`<@${self.id}>`];
+  if (roles) {
+    for (const id of self.roles) {
+      if (roles.has(id)) ids.push(`<@&${id}>`);
+    }
+  }
+  return ids;
 }
 
 /**
@@ -244,6 +348,11 @@ export function mentionsSelf(
       const after = text[at + needle.length];
       if (after === undefined || !WORDISH.test(after)) return true;
     }
+  }
+  // An id needs no boundary test: the brackets are the boundary, and nothing
+  // longer can contain `<@12>` and mean somebody else by it.
+  for (const id of idsOf(self, roles)) {
+    if (text.includes(id)) return true;
   }
   return false;
 }
