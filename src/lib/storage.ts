@@ -31,6 +31,8 @@ export interface SavedServer {
   token?: string;
   /** Username, remembered to prefill the sign-in form. */
   username?: string;
+  /** Server's icon absolute URL when saved. */
+  icon?: string;
   lastConnectedAt?: number;
 }
 

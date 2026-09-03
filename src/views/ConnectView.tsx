@@ -6,6 +6,8 @@ import { LanguageSelector } from "@/components/LanguageSelector";
 import { DEFAULT_PORT, fetchServerInfo, parseAddress } from "@/lib/address";
 import { useTranslation } from "@/lib/i18n";
 import type { ServerInfo } from "@/lib/protocol";
+import type { SavedServer } from "@/lib/storage";
+import { resolveServerIconUrl } from "@/lib/uploads";
 import { useServerRegistry, useServers } from "@/store/servers";
 
 type Mode = "guest" | "signin";
@@ -111,7 +113,7 @@ export function ConnectView() {
                   onClick={() => void connectSaved(server.id, server.address)}
                   disabled={dialing.includes(server.id)}
                 >
-                  <span className="saved__badge">{server.name.slice(0, 2).toUpperCase()}</span>
+                  <SavedServerBadge server={server} />
                   <span className="saved__body">
                     <span className="saved__name" title={server.name}>{server.name}</span>
                     <span className="saved__address" title={server.address || server.id}>{server.address || server.id}</span>
@@ -173,7 +175,7 @@ export function ConnectView() {
             </span>
           </div>
 
-          {preview ? <ServerPreview info={preview} /> : null}
+          {preview ? <ServerPreview info={preview} address={address} /> : null}
 
           <div className="tabs" style={{ padding: 0 }}>
             <button
@@ -272,8 +274,29 @@ export function ConnectView() {
   );
 }
 
-function ServerPreview({ info }: { info: ServerInfo }) {
+function SavedServerBadge({ server }: { server: SavedServer }) {
+  const [error, setError] = useState(false);
+  const iconUrl = server.icon ? resolveServerIconUrl(server.icon, server.address) : null;
+
+  return (
+    <span className="saved__badge">
+      {iconUrl && !error ? (
+        <img
+          className="saved__badge-img"
+          src={iconUrl}
+          alt={server.name}
+          onError={() => setError(true)}
+        />
+      ) : (
+        server.name.slice(0, 2).toUpperCase()
+      )}
+    </span>
+  );
+}
+
+function ServerPreview({ info, address }: { info: ServerInfo; address?: string }) {
   const { t } = useTranslation();
+  const iconUrl = info.icon ? resolveServerIconUrl(info.icon, address) : null;
   return (
     <div className="preview">
       <div className="preview__head">
@@ -281,7 +304,7 @@ function ServerPreview({ info }: { info: ServerInfo }) {
           <div className="preview__name">{info.name}</div>
           {info.description ? <div className="preview__desc">{info.description}</div> : null}
         </div>
-        <Avatar user={{ id: info.name.length, nickname: info.name }} size="md" />
+        <Avatar user={{ id: info.name.length, nickname: info.name, avatar: iconUrl }} size="md" />
       </div>
       <div className="preview__facts">
         <span className="tag">

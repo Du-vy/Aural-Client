@@ -209,6 +209,12 @@ export type ManagedRole = "" | "everyone" | "registered" | "admin";
 export interface ServerInfo {
   name: string;
   description: string;
+  /**
+   * This server's picture, as a path relative to the server's own origin
+   * exactly as an avatar is. Absent when it has none, in which case the first
+   * letter of the name is drawn instead.
+   */
+  icon?: string;
   protocolVersion: number;
   softwareVersion: string;
   maxUsers: number;

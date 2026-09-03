@@ -79,6 +79,15 @@
   border-radius: var(--radius);
   background: var(--bg-raised);
   color: var(--accent);
+  overflow: hidden;
+}
+
+.saved__badge-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
 }
 
 .saved__body {

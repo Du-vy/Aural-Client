@@ -204,6 +204,50 @@ export function uploadBanner(options: MediaUploadOptions): RunningMediaUpload {
   return uploadMediaFile(options, "banner");
 }
 
+/**
+ * Replaces this server's icon. It travels the same road an avatar does — the
+ * bytes to an upload endpoint, the path back in the reply — because the path
+ * has to be the server's answer rather than this client's claim; taking the
+ * icon away is a `ServerUpdate` with an empty one instead.
+ */
+export function uploadServerIcon(options: MediaUploadOptions): RunningMediaUpload {
+  const { address, token, file, onProgress } = options;
+  return post<MediaUploadResult>({
+    url: `${serverOrigin(address)}/upload/server-icon`,
+    token,
+    file,
+    onProgress,
+    accepts: (status) => status >= 200 && status < 300,
+  });
+}
+
+/**
+ * Resolves a server's icon into an absolute URL, handling relative server
+ * attachments, full URLs, and ServerAddress objects or strings.
+ */
+export function resolveServerIconUrl(
+  url: string | null | undefined,
+  address?: import("./address").ServerAddress | string | null,
+): string | null {
+  if (!url) return null;
+  if (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("data:") ||
+    url.startsWith("blob:")
+  ) {
+    return url;
+  }
+  if (url.startsWith("/")) {
+    if (!address) return url;
+    if (typeof address === "string") {
+      return `${address.replace(/\/+$/, "")}${url}`;
+    }
+    return `${serverOrigin(address)}${url}`;
+  }
+  return url;
+}
+
 function uploadMediaFile(options: MediaUploadOptions, type: "avatar" | "banner"): RunningMediaUpload {
   const { address, token, file, onProgress } = options;
   return post<MediaUploadResult>({

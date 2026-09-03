@@ -59,6 +59,7 @@ import {
 import { Perm, has } from "@/lib/permissions";
 import { isPostChannel, type Channel, type ChannelType, type User } from "@/lib/protocol";
 import type { SavedServer } from "@/lib/storage";
+import { resolveServerIconUrl } from "@/lib/uploads";
 import { useSession } from "@/store/session";
 import {
   callLocation,
@@ -1168,8 +1169,22 @@ function RailServer({
   const unread = useConnection(entry.id, (state) => state.unread);
   const conversations = useConnection(entry.id, (state) => state.conversations);
   const name = useConnection(entry.id, (state) => state.server?.name) ?? entry.name;
+  const liveIcon = useConnection(entry.id, (state) => state.server?.icon);
+  const liveAddress = useConnection(entry.id, (state) => state.address);
   const inCall = useServerRegistry((state) => state.voiceId === entry.id);
   const dialing = useServerRegistry((state) => state.dialing.includes(entry.id));
+  const [imgError, setImgError] = useState(false);
+
+  const iconUrl = useMemo(() => {
+    if (liveIcon) {
+      return resolveServerIconUrl(liveIcon, liveAddress ?? entry.address);
+    }
+    return entry.icon ? resolveServerIconUrl(entry.icon, entry.address) : null;
+  }, [liveIcon, liveAddress, entry.icon, entry.address]);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [iconUrl]);
 
   const waiting = useMemo(() => {
     const totals = unreadTotals(unread);
@@ -1185,8 +1200,11 @@ function RailServer({
     };
   }, [unread, conversations]);
 
+  const hasIcon = Boolean(iconUrl && !imgError);
+
   const classes = ["rail__item"];
   if (active) classes.push("rail__item--active");
+  if (hasIcon) classes.push("rail__item--has-icon");
   if (status === "connected") classes.push("rail__item--live");
   if (dialing || status === "connecting" || status === "reconnecting") {
     classes.push("rail__item--pending");
@@ -1220,7 +1238,18 @@ function RailServer({
       aria-label={title}
       aria-current={active ? "true" : undefined}
     >
-      {name.slice(0, 1).toUpperCase()}
+      {hasIcon ? (
+        <span className="rail__icon-wrapper">
+          <img
+            className="rail__icon"
+            src={iconUrl!}
+            alt={name}
+            onError={() => setImgError(true)}
+          />
+        </span>
+      ) : (
+        <span className="rail__initials">{name.slice(0, 1).toUpperCase()}</span>
+      )}
       {waiting.count > 0 && !active ? (
         <span
           className={

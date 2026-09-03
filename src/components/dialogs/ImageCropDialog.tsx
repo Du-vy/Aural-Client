@@ -6,7 +6,7 @@ import { cropImage } from "@/lib/imageCrop";
 
 interface ImageCropDialogProps {
   file: File;
-  type: "avatar" | "banner";
+  type: "avatar" | "banner" | "server-icon";
   onConfirm(file: File): void;
   onClose(): void;
 }
@@ -94,10 +94,11 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
       const imgRect = img.getBoundingClientRect();
 
       // Target output dimensions:
-      // Avatars: 384x384 for static, 256x256 for GIF (lightweight & crisp)
+      // Avatars / Server Icons: 384x384 for static, 256x256 for GIF (lightweight & crisp)
       // Banners: 960x320 for static, 640x213 for GIF (3:1 aspect ratio)
-      const targetWidth = type === "avatar" ? (isGif ? 256 : 384) : isGif ? 640 : 960;
-      const targetHeight = type === "avatar" ? (isGif ? 256 : 384) : isGif ? 213 : 320;
+      const isSquare = type === "avatar" || type === "server-icon";
+      const targetWidth = isSquare ? (isGif ? 256 : 384) : isGif ? 640 : 960;
+      const targetHeight = isSquare ? (isGif ? 256 : 384) : isGif ? 213 : 320;
 
       const scaleX = img.naturalWidth / imgRect.width;
       const scaleY = img.naturalHeight / imgRect.height;
@@ -126,7 +127,12 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
     onConfirm(file);
   };
 
-  const title = type === "avatar" ? t("crop.avatarTitle") : t("crop.bannerTitle");
+  const title =
+    type === "server-icon"
+      ? t("dialogs.serverSettings.overview.serverIcon")
+      : type === "avatar"
+        ? t("crop.avatarTitle")
+        : t("crop.bannerTitle");
   const subtitle = t("crop.dragAndZoomHint");
 
   return (

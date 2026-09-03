@@ -308,6 +308,13 @@
   margin: auto;
 }
 
+.image-crop-overlay--server-icon {
+  border-radius: var(--radius-lg, 16px);
+  width: 200px;
+  height: 200px;
+  margin: auto;
+}
+
 .image-crop-overlay--banner {
   border-radius: var(--radius, 8px);
   width: 92%;

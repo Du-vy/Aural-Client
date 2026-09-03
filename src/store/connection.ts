@@ -103,6 +103,7 @@ import {
   uploadFile,
   uploadAvatar as uploadAvatarRequest,
   uploadBanner as uploadBannerRequest,
+  uploadServerIcon as uploadServerIconRequest,
   uploadExpression as uploadExpressionRequest,
   uploadSound as uploadSoundRequest,
   serverOrigin,
@@ -436,6 +437,12 @@ export interface ConnectionState {
   setDMPrivacy(privacy: DMPrivacy): Promise<void>;
   uploadAvatar(file: File, onProgress?: (fraction: number) => void): Promise<{ url: string }>;
   uploadBanner(file: File, onProgress?: (fraction: number) => void): Promise<{ url: string }>;
+  /**
+   * Replaces this server's picture. Needs ManageServer; the new one reaches
+   * every client as a `ServerUpdated` event, this one included, so nothing is
+   * set locally from the reply.
+   */
+  uploadServerIcon(file: File, onProgress?: (fraction: number) => void): Promise<{ url: string }>;
   kickUser(userId: number, reason?: string, deleteMessages?: "none" | "1d" | "7d" | "30d" | "all"): Promise<void>;
 
   /** Bans a member, and by default the address and machine behind them. */
@@ -484,6 +491,8 @@ export interface ConnectionState {
   updateServer(patch: {
     name?: string;
     description?: string;
+    /** Only ever `""`, which takes the server's picture away. */
+    icon?: string;
     klipyApiKey?: string;
     /** The audio plane, replaced whole. See `VoiceSettings`. */
     voice?: VoiceSettings;
@@ -861,6 +870,16 @@ export function createConnection({
       voiceStates.delete(userId);
       set({ voiceStates });
       markSpeaking(userId, false);
+    }
+
+    /**
+     * The server's picture as an absolute URL, for the saved entry. The rail
+     * draws that entry before there is a connection to resolve a relative path
+     * against, so the origin is folded in while one is still open.
+     */
+    function iconURL(icon: string | undefined): string {
+      const at = get().address;
+      return icon && at ? `${serverOrigin(at)}${icon}` : "";
     }
 
     /** Replaces everything the client knows, from a ready snapshot. */
@@ -1689,7 +1708,13 @@ export function createConnection({
         case Ev.ServerUpdated: {
           const { server } = payload as ServerUpdatedEvent;
           set({ server });
-          host.savedChanged(upsertServer({ id, name: server.name }));
+          host.savedChanged(
+            upsertServer({
+              id,
+              name: server.name,
+              icon: iconURL(server.icon),
+            }),
+          );
           return;
         }
 
@@ -1997,6 +2022,7 @@ export function createConnection({
             id,
             address: address.raw,
             name: ready.server.name,
+            icon: iconURL(ready.server.icon),
             nickname: ready.user.nickname,
             lastConnectedAt: Date.now(),
             ...(ready.sessionToken ? { token: ready.sessionToken } : {}),
@@ -2159,6 +2185,14 @@ export function createConnection({
         return { url: res.url };
       },
 
+      async uploadServerIcon(file, onProgress) {
+        const { address, token } = get();
+        if (!address || !token) throw new Error("Not connected.");
+        const upload = uploadServerIconRequest({ address, token, file, onProgress });
+        const res = await upload.done;
+        return { url: res.url };
+      },
+
       async kickUser(userId, reason, deleteMessages) {
         await requireGateway().request(Op.UserKick, { userId, reason, deleteMessages });
       },
@@ -2280,7 +2314,17 @@ export function createConnection({
       },
 
       async updateServer(patch) {
-        await requireGateway().request(Op.ServerUpdate, patch);
+        const res = await requireGateway().request<ServerUpdatedEvent>(Op.ServerUpdate, patch);
+        if (res?.server) {
+          set({ server: res.server });
+          host.savedChanged(
+            upsertServer({
+              id,
+              name: res.server.name,
+              icon: iconURL(res.server.icon),
+            }),
+          );
+        }
       },
 
       async createChannel(input) {

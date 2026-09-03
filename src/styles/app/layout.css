@@ -56,13 +56,77 @@
 }
 
 .rail__item:active {
-  transform: scale(0.95);
+  transform: scale(0.92);
 }
 
 .rail__item--active {
   border-radius: 14px;
   background: var(--accent);
   color: var(--text-inverse);
+}
+
+/* Specific styling when an icon image is present to prevent background border bleed */
+.rail__item--has-icon {
+  background: transparent !important;
+  box-shadow: none;
+}
+
+.rail__item--has-icon:hover {
+  background: transparent !important;
+}
+
+.rail__item--has-icon.rail__item--active {
+  background: transparent !important;
+}
+
+.rail__icon-wrapper {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  background: var(--bg-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: border-radius 160ms cubic-bezier(0.2, 0.9, 0.3, 1),
+              box-shadow 160ms cubic-bezier(0.2, 0.9, 0.3, 1),
+              transform 90ms ease,
+              filter 160ms ease;
+}
+
+.rail__item:hover .rail__icon-wrapper {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.rail__item--active .rail__icon-wrapper {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 0 2px var(--accent);
+}
+
+.rail__icon {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  pointer-events: none;
+  display: block;
+  transition: transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1),
+              filter 160ms ease;
+}
+
+.rail__item:hover .rail__icon {
+  transform: scale(1.08);
+  filter: brightness(1.08) contrast(1.02);
+}
+
+.rail__item:active .rail__icon {
+  transform: scale(0.96);
+  filter: brightness(0.9);
+}
+
+.rail__item:active .rail__icon-wrapper {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .rail__item::before {
@@ -205,6 +269,7 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  z-index: 2;
 }
 
 .rail__badge--mention {
@@ -222,6 +287,7 @@
   border-radius: 50%;
   border: 2px solid var(--bg-rail);
   background: var(--online);
+  z-index: 2;
 }
 
 .rail__divider {

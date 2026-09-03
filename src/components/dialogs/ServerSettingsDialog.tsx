@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "@/lib/i18n";
 import {
   Perm,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/permissions";
 import { describeError, type Role, type VoiceSettings, type Webhook } from "@/lib/protocol";
 import { formatDateTime } from "@/lib/time";
-import { serverOrigin } from "@/lib/uploads";
+import { resolveServerIconUrl, serverOrigin } from "@/lib/uploads";
 import { useSession } from "@/store/session";
 import { manageableWebhookChannels, useMyPermissions, useMyRank } from "@/store/selectors";
 import { SettingsModal, type SettingsNavCategory } from "../SettingsModal";
@@ -29,6 +29,7 @@ import {
   SmileyIcon,
   SoundboardIcon,
   TrashIcon,
+  UploadIcon,
   UsersIcon,
   UserXIcon,
   VoiceIcon,
@@ -37,6 +38,7 @@ import {
   SearchIcon,
 } from "../Icons";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ImageCropDialog } from "./ImageCropDialog";
 import { ServerAuditPage } from "./server-settings/AuditPage";
 import { ServerAutoModPage } from "./server-settings/AutoModPage";
 import { ServerBansPage } from "./server-settings/BansPage";
@@ -69,6 +71,7 @@ export function ServerSettingsDialog({
 }: ServerSettingsDialogProps) {
   const { t } = useTranslation();
   const server = useSession((state) => state.server);
+  const address = useSession((state) => state.address);
   const disconnect = useSession((state) => state.disconnect);
 
   const [activeTab, setActiveTab] = useState<ServerTabId>(initialTab);
@@ -151,10 +154,25 @@ export function ServerSettingsDialog({
     },
   ];
 
+  const serverIconUrl = resolveServerIconUrl(server.icon, address);
+  const [headerIconError, setHeaderIconError] = useState(false);
+
+  useEffect(() => {
+    setHeaderIconError(false);
+  }, [server.icon]);
+
   const headerElement = (
     <div className="settings-server-header">
       <div className="settings-server-header__icon">
-        {server.name.slice(0, 1).toUpperCase()}
+        {serverIconUrl && !headerIconError ? (
+          <img
+            src={serverIconUrl}
+            alt={server.name}
+            onError={() => setHeaderIconError(true)}
+          />
+        ) : (
+          server.name.slice(0, 1).toUpperCase()
+        )}
       </div>
       <div className="settings-server-header__info">
         <span className="settings-server-header__name">{server.name}</span>
@@ -178,7 +196,7 @@ export function ServerSettingsDialog({
         </span>
       </button>
       <div className="settings-sidebar__version-wrap">
-        <span className="settings-sidebar__version">Aural Client v0.7.0</span>
+        <span className="settings-sidebar__version">Aural Client v0.7.6</span>
       </div>
     </div>
   );
@@ -234,6 +252,7 @@ function ServerOverviewPage() {
   const server = useSession((state) => state.server);
   const address = useSession((state) => state.address);
   const updateServer = useSession((state) => state.updateServer);
+  const uploadServerIcon = useSession((state) => state.uploadServerIcon);
   const claimAdmin = useSession((state) => state.claimAdmin);
   const permissions = useMyPermissions();
 
@@ -244,9 +263,20 @@ function ServerOverviewPage() {
   const [saved, setSaved] = useState(false);
   const [claimDone, setClaimDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [iconError, setIconError] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const allowed = has(permissions, Perm.ManageServer);
   const isAdmin = has(permissions, Perm.Administrator);
+
+  useEffect(() => {
+    setIconError(false);
+  }, [server?.icon]);
+
+  const serverIconUrl = resolveServerIconUrl(server?.icon, address);
 
   const isDirty =
     name.trim() !== (server?.name ?? "") ||
@@ -260,6 +290,46 @@ function ServerOverviewPage() {
     setSaved(false);
     try {
       await updateServer({ name: name.trim(), description: description.trim() });
+      setSaved(true);
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setCropFile(file);
+    e.target.value = "";
+  }
+
+  async function handleCropConfirm(croppedFile: File) {
+    setCropFile(null);
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    setUploadProgress(0);
+    try {
+      await uploadServerIcon(croppedFile, (fraction) => setUploadProgress(fraction));
+      setSaved(true);
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(false);
+      setUploadProgress(null);
+    }
+  }
+
+  async function handleRemoveIcon() {
+    if (!allowed || busy) return;
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await updateServer({ icon: "" });
       setSaved(true);
     } catch (caught) {
       setError(describeError(caught));
@@ -383,12 +453,51 @@ function ServerOverviewPage() {
 
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12 }}>
               <div className="server-icon-preview">
-                {name ? name.slice(0, 1).toUpperCase() : "S"}
+                {serverIconUrl && !iconError ? (
+                  <img
+                    src={serverIconUrl}
+                    alt={name || "Server"}
+                    onError={() => setIconError(true)}
+                  />
+                ) : (
+                  name ? name.slice(0, 1).toUpperCase() : "S"
+                )}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <button type="button" className="btn btn--ghost btn--sm" disabled>
-                  {t("dialogs.serverSettings.overview.changeIcon")}
-                </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={!allowed || busy}
+                  >
+                    <UploadIcon size={14} />
+                    <span>{t("dialogs.serverSettings.overview.changeIcon")}</span>
+                  </button>
+                  {server?.icon ? (
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm btn--danger"
+                      onClick={() => void handleRemoveIcon()}
+                      disabled={!allowed || busy}
+                    >
+                      <TrashIcon size={14} />
+                      <span>{t("dialogs.serverSettings.overview.removeIcon")}</span>
+                    </button>
+                  ) : null}
+                </div>
+                {uploadProgress !== null ? (
+                  <span style={{ fontSize: 12, color: "var(--accent)" }}>
+                    {Math.round(uploadProgress * 100)}%
+                  </span>
+                ) : null}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp"
+                  style={{ display: "none" }}
+                  onChange={handleFileSelect}
+                />
               </div>
             </div>
           </div>
@@ -467,6 +576,15 @@ function ServerOverviewPage() {
           </form>
         )}
       </div>
+
+      {cropFile ? (
+        <ImageCropDialog
+          file={cropFile}
+          type="server-icon"
+          onConfirm={(file) => void handleCropConfirm(file)}
+          onClose={() => setCropFile(null)}
+        />
+      ) : null}
     </div>
   );
 }
