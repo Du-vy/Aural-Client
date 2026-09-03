@@ -25,6 +25,7 @@ const { ChannelDialog } = await import("@/components/dialogs/ChannelDialog");
 const { ConfirmDialog } = await import("@/components/dialogs/ConfirmDialog");
 const { DeleteMessageDialog } = await import("@/components/dialogs/DeleteMessageDialog");
 const { MemberDialog } = await import("@/components/dialogs/MemberDialog");
+const { KickUserDialog } = await import("@/components/dialogs/KickUserDialog");
 const { NicknameDialog } = await import("@/components/dialogs/NicknameDialog");
 const { ContextMenu } = await import("@/components/ContextMenu");
 const { EmojiPicker } = await import("@/components/EmojiPicker");
@@ -1738,6 +1739,27 @@ console.log("\ndedicated direct messages section");
   useServers.getState().setActiveSection("server");
   useServers.getState().focus(testServerId);
   seed();
+}
+
+console.log("\nkick user dialog & offline kick verification");
+{
+  const testOfflineUser: User = {
+    id: 99,
+    username: "offline_bad_actor",
+    nickname: "BadActor",
+    avatar: "",
+    status: "offline",
+    roles: [1],
+    channelId: null,
+    registered: true,
+    online: false,
+  };
+
+  render(
+    "KickUserDialog renders with user info, reason input, and purge options",
+    <KickUserDialog user={testOfflineUser} onConfirm={noop} onClose={noop} />,
+    ["kick-dialog", "kick-dialog__user-card", "kick-dialog__textarea", "kick-purge__grid", "BadActor"],
+  );
 }
 
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);

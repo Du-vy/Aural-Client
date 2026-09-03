@@ -58,6 +58,7 @@ import {
   type UserDisconnectedEvent,
   type UserEvent,
   type UserMovedEvent,
+  type UserRemovedEvent,
   type VoiceConfig,
   type VoiceSettings,
   type VoiceSpeakingEvent,
@@ -379,7 +380,7 @@ export interface ConnectionState {
   setDMPrivacy(privacy: DMPrivacy): Promise<void>;
   uploadAvatar(file: File, onProgress?: (fraction: number) => void): Promise<{ url: string }>;
   uploadBanner(file: File, onProgress?: (fraction: number) => void): Promise<{ url: string }>;
-  kickUser(userId: number, reason?: string): Promise<void>;
+  kickUser(userId: number, reason?: string, deleteMessages?: "none" | "1d" | "7d" | "30d" | "all"): Promise<void>;
 
   register(username: string, password: string): Promise<void>;
   signIn(username: string, password: string): Promise<void>;
@@ -1019,6 +1020,15 @@ export function createConnection({
           return;
         }
 
+        case Ev.UserRemoved: {
+          const { userId } = payload as UserRemovedEvent;
+          const users = new Map(state.users);
+          users.delete(userId);
+          set({ users });
+          participantGone(userId);
+          return;
+        }
+
         case Ev.UserMoved: {
           const event = payload as UserMovedEvent;
           const existing = state.users.get(event.userId);
@@ -1643,8 +1653,8 @@ export function createConnection({
         return { url: res.url };
       },
 
-      async kickUser(userId, reason) {
-        await requireGateway().request(Op.UserKick, { userId, reason });
+      async kickUser(userId, reason, deleteMessages) {
+        await requireGateway().request(Op.UserKick, { userId, reason, deleteMessages });
       },
 
       async register(username, password) {

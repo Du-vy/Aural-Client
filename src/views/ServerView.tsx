@@ -39,6 +39,7 @@ import { UserSettingsDialog } from "@/components/dialogs/UserSettingsDialog";
 import { ChannelDialog } from "@/components/dialogs/ChannelDialog";
 import { ConfirmDialog } from "@/components/dialogs/ConfirmDialog";
 import { MemberDialog } from "@/components/dialogs/MemberDialog";
+import { KickUserDialog } from "@/components/dialogs/KickUserDialog";
 import { NicknameDialog } from "@/components/dialogs/NicknameDialog";
 import { ServerSettingsDialog } from "@/components/dialogs/ServerSettingsDialog";
 import {
@@ -62,7 +63,6 @@ import {
 } from "@/store/servers";
 import {
   assignableRoles,
-  isOnline,
   outranks,
   unreadTotals,
   useMyPermissions,
@@ -83,7 +83,7 @@ type Dialog =
   | { kind: "member"; userId: number; anchorRect?: DOMRect }
   | { kind: "nickname"; userId: number }
   | { kind: "confirmDeleteChannel"; channel: Channel }
-  | { kind: "confirmKick"; userId: number }
+  | { kind: "kickUser"; user: User }
   | { kind: "confirmMoveCall"; channel: Channel; call: CallLocation };
 
 type ContextMenuState =
@@ -424,11 +424,9 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         : has(permissions, Perm.ManageNicknames) && outranks(self, u, roles);
       const canManageRoles = has(permissions, Perm.ManageRoles);
       const assignable = assignableRoles(self, roles);
-      // Kicking is closing a connection, so it is offered only to somebody who
-      // has one. The list now holds members who are away, and the server turns
-      // the request down for them.
+      // Kicking is offered for both online and offline members as long as you outrank them.
       const canKick =
-        !isSelf && isOnline(u) && has(permissions, Perm.KickUsers) && outranks(self, u, roles);
+        !isSelf && has(permissions, Perm.KickUsers) && outranks(self, u, roles);
       const canMove = has(permissions, Perm.MoveUsers) && u.channelId !== null;
 
       const entries: MenuEntry[] = [
@@ -555,7 +553,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           label: t("contextMenu.kickMember", { name: u.nickname }),
           icon: <UserXIcon size={16} />,
           danger: true,
-          onClick: () => setDialog({ kind: "confirmKick", userId: u.id }),
+          onClick: () => setDialog({ kind: "kickUser", user: u }),
         });
       }
 
@@ -1075,23 +1073,14 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           onClose={() => setDialog({ kind: "none" })}
         />
       ) : null}
-      {dialog.kind === "confirmKick" ? (
-        (() => {
-          const target = users.get(dialog.userId);
-          const name = target?.nickname ?? "this user";
-          return (
-            <ConfirmDialog
-              title={t("dialogs.confirm.kickUserTitle")}
-              subtitle={t("dialogs.confirm.kickUserConfirm", { name })}
-              confirmText={t("members.kick")}
-              danger
-              onConfirm={() => {
-                void kickUser(dialog.userId);
-              }}
-              onClose={() => setDialog({ kind: "none" })}
-            />
-          );
-        })()
+      {dialog.kind === "kickUser" ? (
+        <KickUserDialog
+          user={dialog.user}
+          onConfirm={(reason, deleteMessages) => {
+            void kickUser(dialog.user.id, reason, deleteMessages);
+          }}
+          onClose={() => setDialog({ kind: "none" })}
+        />
       ) : null}
     </div>
   );

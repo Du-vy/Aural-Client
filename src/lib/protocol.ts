@@ -105,6 +105,7 @@ export const Ev = {
   UserDisconnected: "user.disconnected",
   UserUpdated: "user.updated",
   UserMoved: "user.moved",
+  UserRemoved: "user.removed",
 
   ChannelCreated: "channel.created",
   ChannelUpdated: "channel.updated",
@@ -526,6 +527,7 @@ export interface UserMoveRequest {
 export interface UserKickRequest {
   userId: number;
   reason?: string;
+  deleteMessages?: "none" | "1d" | "7d" | "30d" | "all";
 }
 
 export interface ChannelCreateRequest {
@@ -740,6 +742,11 @@ export interface UserEvent {
 
 export interface UserDisconnectedEvent {
   userId: number;
+}
+
+export interface UserRemovedEvent {
+  userId: number;
+  reason?: string;
 }
 
 export interface UserMovedEvent {
