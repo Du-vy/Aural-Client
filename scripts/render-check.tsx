@@ -25,6 +25,10 @@ const { ChannelDialog } = await import("@/components/dialogs/ChannelDialog");
 const { ConfirmDialog } = await import("@/components/dialogs/ConfirmDialog");
 const { DeleteMessageDialog } = await import("@/components/dialogs/DeleteMessageDialog");
 const { MemberDialog } = await import("@/components/dialogs/MemberDialog");
+const { defaultAutoMod } = await import("@/lib/protocol");
+const { emojiDirectory } = await import("@/lib/customEmoji");
+const { BanUserDialog } = await import("@/components/dialogs/BanUserDialog");
+const { SoundboardPanel } = await import("@/components/SoundboardPanel");
 const { KickUserDialog } = await import("@/components/dialogs/KickUserDialog");
 const { NicknameDialog } = await import("@/components/dialogs/NicknameDialog");
 const { ContextMenu } = await import("@/components/ContextMenu");
@@ -2302,6 +2306,158 @@ console.log("\nimage cropping dialog & animated gif support");
     root.unmount();
   });
   host.remove();
+}
+
+console.log("\nmoderation, expressions and the soundboard");
+{
+  const bannedUser: User = {
+    id: 98,
+    username: null,
+    nickname: "Nuisance",
+    roles: [1],
+    channelId: null,
+    registered: false,
+    online: true,
+  };
+
+  render(
+    "the ban dialog says what the ban will reach",
+    <BanUserDialog user={bannedUser} onConfirm={noop} onClose={noop} />,
+    ["kick-dialog", "Nuisance", "Their address", "Their device", "Permanent"],
+  );
+
+  // A ban list with one of each kind of subject: an account, and a guest whose
+  // identity was removed with the ban.
+  seed({
+    bans: [
+      {
+        id: 1,
+        userId: 98,
+        userNickname: "Nuisance",
+        userUsername: null,
+        actorId: admin.id,
+        actorNickname: admin.nickname,
+        reason: "spam",
+        createdAt: nowSeconds - 3600,
+        expiresAt: null,
+        active: true,
+        matches: [
+          { kind: "user", count: 1 },
+          { kind: "device", count: 2 },
+        ],
+      },
+      {
+        id: 2,
+        userId: null,
+        userNickname: "Gone",
+        userUsername: "gone",
+        actorId: admin.id,
+        actorNickname: admin.nickname,
+        reason: "",
+        createdAt: nowSeconds - 86400,
+        expiresAt: nowSeconds - 60,
+        active: false,
+        matches: [{ kind: "ip", count: 1 }],
+      },
+    ],
+  });
+  render(
+    "the ban list, with one in force and one that has run out",
+    <ServerSettingsDialog initialTab="bans" onClose={noop} />,
+    ["ban-list", "Nuisance", "Device", "Expired", "Address"],
+  );
+
+  seed({
+    audit: {
+      entries: [
+        {
+          id: 9,
+          actorId: admin.id,
+          actorName: admin.nickname,
+          action: "user.ban",
+          targetType: "user",
+          targetId: 98,
+          targetName: "Nuisance",
+          reason: "spam",
+          changes: [{ key: "expires", after: "2026-01-01T00:00:00Z" }],
+          createdAt: nowSeconds - 3600,
+        },
+        {
+          id: 8,
+          actorId: null,
+          actorName: "the server",
+          action: "automod.action",
+          targetType: "channel",
+          targetId: 2,
+          targetName: "general",
+          reason: "words (censor)",
+          createdAt: nowSeconds - 7200,
+        },
+      ],
+      hasMore: true,
+      loading: false,
+      error: null,
+    },
+  });
+  render(
+    "the audit log, with a change list and a rule firing",
+    <ServerSettingsDialog initialTab="audit" onClose={noop} />,
+    ["audit-list", "banned", "Nuisance", "expires", "AutoMod acted in"],
+  );
+
+  seed({ automod: { ...defaultAutoMod(), enabled: true, words: { enabled: true, action: "censor", exemptRoles: [3], words: ["tonto"], wholeWord: true } } });
+  render(
+    "the automod page, with one rule switched on",
+    <ServerSettingsDialog initialTab="automod" onClose={noop} />,
+    ["AutoMod", "Blocked words", "tonto", "chip--on"],
+  );
+
+  seed({
+    expressions: new Map([
+      [1, { id: 1, kind: "emoji", name: "shrug", url: "/attachments/ffffffffffffffffffffffffffffffff/shrug.png", animated: false, size: "4096", creatorId: admin.id, createdAt: nowSeconds }],
+      [2, { id: 2, kind: "sticker", name: "wave", url: "/attachments/gggggggggggggggggggggggggggggggg/wave.png", animated: false, size: "8192", creatorId: admin.id, createdAt: nowSeconds }],
+    ]),
+  });
+  render(
+    "the expressions page, with one emoji and one sticker",
+    <ServerSettingsDialog initialTab="emojis" onClose={noop} />,
+    ["expression-grid", ":shrug:", ":wave:"],
+  );
+
+  const sounds = new Map([
+    [1, { id: 1, name: "Airhorn", emoji: "", url: "/attachments/hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh/airhorn.wav", durationMs: 2000, volume: 100, size: "192044", creatorId: admin.id, createdAt: nowSeconds }],
+  ]);
+
+  seed({ sounds });
+  render(
+    "the soundboard's management page",
+    <ServerSettingsDialog initialTab="sounds" onClose={noop} />,
+    ["sound-list", "Airhorn", "2.0s"],
+  );
+
+  // The panel in a call, which reads the connection carrying it rather than
+  // the one on screen.
+  seed({ sounds });
+  render("the soundboard panel in a call", <SoundboardPanel onClose={noop} />, [
+    "soundboard__grid",
+    "Airhorn",
+  ]);
+
+  // A message written with a custom emoji resolves it to a picture; one that
+  // names nothing stays the text somebody typed.
+  const directory = emojiDirectory([
+    { id: 1, kind: "emoji", name: "shrug", url: "/attachments/ffffffffffffffffffffffffffffffff/shrug.png", animated: false, size: "4096", creatorId: null, createdAt: nowSeconds },
+  ]);
+  render(
+    "a custom emoji renders where it was written",
+    <MessageContent
+      content="well :shrug: and :nothing: too"
+      editedAt={null}
+      emojis={directory}
+      onOpenLink={noop}
+    />,
+    ["emoji--custom", "shrug.png", ":nothing:"],
+  );
 }
 
 console.log("\nunread notifications and the taskbar count");

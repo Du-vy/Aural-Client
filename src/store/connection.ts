@@ -31,6 +31,11 @@ import {
   type Attachment,
   type Channel,
   type ChannelDeletedEvent,
+  type AuditEntry,
+  type AuditListResult,
+  type AutoModConfig,
+  type Ban,
+  type BanCreateRequest,
   type ChannelEvent,
   type ChannelType,
   type ChannelUpdateRequest,
@@ -42,6 +47,8 @@ import {
   type DMListResult,
   type DMPrivacy,
   type DMUpdatedEvent,
+  type Expression,
+  type ExpressionKind,
   type ICEServer,
   type Message,
   type MessageDeletedEvent,
@@ -63,6 +70,8 @@ import {
   type SearchSort,
   type ServerInfo,
   type ServerUpdatedEvent,
+  type Sound,
+  type SoundPlayedEvent,
   type User,
   type UserDisconnectedEvent,
   type UserEvent,
@@ -94,8 +103,13 @@ import {
   uploadFile,
   uploadAvatar as uploadAvatarRequest,
   uploadBanner as uploadBannerRequest,
+  uploadExpression as uploadExpressionRequest,
+  uploadSound as uploadSoundRequest,
+  serverOrigin,
   type RunningUpload,
 } from "@/lib/uploads";
+import { deviceIdentifier } from "@/lib/device";
+import { forgetSoundCache, playSoundClip, stopAllSounds } from "@/lib/soundboard";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting";
 
@@ -369,6 +383,25 @@ export interface ConnectionState {
    * ids are per server: one map for all of them would draw the mute icon of
    * whoever happened to share an id somewhere else.
    */
+  /**
+   * Every custom emoji and sticker this server carries, by id. It arrives with
+   * the snapshot rather than being fetched, because a message cannot be
+   * rendered without it.
+   */
+  expressions: Map<number, Expression>;
+  /** The soundboard, by id, in the order the panel draws it. */
+  sounds: Map<number, Sound>;
+  /**
+   * The ban list, fetched by the settings screen and kept in step by events.
+   * Null until it has been asked for: an empty list and a list nobody has
+   * loaded are different things to a screen that has to say which.
+   */
+  bans: Ban[] | null;
+  /** One page of the audit log, oldest-last, with whether more remain. */
+  audit: { entries: AuditEntry[]; hasMore: boolean; loading: boolean; error: string | null };
+  /** The automatic moderation rules, or null until they have been fetched. */
+  automod: AutoModConfig | null;
+
   voiceStates: Map<number, VoiceState>;
   /** Who is transmitting on this server right now. */
   speaking: Set<number>;
@@ -404,6 +437,46 @@ export interface ConnectionState {
   uploadAvatar(file: File, onProgress?: (fraction: number) => void): Promise<{ url: string }>;
   uploadBanner(file: File, onProgress?: (fraction: number) => void): Promise<{ url: string }>;
   kickUser(userId: number, reason?: string, deleteMessages?: "none" | "1d" | "7d" | "30d" | "all"): Promise<void>;
+
+  /** Bans a member, and by default the address and machine behind them. */
+  banUser(input: BanCreateRequest): Promise<void>;
+  /** Loads the ban list into `bans`. */
+  listBans(): Promise<void>;
+  /** Lifts one ban. */
+  deleteBan(banId: number): Promise<void>;
+
+  /**
+   * Loads a page of the audit log. Without `before` it replaces what is held;
+   * with it, the page is appended, which is what scrolling asks for.
+   */
+  loadAudit(options?: { before?: number; actorId?: number; action?: string }): Promise<void>;
+
+  /** Fetches the automatic moderation rules into `automod`. */
+  loadAutoMod(): Promise<void>;
+  /** Replaces the whole rule set. */
+  updateAutoMod(config: AutoModConfig): Promise<void>;
+
+  /** Uploads a custom emoji or sticker. */
+  uploadExpression(
+    kind: ExpressionKind,
+    name: string,
+    file: File,
+    onProgress?: (fraction: number) => void,
+  ): Promise<Expression>;
+  renameExpression(expressionId: number, name: string): Promise<void>;
+  deleteExpression(expressionId: number): Promise<void>;
+
+  /** Uploads a soundboard clip. The file has already been cut to WAV. */
+  uploadSound(
+    name: string,
+    emoji: string,
+    file: File,
+    onProgress?: (fraction: number) => void,
+  ): Promise<Sound>;
+  updateSound(input: { soundId: number; name?: string; emoji?: string; volume?: number }): Promise<void>;
+  deleteSound(soundId: number): Promise<void>;
+  /** Plays a clip at the voice channel this identity is sitting in. */
+  playSound(soundId: number): Promise<void>;
 
   register(username: string, password: string): Promise<void>;
   signIn(username: string, password: string): Promise<void>;
@@ -560,6 +633,10 @@ function isPermanentAuthFailure(error: unknown): boolean {
     case "registration_closed":
     case "unauthorized":
     case "forbidden":
+    // Retrying a ban is not a reconnection, it is a knock on a door that has
+    // been shut. The reason travels with the error, so the connect screen has
+    // something to say rather than counting down to another refusal.
+    case "banned":
       return true;
     default:
       return false;
@@ -824,6 +901,8 @@ export function createConnection({
         conversations: new Map(
           (ready.conversations ?? []).map((conversation) => [conversation.userId, conversation]),
         ),
+        expressions: indexById(ready.expressions ?? []),
+        sounds: indexById(ready.sounds ?? []),
         voiceStates,
         speaking,
       });
@@ -1526,6 +1605,87 @@ export function createConnection({
           return;
         }
 
+        case Ev.BanCreated: {
+          const { ban } = payload as { ban: Ban };
+          // Only a screen that has already loaded the list keeps it in step. A
+          // client that never asked has nothing to patch, and asking for the
+          // whole list because somebody else banned somebody would be a fetch
+          // nobody is looking at.
+          if (state.bans) set({ bans: [ban, ...state.bans.filter((b) => b.id !== ban.id)] });
+          return;
+        }
+
+        case Ev.BanDeleted: {
+          const { banId } = payload as { banId: number };
+          if (state.bans) set({ bans: state.bans.filter((ban) => ban.id !== banId) });
+          return;
+        }
+
+        case Ev.AuditEntry: {
+          const { entry } = payload as { entry: AuditEntry };
+          // Prepended only when the newest page is what is held: a screen that
+          // has scrolled back is looking at a window, and dropping a new entry
+          // into the top of it would put it out of order.
+          if (state.audit.entries.length === 0 && !state.audit.hasMore) {
+            set({ audit: { ...state.audit, entries: [entry] } });
+            return;
+          }
+          set({ audit: { ...state.audit, entries: [entry, ...state.audit.entries] } });
+          return;
+        }
+
+        case Ev.AutoModUpdated: {
+          const { config } = payload as { config: AutoModConfig };
+          set({ automod: config });
+          return;
+        }
+
+        case Ev.ExpressionCreated:
+        case Ev.ExpressionUpdated: {
+          const { expression } = payload as { expression: Expression };
+          const expressions = new Map(state.expressions);
+          expressions.set(expression.id, expression);
+          set({ expressions });
+          return;
+        }
+
+        case Ev.ExpressionDeleted: {
+          const { expressionId } = payload as { expressionId: number };
+          const expressions = new Map(state.expressions);
+          expressions.delete(expressionId);
+          set({ expressions });
+          return;
+        }
+
+        case Ev.SoundCreated:
+        case Ev.SoundUpdated: {
+          const { sound } = payload as { sound: Sound };
+          const sounds = new Map(state.sounds);
+          sounds.set(sound.id, sound);
+          set({ sounds });
+          return;
+        }
+
+        case Ev.SoundDeleted: {
+          const { soundId } = payload as { soundId: number };
+          const sounds = new Map(state.sounds);
+          sounds.delete(soundId);
+          set({ sounds });
+          return;
+        }
+
+        case Ev.SoundPlayed: {
+          const event = payload as SoundPlayedEvent;
+          const sound = state.sounds.get(event.soundId);
+          if (!sound || !state.address) return;
+          // Deafening silences the soundboard exactly as it silences everybody
+          // else in the room: it is the same room and the same output.
+          const own = state.self ? state.voiceStates.get(state.self.id) : undefined;
+          if (own && (own.selfDeaf || own.deaf)) return;
+          void playSoundClip(`${serverOrigin(state.address)}${sound.url}`, sound.volume);
+          return;
+        }
+
         case Ev.ServerUpdated: {
           const { server } = payload as ServerUpdatedEvent;
           set({ server });
@@ -1698,6 +1858,11 @@ export function createConnection({
       conversations: new Map(),
       directHistory: new Map(),
       activeConversationId: null,
+      expressions: new Map(),
+      sounds: new Map(),
+      bans: null,
+      audit: { entries: [], hasMore: false, loading: false, error: null },
+      automod: null,
       voiceStates: new Map(),
       speaking: new Set(),
       search: EMPTY_SEARCH,
@@ -1767,6 +1932,19 @@ export function createConnection({
           throw fail(message, true);
         }
 
+        // The machine identifier this server's bans are matched on. It is
+        // hashed with a salt the server sent in `hello`, so the same machine
+        // presents a different value to every server and nothing here can be
+        // used to follow somebody around. A server that sends no salt gets no
+        // identifier, and a failure to compute one is not a reason to refuse
+        // to connect: it matches no ban, which is where everybody starts.
+        let device = "";
+        try {
+          device = await deviceIdentifier(gateway.hello.deviceSalt);
+        } catch {
+          device = "";
+        }
+
         // Sign in with credentials when given, otherwise resume the stored token,
         // otherwise take a fresh guest identity. A token the server no longer
         // recognises falls back to being a guest rather than dead-ending.
@@ -1777,12 +1955,14 @@ export function createConnection({
             ready = await gateway.request<Ready>(Op.AuthLogin, {
               ...options.credentials,
               serverPassword: options.serverPassword,
+              device,
             });
           } else if (token) {
             try {
               ready = await gateway.request<Ready>(Op.AuthToken, {
                 token,
                 serverPassword: options.serverPassword,
+                device,
               });
             } catch (error) {
               if (!(error instanceof AuralError) || error.code !== "invalid_credentials") throw error;
@@ -1790,12 +1970,14 @@ export function createConnection({
               ready = await gateway.request<Ready>(Op.AuthGuest, {
                 nickname,
                 serverPassword: options.serverPassword,
+                device,
               });
             }
           } else {
             ready = await gateway.request<Ready>(Op.AuthGuest, {
               nickname,
               serverPassword: options.serverPassword,
+              device,
             });
           }
         } catch (error) {
@@ -1870,11 +2052,18 @@ export function createConnection({
           conversations: new Map(),
           directHistory: new Map(),
           activeConversationId: null,
+          expressions: new Map(),
+          sounds: new Map(),
+          bans: null,
+          audit: { entries: [], hasMore: false, loading: false, error: null },
+          automod: null,
           voiceStates: new Map(),
           speaking: new Set(),
           search: EMPTY_SEARCH,
           jump: null,
         });
+        stopAllSounds();
+        forgetSoundCache();
         // Leaving on purpose is not news. The registry takes the connection
         // out of the rail, and there is nothing to tell anybody about it.
         host.ended("", true);
@@ -1972,6 +2161,107 @@ export function createConnection({
 
       async kickUser(userId, reason, deleteMessages) {
         await requireGateway().request(Op.UserKick, { userId, reason, deleteMessages });
+      },
+
+      async banUser(input) {
+        await requireGateway().request(Op.BanCreate, input);
+      },
+
+      async listBans() {
+        const result = await requireGateway().request<{ bans: Ban[] }>(Op.BanList, {});
+        set({ bans: result.bans ?? [] });
+      },
+
+      async deleteBan(banId) {
+        await requireGateway().request(Op.BanDelete, { banId });
+        const held = get().bans;
+        if (held) set({ bans: held.filter((ban) => ban.id !== banId) });
+      },
+
+      async loadAudit(options = {}) {
+        const { before } = options;
+        set({ audit: { ...get().audit, loading: true, error: null } });
+        try {
+          const result = await requireGateway().request<AuditListResult>(Op.AuditList, {
+            before,
+            actorId: options.actorId,
+            action: options.action,
+          });
+          const held = get().audit;
+          set({
+            audit: {
+              // Without a cursor this is the newest page, which replaces what
+              // is held; with one it is the page after it.
+              entries: before ? [...held.entries, ...result.entries] : result.entries,
+              hasMore: result.hasMore,
+              loading: false,
+              error: null,
+            },
+          });
+        } catch (error) {
+          set({ audit: { ...get().audit, loading: false, error: describeError(error) } });
+        }
+      },
+
+      async loadAutoMod() {
+        const result = await requireGateway().request<{ config: AutoModConfig }>(Op.AutoModGet, {});
+        set({ automod: result.config });
+      },
+
+      async updateAutoMod(config) {
+        const result = await requireGateway().request<{ config: AutoModConfig }>(
+          Op.AutoModUpdate,
+          { config },
+        );
+        // The server normalises what it was sent — bounds, duplicates, actions
+        // a rule cannot perform — so what comes back is what is now in force,
+        // and that is what the screen has to show.
+        set({ automod: result.config });
+      },
+
+      async uploadExpression(kind, name, file, onProgress) {
+        const { address, token } = get();
+        if (!address || !token) throw new Error("Not connected.");
+        const upload = uploadExpressionRequest({ address, token, file, name, onProgress }, kind);
+        const created = await upload.done;
+        // The broadcast puts it in the map as well. Doing it here too is what
+        // lets the caller render the new emoji without waiting for a round
+        // trip it has already made.
+        const expressions = new Map(get().expressions);
+        expressions.set(created.id, created);
+        set({ expressions });
+        return created;
+      },
+
+      async renameExpression(expressionId, name) {
+        await requireGateway().request(Op.ExpressionUpdate, { expressionId, name });
+      },
+
+      async deleteExpression(expressionId) {
+        await requireGateway().request(Op.ExpressionDelete, { expressionId });
+      },
+
+      async uploadSound(name, emoji, file, onProgress) {
+        const { address, token } = get();
+        if (!address || !token) throw new Error("Not connected.");
+        const upload = uploadSoundRequest({ address, token, file, name, emoji, onProgress });
+        const created = await upload.done;
+        const sounds = new Map(get().sounds);
+        sounds.set(created.id, created);
+        set({ sounds });
+        return created;
+      },
+
+      async updateSound(input) {
+        await requireGateway().request(Op.SoundUpdate, input);
+      },
+
+      async deleteSound(soundId) {
+        await requireGateway().request(Op.SoundDelete, { soundId });
+      },
+
+      async playSound(soundId) {
+        await requireGateway().request(Op.SoundPlay, { soundId });
       },
 
       async register(username, password) {

@@ -45,11 +45,30 @@ export const Perm = {
    * topic, a media item, an event.
    */
   CreatePosts: 1n << 14n,
+  /**
+   * Play one of the server's stored sounds into the voice channel you are in.
+   * Separate from Speak: that carries your voice, this plays a clip at
+   * everybody, and a channel very often wants one without the other.
+   */
+  UseSoundboard: 1n << 15n,
 
   KickUsers: 1n << 16n,
   MoveUsers: 1n << 17n,
   MuteUsers: 1n << 18n,
   DeafenUsers: 1n << 19n,
+  /**
+   * Refuse somebody the server rather than merely end their connection. Its
+   * own bit because a ban outlives the session it was issued in and reaches
+   * the address and the device behind it.
+   */
+  BanUsers: 1n << 20n,
+  /**
+   * Read the record of what moderators did. It grants nothing else: reading
+   * the log is how a server holds its own staff to account.
+   */
+  ViewAuditLog: 1n << 21n,
+  /** The custom emoji, stickers and soundboard sounds a server carries. */
+  ManageExpressions: 1n << 22n,
 
   /** Bypasses every other check. */
   Administrator: 1n << 31n,
@@ -70,16 +89,20 @@ export const PERMISSION_ORDER: PermissionName[] = [
   "AttachFiles",
   "SendDirectMessages",
   "CreatePosts",
+  "UseSoundboard",
   "ManageChannels",
   "ManageRoles",
   "ManageServer",
   "ManageNicknames",
   "ManageMessages",
   "ManageWebhooks",
+  "ManageExpressions",
   "KickUsers",
+  "BanUsers",
   "MoveUsers",
   "MuteUsers",
   "DeafenUsers",
+  "ViewAuditLog",
   "Administrator",
 ];
 
@@ -96,16 +119,20 @@ export const PERMISSION_HELP: Record<PermissionName, string> = {
   AttachFiles: "Post files alongside a message",
   SendDirectMessages: "Write to another member privately",
   CreatePosts: "Start an entry in an announcement, forum, media or calendar channel",
+  UseSoundboard: "Play a soundboard clip in a voice channel",
   ManageChannels: "Create, edit and delete channels",
   ManageRoles: "Manage roles and channel permissions",
   ManageServer: "Rename the server",
   ManageNicknames: "Change other members' nicknames",
   ManageMessages: "Delete other members' messages",
   ManageWebhooks: "Create and revoke the webhooks of a channel",
+  ManageExpressions: "Upload and remove custom emoji, stickers and sounds",
   KickUsers: "Disconnect a member",
+  BanUsers: "Ban a member, and their address and device, from the server",
   MoveUsers: "Move a member between voice channels",
   MuteUsers: "Mute a member in voice",
   DeafenUsers: "Deafen a member in voice",
+  ViewAuditLog: "Read the record of what moderators did",
   Administrator: "Every permission, unconditionally",
 };
 

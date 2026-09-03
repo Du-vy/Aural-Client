@@ -10,7 +10,14 @@
  */
 
 import type { ServerAddress } from "./address";
-import { AuralError, type Attachment, type ProtocolError } from "./protocol";
+import {
+  AuralError,
+  type Attachment,
+  type Expression,
+  type ExpressionKind,
+  type ProtocolError,
+  type Sound,
+} from "./protocol";
 
 /** How a file is rendered in a message. */
 export type AttachmentKind = "image" | "video" | "audio" | "pdf" | "text" | "file";
@@ -205,6 +212,63 @@ function uploadMediaFile(options: MediaUploadOptions, type: "avatar" | "banner")
     file,
     onProgress,
     accepts: (status) => status >= 200 && status < 300,
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Expressions: custom emoji, stickers, and the soundboard                     */
+/* -------------------------------------------------------------------------- */
+
+export interface ExpressionUploadOptions extends MediaUploadOptions {
+  /** What writers will type to reach it. Letters, digits and underscores. */
+  name: string;
+}
+
+export interface SoundUploadOptions extends MediaUploadOptions {
+  name: string;
+  /** The glyph on the button, which may be empty. */
+  emoji?: string;
+}
+
+/**
+ * Uploads a custom emoji or sticker.
+ *
+ * The name travels in the query string rather than as a second form part: the
+ * body is one file, exactly as every other upload endpoint here takes, and the
+ * server reads the name before it has spent a byte of quota on the picture.
+ */
+export function uploadExpression(
+  options: ExpressionUploadOptions,
+  kind: ExpressionKind,
+): { done: Promise<Expression>; cancel(): void } {
+  const { address, token, file, name, onProgress } = options;
+  return post<Expression>({
+    url: `${serverOrigin(address)}/upload/${kind}?name=${encodeURIComponent(name)}`,
+    token,
+    file,
+    onProgress,
+    accepts: (status) => status === 201,
+  });
+}
+
+/**
+ * Uploads a soundboard clip.
+ *
+ * The file is always WAV, whatever the person picked: the trimmer decodes it,
+ * cuts the range that was chosen and re-encodes. That is what puts the length
+ * limit within the server's reach — it reads the duration out of the header
+ * rather than taking this client's word for it.
+ */
+export function uploadSound(options: SoundUploadOptions): { done: Promise<Sound>; cancel(): void } {
+  const { address, token, file, name, emoji, onProgress } = options;
+  const query = new URLSearchParams({ name });
+  if (emoji) query.set("emoji", emoji);
+  return post<Sound>({
+    url: `${serverOrigin(address)}/upload/sound?${query.toString()}`,
+    token,
+    file,
+    onProgress,
+    accepts: (status) => status === 201,
   });
 }
 

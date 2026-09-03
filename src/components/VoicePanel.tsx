@@ -4,6 +4,7 @@ import { canOpenPrivacySettings, openPrivacySettings } from "@/lib/open";
 import { readAccessibility } from "@/lib/storage";
 import { playMuteCue } from "@/lib/audioCues";
 import { ConfirmDialog } from "./dialogs/ConfirmDialog";
+import { SoundboardPanel } from "./SoundboardPanel";
 import { useCall, useServerRegistry, useServers } from "@/store/servers";
 import { useVoice } from "@/store/voice";
 import {
@@ -14,6 +15,7 @@ import {
   HeadphonesOffIcon,
   MicIcon,
   MicOffIcon,
+  SoundboardIcon,
   VoiceIcon,
 } from "./Icons";
 
@@ -36,6 +38,7 @@ interface VoicePanelProps {
 export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
   const { t } = useTranslation();
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [soundboardOpen, setSoundboardOpen] = useState(false);
   const self = useCall((state) => state.self);
   const channels = useCall((state) => state.channels);
   const users = useCall((state) => state.users);
@@ -44,6 +47,8 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
   const callServerId = useCall((state) => state.serverId);
   const callServerName = useCall((state) => state.server?.name ?? "");
   const foregroundId = useServerRegistry((state) => state.foregroundId);
+
+  const sounds = useCall((state) => state.sounds);
 
   const status = useVoice((state) => state.status);
   const notice = useVoice((state) => state.notice);
@@ -216,6 +221,19 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
               <HeadphonesIcon size={17} />
             )}
           </button>
+          {/* A server with no clips has nothing to open, and a button that
+              opens an empty panel is worse than no button. */}
+          {sounds.size > 0 ? (
+            <button
+              className={soundboardOpen ? "iconbtn iconbtn--active" : "iconbtn"}
+              onClick={() => setSoundboardOpen((open) => !open)}
+              title={t("soundboard.title")}
+              aria-label={t("soundboard.title")}
+              aria-expanded={soundboardOpen}
+            >
+              <SoundboardIcon size={17} />
+            </button>
+          ) : null}
           <button
             className="iconbtn"
             onClick={onOpenVoiceSettings}
@@ -226,6 +244,8 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
           </button>
         </div>
       ) : null}
+
+      {soundboardOpen ? <SoundboardPanel onClose={() => setSoundboardOpen(false)} /> : null}
 
       {confirmLeave ? (
         <ConfirmDialog

@@ -145,6 +145,30 @@ export function writeSidebarWidth(width: number): void {
   }
 }
 
+/**
+ * The random identifier this installation presents as part of its device
+ * fingerprint. See `lib/device.ts` for what it is for and why it is hashed
+ * with a per-server salt before it ever leaves.
+ */
+const INSTALL_ID_KEY = "aural.install_id.v1";
+
+export function readInstallId(): string | null {
+  try {
+    return localStorage.getItem(INSTALL_ID_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function writeInstallId(id: string): void {
+  try {
+    localStorage.setItem(INSTALL_ID_KEY, id);
+  } catch {
+    // A browser with storage switched off. The identifier is then whatever the
+    // rest of the ingredients say, which is weaker and still not nothing.
+  }
+}
+
 const LANGUAGE_KEY = "aural.language.v1";
 
 export function readLanguage(): string | null {

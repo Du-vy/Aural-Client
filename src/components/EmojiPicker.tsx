@@ -27,6 +27,7 @@ import {
   type KlipyCategory,
   type KlipyMediaItem,
 } from "@/lib/klipy";
+import { expressionUrl } from "@/lib/customEmoji";
 import { useSession } from "@/store/session";
 import { useMyPermissions } from "@/store/selectors";
 import { Perm, has } from "@/lib/permissions";
@@ -67,6 +68,8 @@ export function EmojiPicker({
 }: EmojiPickerProps) {
   const { t } = useTranslation();
   const server = useSession((state) => state.server);
+  const address = useSession((state) => state.address);
+  const expressions = useSession((state) => state.expressions);
   const permissions = useMyPermissions();
   const canManageServer = has(permissions, Perm.ManageServer);
 
@@ -227,6 +230,22 @@ export function EmojiPicker({
   const results = useMemo(() => (tab === "emojis" ? searchEmoji(query) : []), [query, tab]);
   const searching = query.trim() !== "";
 
+  // What this server carries for its own people, split by where it is drawn:
+  // an emoji goes inline in a line of text, a sticker is the whole message.
+  const serverEmoji = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return [...expressions.values()]
+      .filter((item) => item.kind === "emoji")
+      .filter((item) => term === "" || item.name.includes(term));
+  }, [expressions, query]);
+
+  const serverStickers = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return [...expressions.values()]
+      .filter((item) => item.kind === "sticker")
+      .filter((item) => term === "" || item.name.includes(term));
+  }, [expressions, query]);
+
   const recentEntries = useMemo(
     () =>
       recent
@@ -261,6 +280,31 @@ export function EmojiPicker({
   function chooseEmoji(entry: EmojiEntry) {
     setRecent(rememberEmoji(entry[0]));
     onPick(display(entry, modifier));
+  }
+
+  /**
+   * Inserts a custom emoji as the text it is.
+   *
+   * `:name:` rather than a picture, because that is what the message stores:
+   * nothing is rewritten on the way in, so a line written today still reads as
+   * what somebody typed after the emoji is renamed or deleted.
+   */
+  function chooseServerEmoji(name: string) {
+    onPick(`:${name}:`);
+  }
+
+  /**
+   * Sends a custom sticker.
+   *
+   * It goes as a link to its own picture, which is what a Klipy sticker
+   * already does: the message renderer draws a message that is nothing but a
+   * media link as the media itself, so a sticker needs no field of its own on
+   * a message and no second rendering path to draw it.
+   */
+  function chooseServerSticker(url: string) {
+    if (onSendMedia) onSendMedia(url);
+    else onPick(url);
+    onClose();
   }
 
   function handleSendMediaItem(item: KlipyMediaItem) {
@@ -525,7 +569,36 @@ export function EmojiPicker({
         {/* STICKERS TAB */}
         {tab === "stickers" && (
           <div className="picker__body picker__body--stickers" ref={scroller}>
-            {!klipyEnabled ? (
+            {serverStickers.length > 0 ? (
+              <section data-section="server-stickers">
+                <h3 className="picker__label">{t("emoji.stickers.serverSection")}</h3>
+                <div className="picker__stickers-grid">
+                  {serverStickers.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className="picker__sticker-item"
+                      onClick={() => chooseServerSticker(expressionUrl(address, item))}
+                      onMouseEnter={() =>
+                        setHoveredInfo({
+                          name: item.name,
+                          subtext: server?.name ?? "",
+                          imgUrl: expressionUrl(address, item),
+                        })
+                      }
+                      onMouseLeave={() => setHoveredInfo(null)}
+                      title={item.name}
+                    >
+                      <img src={expressionUrl(address, item)} alt={item.name} loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+            {/* The notice about a missing Klipy key is only worth showing when
+                there is nothing else in this tab: a server carrying its own
+                stickers is not missing anything. */}
+            {!klipyEnabled && serverStickers.length > 0 ? null : !klipyEnabled ? (
               <div className="picker__notice">
                 <div className="picker__notice-icon">
                   <GifIcon size={32} />
@@ -583,6 +656,23 @@ export function EmojiPicker({
           <div className="picker__emoji-layout">
             {/* Left Sidebar Category Strip */}
             <nav className="picker__strip" aria-label={t("composer.emoji")}>
+              {serverEmoji.length > 0 ? (
+                <button
+                  type="button"
+                  className={
+                    !searching && activeCategory === "server"
+                      ? "picker__tab picker__tab--active"
+                      : "picker__tab"
+                  }
+                  title={t("emoji.emojis.serverSection")}
+                  aria-label={t("emoji.emojis.serverSection")}
+                  onClick={() => jumpTo("server")}
+                >
+                  <span className="picker__tab-letter">
+                    {(server?.name ?? "S").slice(0, 1).toUpperCase()}
+                  </span>
+                </button>
+              ) : null}
               {strip.map((id) => (
                 <button
                   key={id}
@@ -610,6 +700,41 @@ export function EmojiPicker({
 
             {/* Emoji Grid */}
             <div className="picker__body" ref={scroller}>
+              {serverEmoji.length > 0 ? (
+                <section data-section="server">
+                  <h3 className="picker__label">{t("emoji.emojis.serverSection")}</h3>
+                  <div className="picker__grid">
+                    {serverEmoji.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="picker__emoji"
+                        title={`:${item.name}:`}
+                        aria-label={item.name}
+                        onClick={() => chooseServerEmoji(item.name)}
+                        onMouseEnter={() =>
+                          setHoveredInfo({
+                            name: `:${item.name}:`,
+                            subtext: server?.name ?? "",
+                            imgUrl: expressionUrl(address, item),
+                          })
+                        }
+                        onMouseLeave={() => setHoveredInfo(null)}
+                      >
+                        <img
+                          src={expressionUrl(address, item)}
+                          alt={item.name}
+                          className="picker__twemoji"
+                          width={22}
+                          height={22}
+                          loading="lazy"
+                          draggable={false}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
               {sections.map((section) => (
                 <section key={section.id} data-section={section.id}>
                   <h3 className="picker__label">{section.name}</h3>

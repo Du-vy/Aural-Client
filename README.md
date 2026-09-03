@@ -271,6 +271,67 @@ render large, and `emoji-catalogue.ts`, which the picker uses.
 Emoji render in the system font rather than as images: no sprite sheet to ship,
 and they match the rest of the operating system.
 
+## Moderation, expressions and the soundboard
+
+### Bans and the device identifier
+
+Server Settings → Bans lists who has been refused and what each refusal reaches;
+banning somebody is in the right-click menu next to kicking, behind the
+`BanUsers` permission.
+
+The interesting half is what a ban is matched on. An account is one click away
+from being replaced, so this client presents a **device identifier** as well:
+`SHA-256` over a random value it wrote once into the steadiest place the platform
+offers, what the environment says about itself, and a salt the server sent in
+`hello`.
+
+What it deliberately is **not** is hardware fingerprinting. There are no serial
+numbers, no volume identifiers, no registry reads, no spawned processes and no
+canvas readback. Partly because that is the road to being flagged by an antivirus
+scanner, and mostly because it does not work any better: somebody who reinstalls
+their system is through either way. What it raises is the cost of the ordinary
+case — closing the client, opening it again, and coming back as a new guest.
+
+Because the hash is salted per server, the same machine presents a different
+identifier to every server it connects to. The value means something on the
+server that issued the salt, and nothing anywhere else, so it cannot be used to
+follow somebody around; the server never learns the material behind it either.
+
+The desktop build is where it bites. `src-tauri/src/device.rs` keeps a random
+identifier in the steadiest directory the platform offers — on Windows a shared
+one, so it survives switching to another user account on the same computer — and
+describes the machine from what the operating system hands any process for free.
+A browser build has only what `localStorage` holds, which clearing site data
+takes with it.
+
+### The audit log and AutoMod
+
+Two more pages under Server Settings. The log is behind `ViewAuditLog`, pages
+backwards, filters by action, and updates live as entries are written. AutoMod
+is behind `ManageServer` and edits the whole rule set at once — six rules, each
+with its own exempt roles on top of a server-wide list, because that is the
+exemption a server actually configures: staff are exempt from everything, and
+one rule is very often lifted for a single role.
+
+### Custom emoji, stickers and sounds
+
+Emoji are written as `:name:` and resolved when a message is rendered, never on
+the way in — so history survives one being renamed or deleted, and a `:name:`
+that resolves to nothing stays the text somebody typed. They appear in their own
+section of the picker, above the Unicode ones. Stickers sit beside the Klipy tab
+and are sent as their own picture.
+
+The **soundboard** opens from a button beside mute and deafen while you are in a
+call. Uploading a clip goes through a trimmer: it decodes whatever file was
+picked, draws its waveform, and cuts the few seconds worth keeping — which is
+what makes a ten-second limit something you meet in the picker rather than in
+another application.
+
+Playback is local. The server says which clip was played; every client in the
+channel fetches it and mixes it into its own output. So it sounds the same to
+everybody, works the same whoever is relaying the call, and being deafened
+silences it exactly as it silences everything else.
+
 ## Layout
 
 ```
@@ -282,6 +343,9 @@ src/lib/time.ts          message timestamps, day separators and grouping
 src/lib/emoji.ts         whether a message is emoji enough to render large
 src/lib/emoji-catalogue.ts  searching, recents and skin tones for the picker
 src/lib/emoji-data.ts    the catalogue itself, generated from Unicode
+src/lib/customEmoji.ts   resolving `:name:` against the server's own emoji
+src/lib/soundboard.ts    trimming a clip to WAV, and playing one back
+src/lib/device.ts        the machine identifier a ban is matched on
 src/lib/uploads.ts       sending files, addressing them, and sizing them
 src/lib/voice/audio.ts   the microphone, the gate, the meter, and playback
 src/lib/voice/denoise.ts  RNNoise, fetched only if somebody turns it on
@@ -301,6 +365,7 @@ src/styles/theme.css     design tokens, all of them
 src/styles/app.css       layout and components
 src-tauri/               the desktop and mobile shell
 src-tauri/src/media.rs   the webview's microphone prompt, answered off screen
+src-tauri/src/device.rs  what this installation can say about the machine
 scripts/                 the two checks, and the icon and emoji generators
 ```
 
@@ -437,6 +502,11 @@ Integrations that mints the URL an outside service posts to, and the rendering
 for what arrives through one — an app badge, the sender's own name and picture,
 and the rich cards a Discord-shaped delivery carries, laid out the way the
 services that send them expect.
+
+**Unreleased** — moderation and expressions: a ban screen and a ban dialog
+that says what each ban will reach, a salted per-server device identifier so
+one survives a new guest identity, the audit log, AutoMod, custom emoji and
+stickers, and a soundboard with a trimmer.
 
 **Later** — bots, screen sharing, a global push-to-talk hotkey in the native
 shell, and Aural Hub for finding public servers.

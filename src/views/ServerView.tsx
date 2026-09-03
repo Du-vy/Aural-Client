@@ -12,6 +12,7 @@ import {
   CopyIcon,
   FolderIcon,
   ForumIcon,
+  GavelIcon,
   GearIcon,
   HangUpIcon,
   HeadphonesIcon,
@@ -43,6 +44,7 @@ import { UserSettingsDialog } from "@/components/dialogs/UserSettingsDialog";
 import { ChannelDialog } from "@/components/dialogs/ChannelDialog";
 import { ConfirmDialog } from "@/components/dialogs/ConfirmDialog";
 import { MemberDialog } from "@/components/dialogs/MemberDialog";
+import { BanUserDialog } from "@/components/dialogs/BanUserDialog";
 import { KickUserDialog } from "@/components/dialogs/KickUserDialog";
 import { NicknameDialog } from "@/components/dialogs/NicknameDialog";
 import { ServerSettingsDialog } from "@/components/dialogs/ServerSettingsDialog";
@@ -89,6 +91,7 @@ type Dialog =
   | { kind: "nickname"; userId: number }
   | { kind: "confirmDeleteChannel"; channel: Channel }
   | { kind: "kickUser"; user: User }
+  | { kind: "banUser"; user: User }
   | { kind: "confirmMoveCall"; channel: Channel; call: CallLocation };
 
 type ContextMenuState =
@@ -153,6 +156,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   const setRoleMembership = useSession((state) => state.setRoleMembership);
   const moveUser = useSession((state) => state.moveUser);
   const kickUser = useSession((state) => state.kickUser);
+  const banUser = useSession((state) => state.banUser);
   const searchOpen = useSession((state) => state.search.open);
   const openSearch = useSession((state) => state.openSearch);
   const jump = useSession((state) => state.jump);
@@ -452,6 +456,11 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       // Kicking is offered for both online and offline members as long as you outrank them.
       const canKick =
         !isSelf && has(permissions, Perm.KickUsers) && outranks(self, u, roles);
+      // Banning is its own permission and its own act: a kick ends a
+      // connection, a ban is a standing refusal that reaches the address and
+      // the machine behind it.
+      const canBan =
+        !isSelf && has(permissions, Perm.BanUsers) && outranks(self, u, roles) && !u.owner;
       const canMove = has(permissions, Perm.MoveUsers) && u.channelId !== null;
 
       const entries: MenuEntry[] = [
@@ -571,14 +580,25 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         }
       }
 
-      if (canKick) {
+      if (canKick || canBan) {
         entries.push({ type: "separator" });
+      }
+      if (canKick) {
         entries.push({
           id: "kick",
           label: t("contextMenu.kickMember", { name: u.nickname }),
           icon: <UserXIcon size={16} />,
           danger: true,
           onClick: () => setDialog({ kind: "kickUser", user: u }),
+        });
+      }
+      if (canBan) {
+        entries.push({
+          id: "ban",
+          label: t("contextMenu.banMember", { name: u.nickname }),
+          icon: <GavelIcon size={16} />,
+          danger: true,
+          onClick: () => setDialog({ kind: "banUser", user: u }),
         });
       }
 
@@ -609,6 +629,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
     setRoleMembership,
     moveUser,
     kickUser,
+    banUser,
     voiceStates,
     moderateVoice,
     t,
@@ -1109,6 +1130,15 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           user={dialog.user}
           onConfirm={(reason, deleteMessages) => {
             void kickUser(dialog.user.id, reason, deleteMessages);
+          }}
+          onClose={() => setDialog({ kind: "none" })}
+        />
+      ) : null}
+      {dialog.kind === "banUser" ? (
+        <BanUserDialog
+          user={dialog.user}
+          onConfirm={(input) => {
+            void banUser({ ...input, userId: dialog.user.id });
           }}
           onClose={() => setDialog({ kind: "none" })}
         />

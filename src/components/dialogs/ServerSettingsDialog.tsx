@@ -25,7 +25,9 @@ import {
   PlusIcon,
   ShieldIcon,
   SlidersIcon,
+  FilterIcon,
   SmileyIcon,
+  SoundboardIcon,
   TrashIcon,
   UsersIcon,
   UserXIcon,
@@ -34,6 +36,11 @@ import {
   LogOutIcon,
 } from "../Icons";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ServerAuditPage } from "./server-settings/AuditPage";
+import { ServerAutoModPage } from "./server-settings/AutoModPage";
+import { ServerBansPage } from "./server-settings/BansPage";
+import { ServerExpressionsPage } from "./server-settings/ExpressionsPage";
+import { ServerSoundsPage } from "./server-settings/SoundsPage";
 
 type ServerTabId =
   | "overview"
@@ -41,18 +48,29 @@ type ServerTabId =
   | "channels"
   | "voice"
   | "emojis"
+  | "sounds"
+  | "automod"
   | "integrations"
   | "audit"
   | "members"
   | "invites"
   | "bans";
 
-export function ServerSettingsDialog({ onClose }: { onClose(): void }) {
+interface ServerSettingsDialogProps {
+  /** Which page to open on. Only a caller that means one uses it. */
+  initialTab?: ServerTabId;
+  onClose(): void;
+}
+
+export function ServerSettingsDialog({
+  initialTab = "overview",
+  onClose,
+}: ServerSettingsDialogProps) {
   const { t } = useTranslation();
   const server = useSession((state) => state.server);
   const disconnect = useSession((state) => state.disconnect);
 
-  const [activeTab, setActiveTab] = useState<ServerTabId>("overview");
+  const [activeTab, setActiveTab] = useState<ServerTabId>(initialTab);
   const [confirmLeave, setConfirmLeave] = useState(false);
 
   if (!server) return null;
@@ -85,8 +103,16 @@ export function ServerSettingsDialog({ onClose }: { onClose(): void }) {
           id: "emojis",
           label: t("dialogs.serverSettings.tabEmojis"),
           icon: <SmileyIcon size={16} />,
-          badge: t("dialogs.userSettings.soonBadge"),
-          badgeType: "soon",
+        },
+        {
+          id: "sounds",
+          label: t("dialogs.serverSettings.tabSounds"),
+          icon: <SoundboardIcon size={16} />,
+        },
+        {
+          id: "automod",
+          label: t("dialogs.serverSettings.tabAutoMod"),
+          icon: <FilterIcon size={16} />,
         },
         {
           id: "integrations",
@@ -97,8 +123,6 @@ export function ServerSettingsDialog({ onClose }: { onClose(): void }) {
           id: "audit",
           label: t("dialogs.serverSettings.tabAudit"),
           icon: <FileTextIcon size={16} />,
-          badge: t("dialogs.userSettings.soonBadge"),
-          badgeType: "soon",
         },
       ],
     },
@@ -121,8 +145,6 @@ export function ServerSettingsDialog({ onClose }: { onClose(): void }) {
           id: "bans",
           label: t("dialogs.serverSettings.tabBans"),
           icon: <UserXIcon size={16} />,
-          badge: t("dialogs.userSettings.soonBadge"),
-          badgeType: "soon",
         },
       ],
     },
@@ -174,7 +196,9 @@ export function ServerSettingsDialog({ onClose }: { onClose(): void }) {
         {activeTab === "roles" ? <ServerRolesPage /> : null}
         {activeTab === "channels" ? <ServerChannelsPage /> : null}
         {activeTab === "voice" ? <ServerVoicePage /> : null}
-        {activeTab === "emojis" ? <ServerEmojisPage /> : null}
+        {activeTab === "emojis" ? <ServerExpressionsPage /> : null}
+        {activeTab === "sounds" ? <ServerSoundsPage /> : null}
+        {activeTab === "automod" ? <ServerAutoModPage /> : null}
         {activeTab === "integrations" ? <ServerIntegrationsPage /> : null}
         {activeTab === "audit" ? <ServerAuditPage /> : null}
         {activeTab === "members" ? <ServerMembersPage /> : null}
@@ -794,45 +818,8 @@ function ServerChannelsPage() {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Server Placeholders: Emojis, Integrations, Audit, Members, Invites, Bans    */
+/* Server Tabs: Integrations, Members, Invites                                 */
 /* -------------------------------------------------------------------------- */
-
-function ServerEmojisPage() {
-  const { t } = useTranslation();
-  return (
-    <div className="settings-section">
-      <header className="settings-section__header">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h2 className="settings-section__title">
-            {t("dialogs.serverSettings.emojis.title")}
-          </h2>
-          <span className="settings-badge settings-badge--soon">
-            {t("dialogs.userSettings.soonBadge")}
-          </span>
-        </div>
-        <p className="settings-section__desc">
-          {t("dialogs.serverSettings.emojis.desc")}
-        </p>
-      </header>
-
-      <div className="settings-card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <h3 className="settings-card__title">
-              {t("dialogs.serverSettings.emojis.slotsAvailable", { used: 0, total: 50 })}
-            </h3>
-            <p className="settings-card__subtitle">
-              {t("dialogs.serverSettings.emojis.uploadHint")}
-            </p>
-          </div>
-          <button type="button" className="btn btn--primary" disabled>
-            {t("dialogs.serverSettings.emojis.uploadButton")}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ServerIntegrationsPage() {
   const { t } = useTranslation();
@@ -1348,33 +1335,6 @@ function ServerWebhooksCard() {
 }
 
 
-function ServerAuditPage() {
-  const { t } = useTranslation();
-  return (
-    <div className="settings-section">
-      <header className="settings-section__header">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h2 className="settings-section__title">
-            {t("dialogs.serverSettings.audit.title")}
-          </h2>
-          <span className="settings-badge settings-badge--soon">
-            {t("dialogs.userSettings.soonBadge")}
-          </span>
-        </div>
-        <p className="settings-section__desc">
-          {t("dialogs.serverSettings.audit.desc")}
-        </p>
-      </header>
-
-      <div className="settings-card">
-        <p className="settings-card__subtitle">
-          {t("dialogs.serverSettings.audit.empty")}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function ServerMembersPage() {
   const { t } = useTranslation();
   const users = useSession((state) => state.users);
@@ -1456,33 +1416,6 @@ function ServerInvitesPage() {
       <div className="settings-card">
         <p className="settings-card__subtitle">
           {t("dialogs.serverSettings.invites.empty")}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function ServerBansPage() {
-  const { t } = useTranslation();
-  return (
-    <div className="settings-section">
-      <header className="settings-section__header">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h2 className="settings-section__title">
-            {t("dialogs.serverSettings.bans.title")}
-          </h2>
-          <span className="settings-badge settings-badge--soon">
-            {t("dialogs.userSettings.soonBadge")}
-          </span>
-        </div>
-        <p className="settings-section__desc">
-          {t("dialogs.serverSettings.bans.desc")}
-        </p>
-      </header>
-
-      <div className="settings-card">
-        <p className="settings-card__subtitle">
-          {t("dialogs.serverSettings.bans.empty")}
         </p>
       </div>
     </div>

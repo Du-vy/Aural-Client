@@ -664,3 +664,41 @@ export const SendIcon = icon(
 
 
 
+
+/** The soundboard: a grid of pads, which is what the panel actually is. */
+export const SoundboardIcon = icon(
+  <>
+    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+    <rect x="3" y="14" width="7" height="7" rx="1.5" />
+    <rect x="14" y="14" width="7" height="7" rx="1.5" />
+  </>,
+);
+
+/** A gavel, for the moderation screens. */
+export const GavelIcon = icon(
+  <>
+    <path d="M13.5 4.5 19.5 10.5" />
+    <path d="M10.5 7.5 16.5 13.5" />
+    <path d="m3 21 6-6" />
+    <path d="M12 6 6 12" />
+    <path d="M18 12 12 18" />
+  </>,
+);
+
+/** A funnel, for the automatic moderation rules. */
+export const FilterIcon = icon(<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />);
+
+/** Scissors, for the trimmer. */
+export const ScissorsIcon = icon(
+  <>
+    <circle cx="6" cy="6" r="3" />
+    <circle cx="6" cy="18" r="3" />
+    <line x1="20" y1="4" x2="8.12" y2="15.88" />
+    <line x1="14.47" y1="14.48" x2="20" y2="20" />
+    <line x1="8.12" y1="8.12" x2="12" y2="12" />
+  </>,
+);
+
+/** A square stop button, for cutting a preview short. */
+export const StopIcon = icon(<rect x="6" y="6" width="12" height="12" rx="2" />);

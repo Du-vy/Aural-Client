@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 
 import { useTranslation } from "@/lib/i18n";
 import { extractUrls, getDomain } from "@/lib/links";
+import type { ServerAddress } from "@/lib/address";
+import { EMPTY_EMOJI, type EmojiDirectory } from "@/lib/customEmoji";
 import { EMPTY_MENTIONS, mentionsSelf, type MentionDirectory } from "@/lib/mentions";
 import { openExternalUrl } from "@/lib/open";
 import { isDomainTrusted } from "@/lib/storage";
@@ -72,6 +74,10 @@ interface MessageListProps {
   self: User | null;
   /** Who can be named, so an `@name` in a message resolves to them. */
   mentions?: MentionDirectory;
+  /** The server's custom emoji, so a `:name:` in a message resolves to one. */
+  emojis?: EmojiDirectory;
+  /** Where the server is, so an emoji's relative URL can be built out. */
+  address?: ServerAddress | null;
   hasMore: boolean;
   /**
    * Whether newer messages remain past the last one held, which is true only
@@ -108,6 +114,8 @@ export function MessageList({
   roles,
   self,
   mentions = EMPTY_MENTIONS,
+  emojis = EMPTY_EMOJI,
+  address = null,
   hasMore,
   hasMoreAfter,
   loading,
@@ -394,6 +402,8 @@ export function MessageList({
             roles={roles}
             self={self}
             mentions={mentions}
+            emojis={emojis}
+            address={address}
             namesReader={naming.has(message.id)}
             editable={message.userId !== null && message.userId === selfId}
             deletable={
@@ -466,6 +476,8 @@ interface MessageRowProps {
   /** The live user record, when the author happens to be connected. */
   author: User | undefined;
   roles: ReadonlyMap<number, Role>;
+  emojis: EmojiDirectory;
+  address: ServerAddress | null;
   /** The reader, for the mentions in this message that reach them. */
   self: User | null;
   mentions: MentionDirectory;
@@ -491,6 +503,8 @@ function MessageRow({
   roles,
   self,
   mentions,
+  emojis,
+  address,
   namesReader,
   editable,
   deletable,
@@ -646,6 +660,8 @@ function MessageRow({
             attachments={message.attachments}
             embeds={message.embeds}
             mentions={mentions}
+            emojis={emojis}
+            address={address}
             self={self}
             onOpenLink={onOpenLink}
             onOpenMember={onOpenMember}

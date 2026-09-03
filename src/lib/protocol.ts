@@ -45,7 +45,10 @@ export type ErrorCode =
   | "dm_blocked"
   | "post_locked"
   | "voice_disabled"
-  | "voice_failed";
+  | "voice_failed"
+  | "banned"
+  | "automod_blocked"
+  | "expression_limit";
 
 /** Reply ops. Every request receives exactly one of these. */
 export const OP_RESULT = "result";
@@ -65,6 +68,22 @@ export const Op = {
   UserUpdate: "user.update",
   UserMove: "user.move",
   UserKick: "user.kick",
+
+  BanList: "ban.list",
+  BanCreate: "ban.create",
+  BanDelete: "ban.delete",
+
+  AuditList: "audit.list",
+
+  AutoModGet: "automod.get",
+  AutoModUpdate: "automod.update",
+
+  ExpressionUpdate: "expression.update",
+  ExpressionDelete: "expression.delete",
+
+  SoundUpdate: "sound.update",
+  SoundDelete: "sound.delete",
+  SoundPlay: "sound.play",
 
   ChannelCreate: "channel.create",
   ChannelUpdate: "channel.update",
@@ -118,6 +137,22 @@ export const Ev = {
   UserUpdated: "user.updated",
   UserMoved: "user.moved",
   UserRemoved: "user.removed",
+
+  BanCreated: "ban.created",
+  BanDeleted: "ban.deleted",
+
+  AuditEntry: "audit.entry",
+
+  AutoModUpdated: "automod.updated",
+
+  ExpressionCreated: "expression.created",
+  ExpressionUpdated: "expression.updated",
+  ExpressionDeleted: "expression.deleted",
+
+  SoundCreated: "sound.created",
+  SoundUpdated: "sound.updated",
+  SoundDeleted: "sound.deleted",
+  SoundPlayed: "sound.played",
 
   ChannelCreated: "channel.created",
   ChannelUpdated: "channel.updated",
@@ -191,6 +226,13 @@ export interface ServerInfo {
    * unauthenticated, so anything in it is public.
    */
   klipyEnabled?: boolean;
+  /**
+   * What this server accepts as a custom emoji, sticker or soundboard clip.
+   * The trimmer needs the length limit before it can cut anything, and the
+   * picker needs the counts to know when there is no slot left. Absent from a
+   * server older than the feature.
+   */
+  expressions?: ExpressionLimits;
   /**
    * Whether this server carries private conversations. Absent from a server
    * older than they are, which is the same answer as `false`: a client that
@@ -592,6 +634,17 @@ export interface Attachment {
 export interface Hello {
   server: ServerInfo;
   heartbeatMs: number;
+  /**
+   * A random value this server minted once and keeps. The client folds it into
+   * the stable machine attributes it can read and sends the hash as `device`
+   * on the auth op that follows.
+   *
+   * The salt is the whole design: the identifier means something on this
+   * server, which is what makes a ban survive a new account and a cleared
+   * profile, and means nothing anywhere else, so it cannot be used to follow
+   * somebody between servers. Absent from a server that has no use for it.
+   */
+  deviceSalt?: string;
 }
 
 /** The full state snapshot: the reply to any auth op, and a resync event. */
@@ -625,6 +678,14 @@ export interface Ready {
    * before opening it. Absent from a server that carries none.
    */
   conversations?: Conversation[];
+  /**
+   * Every custom emoji and sticker this server carries. It is in the snapshot
+   * rather than fetched because a message cannot be rendered without it:
+   * `:shrug:` in the very first line of history has to resolve.
+   */
+  expressions?: Expression[];
+  /** The soundboard, which the panel in a call is drawn from. */
+  sounds?: Sound[];
 }
 
 // --- request payloads --------------------------------------------------------
@@ -1195,6 +1256,227 @@ export interface VoiceResetEvent {
 }
 
 /** An error reply, thrown by the gateway so callers can catch it by code. */
+
+/* -------------------------------------------------------------------------- */
+/* Moderation: bans, the audit log, and the automatic rules                    */
+/* -------------------------------------------------------------------------- */
+
+/** The kinds of identifier a ban is matched on. */
+export type BanMatchKind = "user" | "ip" | "device";
+
+/**
+ * One standing refusal.
+ *
+ * The handles are counted, never sent: an address and a device hash identify
+ * somebody outside this server as well as inside it, and a moderator deciding
+ * whether to lift a ban needs to know that it reaches a machine, not which.
+ */
+export interface Ban {
+  id: number;
+  /** null once the identity is gone, which is immediately for a guest. */
+  userId: number | null;
+  userNickname: string;
+  userUsername: string | null;
+  actorId: number | null;
+  actorNickname: string;
+  reason: string;
+  createdAt: number;
+  /** null for a permanent ban. */
+  expiresAt: number | null;
+  matches: BanMatchSummary[];
+  /** False for a ban whose date has passed; it stays in the list as a record. */
+  active: boolean;
+}
+
+export interface BanMatchSummary {
+  kind: BanMatchKind;
+  count: number;
+}
+
+export interface BanCreateRequest {
+  userId: number;
+  reason?: string;
+  /** Seconds. Zero, or absent, is permanent. */
+  duration?: number;
+  deleteMessages?: PurgeWindow;
+  /** Both default to on at the server. */
+  matchIp?: boolean;
+  matchDevice?: boolean;
+}
+
+/** How far back a kick or a ban deletes what somebody wrote. */
+export type PurgeWindow = "none" | "1d" | "7d" | "30d" | "all";
+
+/** One line of the record of what moderators did. */
+export interface AuditEntry {
+  id: number;
+  actorId: number | null;
+  actorName: string;
+  action: string;
+  targetType?: string;
+  targetId?: number;
+  targetName?: string;
+  reason?: string;
+  changes?: AuditChange[];
+  createdAt: number;
+}
+
+/** One field an action altered, rendered rather than typed. */
+export interface AuditChange {
+  key: string;
+  before?: string;
+  after?: string;
+}
+
+export interface AuditListRequest {
+  actorId?: number;
+  action?: string;
+  /** The id of the oldest entry already held, exclusive. */
+  before?: number;
+  limit?: number;
+}
+
+export interface AuditListResult {
+  entries: AuditEntry[];
+  hasMore: boolean;
+}
+
+/** What a rule does when it matches. */
+export type AutoModAction = "block" | "censor";
+
+/** What every rule has: whether it runs, what it does, and who it spares. */
+export interface AutoModRule {
+  enabled: boolean;
+  action: AutoModAction;
+  /** Exempt from this rule alone, on top of the server-wide list. */
+  exemptRoles: number[];
+}
+
+export interface AutoModWords extends AutoModRule {
+  words: string[];
+  /** Match only complete words, so a list does not catch innocent ones. */
+  wholeWord: boolean;
+}
+
+export interface AutoModLinks extends AutoModRule {
+  /** Let through. An entry covers its own subdomains. */
+  allowedDomains: string[];
+}
+
+export interface AutoModMentions extends AutoModRule {
+  limit: number;
+}
+
+export interface AutoModCaps extends AutoModRule {
+  percent: number;
+  minLength: number;
+}
+
+export interface AutoModFlood extends AutoModRule {
+  messages: number;
+  seconds: number;
+}
+
+export interface AutoModRepetition extends AutoModRule {
+  times: number;
+}
+
+/**
+ * The whole rule set, read and written at once. It is behind ManageServer:
+ * the word list is the one thing here worth reading precisely because it says
+ * what not to write.
+ */
+export interface AutoModConfig {
+  enabled: boolean;
+  /** Exempt from every rule. */
+  exemptRoles: number[];
+  /** Channels no rule applies in. */
+  exemptChannels: number[];
+  words: AutoModWords;
+  links: AutoModLinks;
+  mentions: AutoModMentions;
+  caps: AutoModCaps;
+  flood: AutoModFlood;
+  repetition: AutoModRepetition;
+}
+
+/** What a server that has never configured anything runs: nothing. */
+export function defaultAutoMod(): AutoModConfig {
+  const rule = (action: AutoModAction): AutoModRule => ({
+    enabled: false,
+    action,
+    exemptRoles: [],
+  });
+  return {
+    enabled: false,
+    exemptRoles: [],
+    exemptChannels: [],
+    words: { ...rule("censor"), words: [], wholeWord: true },
+    links: { ...rule("block"), allowedDomains: [] },
+    mentions: { ...rule("block"), limit: 5 },
+    caps: { ...rule("block"), percent: 70, minLength: 12 },
+    flood: { ...rule("block"), messages: 5, seconds: 5 },
+    repetition: { ...rule("block"), times: 3 },
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Expressions: custom emoji, stickers and the soundboard                      */
+/* -------------------------------------------------------------------------- */
+
+export type ExpressionKind = "emoji" | "sticker";
+
+/**
+ * One custom emoji or sticker.
+ *
+ * An emoji is written into a message as `:name:` and rendered inline; a sticker
+ * is sent instead of a message and rendered whole. One type, because they are
+ * one namespace with one management screen behind it.
+ */
+export interface Expression {
+  id: number;
+  kind: ExpressionKind;
+  name: string;
+  /** Relative to the server, exactly as an attachment URL is. */
+  url: string;
+  animated: boolean;
+  size: string;
+  creatorId: number | null;
+  createdAt: number;
+}
+
+/** One soundboard clip. */
+export interface Sound {
+  id: number;
+  name: string;
+  emoji: string;
+  url: string;
+  durationMs: number;
+  /** 0..100, so one clip recorded hot can sit beside the others. */
+  volume: number;
+  size: string;
+  creatorId: number | null;
+  createdAt: number;
+}
+
+/** The ceilings a server puts on what it carries for its own people. */
+export interface ExpressionLimits {
+  maxEmojis: number;
+  maxStickers: number;
+  maxSounds: number;
+  /** How long one clip may run. The trimmer cuts to this. */
+  maxSoundSeconds: number;
+  maxEmojiBytes: string;
+  maxStickerBytes: string;
+  maxSoundBytes: string;
+}
+
+export interface SoundPlayedEvent {
+  soundId: number;
+  userId: number;
+  channelId: number;
+}
+
 export class AuralError extends Error {
   readonly code: ErrorCode;
 
@@ -1259,6 +1541,14 @@ export function describeError(error: unknown): string {
       return t("errors.voice_disabled");
     case "voice_failed":
       return t("errors.voice_failed");
+    case "banned":
+      // The server's own message names the reason and the date it lifts on,
+      // which is the whole of what somebody refused needs to read.
+      return error.message || t("errors.banned");
+    case "automod_blocked":
+      return error.message || t("errors.automod_blocked");
+    case "expression_limit":
+      return error.message || t("errors.expression_limit");
     default:
       return error.message || t("errors.unknown");
   }

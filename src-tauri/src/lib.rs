@@ -8,6 +8,7 @@
 //! global push-to-talk hotkey and pinning self-signed certificates so a server
 //! reached by address can still be served over TLS are still to come.
 
+mod device;
 mod media;
 // Desktop only, and every line of it: a tray icon, a window that can be hidden
 // and an application that launches with the session are three things a phone
@@ -124,6 +125,7 @@ pub fn run() {
             .invoke_handler(tauri::generate_handler![
                 open_url,
                 save_file,
+                device::device_fingerprint,
                 system::get_system_settings,
                 system::set_system_settings,
                 system::set_tray_labels,
@@ -132,7 +134,11 @@ pub fn run() {
     };
 
     #[cfg(not(desktop))]
-    let builder = builder.invoke_handler(tauri::generate_handler![open_url, save_file]);
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        open_url,
+        save_file,
+        device::device_fingerprint
+    ]);
 
     builder
         .setup(|_app| {

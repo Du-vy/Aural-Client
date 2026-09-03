@@ -1,4 +1,12 @@
 import { useMemo } from "react";
+import type { ServerAddress } from "@/lib/address";
+import {
+  EMPTY_EMOJI,
+  expressionUrl,
+  isCustomEmojiOnly,
+  splitCustomEmoji,
+  type EmojiDirectory,
+} from "@/lib/customEmoji";
 import { isEmojiOnly } from "@/lib/emoji";
 import { useTranslation } from "@/lib/i18n";
 import { extractUrls, isOnlyMediaUrls, tokenizeMessageText } from "@/lib/links";
@@ -8,7 +16,7 @@ import {
   type MentionDirectory,
   type MentionTarget,
 } from "@/lib/mentions";
-import type { Attachment, Embed, User } from "@/lib/protocol";
+import type { Attachment, Embed, Expression, User } from "@/lib/protocol";
 import { formatFull } from "@/lib/time";
 import { MessageAttachments } from "./attachments/MessageAttachments";
 import { MessageEmbeds } from "./embeds/MessageEmbeds";
@@ -18,7 +26,8 @@ import { RichEmbeds } from "./embeds/RichEmbed";
 type Piece =
   | { kind: "text"; value: string }
   | { kind: "link"; value: string; url: string }
-  | { kind: "mention"; value: string; target: MentionTarget };
+  | { kind: "mention"; value: string; target: MentionTarget }
+  | { kind: "emoji"; value: string; emoji: Expression };
 
 interface MessageContentProps {
   content: string;
@@ -33,6 +42,14 @@ interface MessageContentProps {
   embeds?: readonly Embed[];
   /** Who can be named, so an `@name` in the text resolves to them. */
   mentions?: MentionDirectory;
+  /**
+   * The custom emoji this server carries, so a `:name:` in the text resolves
+   * to one. A name that resolves to nothing stays the text somebody typed,
+   * which is what keeps history readable after an emoji is deleted.
+   */
+  emojis?: EmojiDirectory;
+  /** Where this server is, so an emoji's relative URL can be built out. */
+  address?: ServerAddress | null;
   /** The reader, so the mentions that reach them are marked as such. */
   self?: User | null;
   onOpenLink(url: string): void;
@@ -53,6 +70,8 @@ export function MessageContent({
   attachments,
   embeds,
   mentions = EMPTY_MENTIONS,
+  emojis = EMPTY_EMOJI,
+  address = null,
   self = null,
   onOpenLink,
   onOpenMember,
@@ -61,7 +80,10 @@ export function MessageContent({
   const urls = useMemo(() => extractUrls(content), [content]);
   const onlyMedia = useMemo(() => isOnlyMediaUrls(content), [content]);
   const tokens = useMemo(() => tokenizeMessageText(content), [content]);
-  const jumboEmoji = useMemo(() => isEmojiOnly(content), [content]);
+  const jumboEmoji = useMemo(
+    () => isEmojiOnly(content) || isCustomEmojiOnly(content, emojis),
+    [content, emojis],
+  );
   const files = attachments ?? [];
   const cards = embeds ?? [];
 
@@ -75,15 +97,24 @@ export function MessageContent({
         continue;
       }
       for (const part of splitMentions(token.value, mentions)) {
-        out.push(
-          part.type === "mention"
-            ? { kind: "mention", value: part.value, target: part.target }
-            : { kind: "text", value: part.value },
-        );
+        if (part.type === "mention") {
+          out.push({ kind: "mention", value: part.value, target: part.target });
+          continue;
+        }
+        // Custom emoji are found last, inside what is left after links and
+        // mentions: a `:name:` inside a URL is part of the address, and one
+        // inside somebody's name is part of the name.
+        for (const run of splitCustomEmoji(part.value, emojis)) {
+          out.push(
+            run.type === "emoji"
+              ? { kind: "emoji", value: run.value, emoji: run.emoji }
+              : { kind: "text", value: run.value },
+          );
+        }
       }
     }
     return out;
-  }, [tokens, mentions]);
+  }, [tokens, mentions, emojis]);
 
   // A message that carries files or cards may say nothing at all: the picture
   // is the message, and an empty paragraph above it would be a line of blank
@@ -175,6 +206,20 @@ export function MessageContent({
               >
                 {piece.value}
               </span>
+            );
+          }
+
+          if (piece.kind === "emoji") {
+            return (
+              <img
+                key={index}
+                className="emoji--custom"
+                src={expressionUrl(address, piece.emoji)}
+                alt={piece.value}
+                title={piece.value}
+                draggable={false}
+                loading="lazy"
+              />
             );
           }
 

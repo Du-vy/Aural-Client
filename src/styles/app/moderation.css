@@ -1,0 +1,651 @@
+/*
+ * The moderation and expression surfaces: bans, the audit log, custom emoji,
+ * the soundboard and its trimmer, and the shared controls those screens
+ * introduced — a toggle with a description under it, a row of chips, and the
+ * two inline result lines.
+ *
+ * Loaded after the settings sheets, so the pieces here may lean on what those
+ * already define for a card.
+ */
+
+/* --- shared controls ------------------------------------------------------ */
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.settings-inline-error,
+.settings-inline-success {
+  font-size: 13px;
+  margin: 10px 0 0;
+  line-height: 1.45;
+}
+
+.settings-inline-error {
+  color: var(--danger);
+}
+
+.settings-inline-success {
+  color: var(--online);
+}
+
+/* A card whose contents are switched off: readable, plainly inert. */
+.settings-card--dim {
+  opacity: 0.55;
+}
+
+.settings-card--inset {
+  background: var(--bg-overlay);
+  margin-top: 12px;
+}
+
+.settings-card--note {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.settings-card__note-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/*
+ * A switch with its own explanation. The label and the hint are one column so
+ * that the hint wraps under the words rather than under the checkbox, which is
+ * the whole reason this is not the plain settings row.
+ */
+.settings-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.settings-toggle__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-toggle__label {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.field--inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.field--inline .field__label {
+  margin: 0;
+}
+
+.field__row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.field__row .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.input--narrow {
+  max-width: 120px;
+}
+
+/* A smaller icon button, for the actions that sit on top of an emoji tile. */
+.iconbtn--sm {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-overlay);
+}
+
+/* An icon button that is holding something open, so it reads as pressed even
+   though what it opened is elsewhere on the screen. */
+.iconbtn--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* --- chips ---------------------------------------------------------------- */
+
+/*
+ * A row of togglable tags: which roles are exempt, which channels are, how long
+ * a ban lasts. They are buttons rather than a multi-select because the answer
+ * is very often two or three out of twenty, and a select box makes that a
+ * scroll and a modifier key.
+ */
+.chip-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.chip-row--wrap {
+  margin-top: 10px;
+}
+
+.chip {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.chip--on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-inverse);
+}
+
+.chip--removable {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-overlay);
+  color: var(--text);
+}
+
+.chip--removable:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* --- bans ----------------------------------------------------------------- */
+
+.ban-list,
+.audit-list,
+.sound-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ban-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.ban-row:first-child {
+  border-top: none;
+}
+
+/* A ban that has run out is a record rather than a rule, and reads as one. */
+.ban-row--expired {
+  opacity: 0.6;
+}
+
+.ban-row__icon {
+  color: var(--danger);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.ban-row__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ban-row__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+.ban-row__reason {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.ban-row__meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.ban-row__matches {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+/* --- the audit log -------------------------------------------------------- */
+
+.audit-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.audit-row:first-child {
+  border-top: none;
+}
+
+.audit-row__icon {
+  color: var(--text-dim);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.audit-row__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.audit-row__headline {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.audit-row__reason {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.audit-row__changes {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.audit-row__key {
+  color: var(--text-dim);
+  margin-right: 6px;
+}
+
+.audit-row__before {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.audit-row__after {
+  color: var(--text);
+}
+
+.audit-row__meta {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* --- custom emoji and stickers -------------------------------------------- */
+
+.expression-grid {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+
+.expression-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.expression-tile__img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.expression-tile__img--large {
+  width: 72px;
+  height: 72px;
+}
+
+.expression-tile__name {
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Revealed on hover, so a wall of emoji is a wall of emoji rather than a wall
+   of buttons. Keyboard focus brings them back for anybody not using a mouse. */
+.expression-tile__actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.expression-tile:hover .expression-tile__actions,
+.expression-tile:focus-within .expression-tile__actions {
+  opacity: 1;
+}
+
+/* --- the soundboard's management screen ----------------------------------- */
+
+.sound-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.sound-row:first-child {
+  border-top: none;
+}
+
+.sound-row__glyph {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--bg-overlay);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.sound-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sound-row__name {
+  font-size: 14px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sound-row__meta {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.sound-row__volume {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.sound-row__volume input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+/* --- the trimmer ---------------------------------------------------------- */
+
+.trimmer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/*
+ * The waveform. One element per column of the envelope, laid out end to end:
+ * a canvas would be fewer nodes and would need its own redraw on every theme
+ * change, and six hundred spans is nothing next to a message list.
+ */
+.trimmer__wave {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 96px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--bg-overlay);
+  overflow: hidden;
+}
+
+.trimmer__bar {
+  flex: 1;
+  min-width: 1px;
+  background: var(--border-strong);
+  border-radius: 1px;
+}
+
+.trimmer__bar--on {
+  background: var(--accent);
+}
+
+.trimmer__range {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.trimmer__range input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.trimmer__range .field__label {
+  width: 48px;
+  margin: 0;
+}
+
+.trimmer__time {
+  width: 60px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.trimmer__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0 4px;
+}
+
+.trimmer__length {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Over the byte ceiling: the save button is already disabled, and this says
+   which of the two limits stopped it. */
+.trimmer__length--over {
+  color: var(--danger);
+}
+
+/* --- the soundboard in a call --------------------------------------------- */
+
+/*
+ * The panel hangs off the voice strip, which sits at the bottom of the sidebar,
+ * so it opens upwards. Absolute rather than fixed: it belongs to the strip and
+ * has to move with it when the sidebar is resized.
+ */
+/* The strip is the panel's positioning context. It is set here rather than in
+   voice.css so that the whole of this feature is one file to remove. */
+.voicepanel {
+  position: relative;
+}
+
+.soundboard {
+  position: absolute;
+  bottom: 100%;
+  left: 8px;
+  right: 8px;
+  margin-bottom: 8px;
+  z-index: 40;
+  padding: 10px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-overlay);
+  box-shadow: var(--shadow-overlay);
+}
+
+.soundboard__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.soundboard__title {
+  flex: 1;
+  font-weight: 600;
+}
+
+.soundboard__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.soundboard__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.soundboard__pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease, transform 100ms ease;
+}
+
+.soundboard__pad:hover {
+  border-color: var(--accent);
+}
+
+.soundboard__pad:active {
+  transform: scale(0.97);
+}
+
+/* Lit for as long as the clip runs: it is the only sign a press did anything
+   before the sound itself comes back over the socket. */
+.soundboard__pad--playing {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.soundboard__pad-icon {
+  font-size: 18px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  height: 20px;
+}
+
+.soundboard__pad-name {
+  font-size: 11px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.soundboard__empty,
+.soundboard__error {
+  margin: 0;
+  padding: 8px 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.soundboard__error {
+  color: var(--danger);
+}
+
+/* --- custom emoji in a message -------------------------------------------- */
+
+/*
+ * Sized in `em` rather than pixels, which is what makes a message that is
+ * nothing but emoji draw them large without a second rule: the jumbo class is
+ * on the paragraph and sets its font size, and these follow it. It is also what
+ * keeps them in proportion when the message density changes.
+ */
+.emoji--custom {
+  width: 1.375em;
+  height: 1.375em;
+  object-fit: contain;
+  vertical-align: -0.3em;
+  margin: 0 1px;
+}
+
+/* The picker's strip has one entry per group. The server's own has no glyph to
+   put there, so it gets the first letter of the server's name. */
+.picker__tab-letter {
+  font-size: 12px;
+  font-weight: 700;
+}

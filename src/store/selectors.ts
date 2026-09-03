@@ -14,7 +14,8 @@ import {
   resolveChannelPermissions,
 } from "@/lib/permissions";
 import type { Channel, Role, User } from "@/lib/protocol";
-import type { Unread } from "./connection";
+import type { ConnectionState, Unread } from "./connection";
+import { useCall } from "./servers";
 import { useSession } from "./session";
 
 export interface ChannelNode {
@@ -108,18 +109,36 @@ export function useMyPermissions(): bigint {
 
 /** The caller's mask inside one channel, overwrites and inheritance included. */
 export function useChannelPermissions(channelId: number | null): bigint {
-  return useSession((state) => {
-    if (!state.self) return NONE;
-    const base = permissionsOf(state.self, state.roles);
-    if (channelId === null) return base;
-    return resolveChannelPermissions(
-      base,
-      everyoneRoleId(state.roles),
-      state.self.roles,
-      channelId,
-      state.channels,
-    );
-  });
+  return useSession((state) => channelPermissionsOf(state, channelId));
+}
+
+/**
+ * The same, read from whichever connection is carrying the call rather than the
+ * one on screen.
+ *
+ * A call outlives looking at the server it is on, so anything offered beside
+ * the voice strip — playing a sound at the room, most of all — has to resolve
+ * its permission against the server the room is on.
+ */
+export function useCallChannelPermissions(channelId: number | null): bigint {
+  return useCall((state) => channelPermissionsOf(state, channelId));
+}
+
+/** Both of the above: one connection's snapshot, one channel. */
+function channelPermissionsOf(
+  state: Pick<ConnectionState, "self" | "roles" | "channels">,
+  channelId: number | null,
+): bigint {
+  if (!state.self) return NONE;
+  const base = permissionsOf(state.self, state.roles);
+  if (channelId === null) return base;
+  return resolveChannelPermissions(
+    base,
+    everyoneRoleId(state.roles),
+    state.self.roles,
+    channelId,
+    state.channels,
+  );
 }
 
 /**
