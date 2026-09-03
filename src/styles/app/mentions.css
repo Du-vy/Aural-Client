@@ -1,0 +1,161 @@
+/* The @name inside a message, and the picker that writes one. */
+
+/* --- a mention in a message ------------------------------------------------ */
+
+/* One rule covers every kind because the tint is mixed from the text colour:
+   a role brings its own through an inline `color` and the pill follows it,
+   without a second colour having to be computed anywhere. The flat fallback is
+   for a webview old enough not to know color-mix. */
+.mention {
+  display: inline-block;
+  vertical-align: baseline;
+  padding: 0 3px;
+  margin: 0 -1px;
+  border-radius: var(--radius-sm);
+  font-size: inherit;
+  font-weight: 500;
+  line-height: inherit;
+  text-align: left;
+  color: var(--accent);
+  background: var(--accent-soft);
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  transition: background var(--speed) ease;
+}
+
+button.mention {
+  cursor: pointer;
+}
+
+button.mention:hover,
+.mention--self:hover {
+  background: color-mix(in srgb, currentColor 34%, transparent);
+}
+
+/* Being named is worth a different colour, not a louder one: the row behind it
+   already says the message is addressed to this reader. */
+.mention--self {
+  color: var(--warning);
+}
+
+/* --- a message that names the reader ---------------------------------------- */
+
+/* The tint and the hover are layered rather than swapped, so hovering a
+   mentioning row still lights up the way every other row does. */
+.msg--mention {
+  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--warning) 9%, transparent);
+  box-shadow: inset 2px 0 0 var(--warning);
+}
+
+.msg--mention:hover {
+  background: linear-gradient(var(--hover), var(--hover)),
+    color-mix(in srgb, var(--warning) 9%, transparent);
+}
+
+/* --- the picker ------------------------------------------------------------ */
+
+.mentions {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 100%;
+  z-index: 60;
+  margin-bottom: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-overlay);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+  animation: mentionsPop 0.12s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes mentionsPop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mentions__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mentions__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.mentions__hint {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.mentions__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 264px;
+  overflow-y: auto;
+}
+
+.mention-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--text-muted);
+}
+
+.mention-option--on {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.mention-option__face {
+  display: flex;
+  flex-shrink: 0;
+}
+
+/* A role or a keyword has no face, so it gets the colour it carries. */
+.mention-option__dot {
+  width: 10px;
+  height: 10px;
+  margin: 7px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.mention-option__name {
+  font-size: var(--font-size-sub, 13px);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mention-option__detail {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-caption, 11px);
+  color: var(--text-dim);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -132,6 +132,13 @@ export const en = {
     emoji: "Emoji picker",
     send: "Send message",
   },
+  mentions: {
+    title: "Mention",
+    hint: "enter to insert",
+    role: "Role",
+    everyone: "Notifies everyone on the server",
+    here: "Notifies everyone who is online",
+  },
   emoji: {
     searchPlaceholder: "Search emoji...",
     recent: "Frequently Used",

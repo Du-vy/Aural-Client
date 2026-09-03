@@ -129,6 +129,13 @@ export const it: TranslationSchema = {
     emoji: "Selettore emoji",
     send: "Invia messaggio",
   },
+  mentions: {
+    title: "Menziona",
+    hint: "invio per inserire",
+    role: "Ruolo",
+    everyone: "Avvisa tutti nel server",
+    here: "Avvisa tutti quelli online",
+  },
   emoji: {
     searchPlaceholder: "Cerca emoji...",
     recent: "Usati di frequente",

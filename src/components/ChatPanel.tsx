@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 
+import { buildMentions } from "@/lib/mentions";
 import { Perm, has } from "@/lib/permissions";
 import type { Channel, User } from "@/lib/protocol";
 import { EMPTY_HISTORY, useSession } from "@/store/session";
@@ -49,6 +50,10 @@ export function ChatPanel({
 
   const composerRef = useRef<MessageComposerHandle>(null);
   const [dragDepth, setDragDepth] = useState(0);
+
+  // Built once per change to the member list rather than once per message:
+  // both the picker and every message in the window resolve against it.
+  const mentions = useMemo(() => buildMentions(users, roles), [users, roles]);
 
   // History is fetched the first time a channel is opened and then kept, so
   // switching back and forth does not re-fetch what is already held.
@@ -130,7 +135,8 @@ export function ChatPanel({
         messages={history.messages}
         users={users}
         roles={roles}
-        selfId={self?.id ?? null}
+        self={self}
+        mentions={mentions}
         hasMore={history.hasMore}
         hasMoreAfter={history.hasMoreAfter}
         loading={history.loading}
@@ -154,6 +160,7 @@ export function ChatPanel({
         disabledReason={canSend ? null : t("chat.messageDisabledPlaceholder")}
         canAttach={canAttach}
         limits={server?.uploads ?? null}
+        mentions={mentions}
         onSend={(content, attachments) => sendMessage(channel.id, content, attachments)}
         onUpload={(file, onProgress) => uploadAttachment(channel.id, file, onProgress)}
       />

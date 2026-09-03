@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useTranslation } from "@/lib/i18n";
 import { extractUrls, getDomain } from "@/lib/links";
+import { EMPTY_MENTIONS, mentionsSelf, type MentionDirectory } from "@/lib/mentions";
 import { openExternalUrl } from "@/lib/open";
 import { isDomainTrusted } from "@/lib/storage";
 import { GROUPING_WINDOW_SECONDS, formatDay, formatFull, formatTime, sameDay } from "@/lib/time";
@@ -62,7 +63,10 @@ interface MessageListProps {
   messages: readonly Message[];
   users: ReadonlyMap<number, User>;
   roles: ReadonlyMap<number, Role>;
-  selfId: number | null;
+  /** The reader: whose messages may be edited, and which of these name them. */
+  self: User | null;
+  /** Who can be named, so an `@name` in a message resolves to them. */
+  mentions?: MentionDirectory;
   hasMore: boolean;
   /**
    * Whether newer messages remain past the last one held, which is true only
@@ -89,7 +93,8 @@ export function MessageList({
   messages,
   users,
   roles,
-  selfId,
+  self,
+  mentions = EMPTY_MENTIONS,
   hasMore,
   hasMoreAfter,
   loading,
@@ -129,6 +134,17 @@ export function MessageList({
 
   const rows = useMemo(() => buildRows(messages), [messages]);
   const newest = messages.at(-1)?.id ?? 0;
+  const selfId = self?.id ?? null;
+
+  // Decided once per window rather than once per row per render: the whole
+  // window is walked every time anything in this list changes.
+  const naming = useMemo(() => {
+    const marked = new Set<number>();
+    for (const message of messages) {
+      if (mentionsSelf(message.content, self, roles)) marked.add(message.id);
+    }
+    return marked;
+  }, [messages, self, roles]);
 
   function requestDelete(message: Message, shiftKey = false) {
     if (shiftKey) {
@@ -358,6 +374,9 @@ export function MessageList({
             startsBlock={startsBlock}
             author={message.userId === null ? undefined : users.get(message.userId)}
             roles={roles}
+            self={self}
+            mentions={mentions}
+            namesReader={naming.has(message.id)}
             editable={message.userId !== null && message.userId === selfId}
             deletable={
               canManageMessages || (message.userId !== null && message.userId === selfId)
@@ -429,6 +448,11 @@ interface MessageRowProps {
   /** The live user record, when the author happens to be connected. */
   author: User | undefined;
   roles: ReadonlyMap<number, Role>;
+  /** The reader, for the mentions in this message that reach them. */
+  self: User | null;
+  mentions: MentionDirectory;
+  /** Whether this message names the reader, which is what marks the row. */
+  namesReader: boolean;
   editable: boolean;
   deletable: boolean;
   editing: boolean;
@@ -447,6 +471,9 @@ function MessageRow({
   startsBlock,
   author,
   roles,
+  self,
+  mentions,
+  namesReader,
   editable,
   deletable,
   editing,
@@ -466,11 +493,14 @@ function MessageRow({
   // roles travel with the live user record and not with the message.
   const color = author ? (colorRoleOf(author, roles)?.color ?? null) : null;
 
+  // A message that names the reader is marked as a whole row: the pill inside
+  // it says who was named, and the row says it was them.
+  const classes = ["msg"];
+  if (startsBlock) classes.push("msg--first");
+  if (namesReader) classes.push("msg--mention");
+
   return (
-    <div
-      className={startsBlock ? "msg msg--first" : "msg"}
-      onContextMenu={onContextMenu}
-    >
+    <div className={classes.join(" ")} onContextMenu={onContextMenu}>
       <div className="msg__gutter">
         {startsBlock ? (
           author ? (
@@ -572,7 +602,10 @@ function MessageRow({
             content={message.content}
             editedAt={message.editedAt}
             attachments={message.attachments}
+            mentions={mentions}
+            self={self}
             onOpenLink={onOpenLink}
+            onOpenMember={onOpenMember}
           />
         )}
       </div>

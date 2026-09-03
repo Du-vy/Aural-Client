@@ -129,6 +129,13 @@ export const zh: TranslationSchema = {
     emoji: "表情选择器",
     send: "发送消息",
   },
+  mentions: {
+    title: "提及",
+    hint: "回车插入",
+    role: "身份组",
+    everyone: "通知服务器上的所有人",
+    here: "通知所有在线成员",
+  },
   emoji: {
     searchPlaceholder: "搜索表情...",
     recent: "常用表情",

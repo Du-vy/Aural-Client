@@ -307,6 +307,8 @@
 .composer {
   flex-shrink: 0;
   padding: 0 16px 20px;
+  /* The mention picker hangs off the top of this, over the conversation. */
+  position: relative;
 }
 
 .composer--disabled {

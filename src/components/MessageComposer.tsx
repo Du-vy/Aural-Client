@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
   type ClipboardEvent,
@@ -12,11 +13,20 @@ import {
 } from "react";
 
 import { useTranslation } from "@/lib/i18n";
+import {
+  EMPTY_MENTIONS,
+  findMentionQuery,
+  rankMentions,
+  type MentionDirectory,
+  type MentionQuery,
+  type MentionTarget,
+} from "@/lib/mentions";
 import { describeError, type Attachment, type UploadLimits } from "@/lib/protocol";
 import { UploadCancelled, formatBytes, parseBytes } from "@/lib/uploads";
 import { AttachmentTray, type PendingFile } from "./AttachmentTray";
 import { EmojiPicker, type PickerTab } from "./EmojiPicker";
 import { GifIcon, PlusIcon, SmileyIcon, StickerIcon } from "./Icons";
+import { MentionPicker } from "./MentionPicker";
 
 /** Matches the server's own limit, so the count means the same on both sides. */
 export const MAX_MESSAGE_LENGTH = 2000;
@@ -61,6 +71,8 @@ interface MessageComposerProps {
   canAttach: boolean;
   /** What the server accepts, so a file too large is refused before it is sent. */
   limits: UploadLimits | null;
+  /** Who can be named here, for the picker an `@` opens. */
+  mentions?: MentionDirectory;
   onSend(content: string, attachments: number[]): Promise<void>;
   onUpload(file: File, onProgress: (fraction: number) => void): {
     done: Promise<Attachment>;
@@ -82,6 +94,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       disabledReason,
       canAttach,
       limits,
+      mentions = EMPTY_MENTIONS,
       onSend,
       onUpload,
     },
@@ -95,6 +108,10 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   const [pending, setPending] = useState<PendingFile[]>([]);
   /** Depth rather than a flag: dragging over a child fires leave on the parent. */
   const [dragDepth, setDragDepth] = useState(0);
+  /** The `@…` the caret is inside, which is what the picker is offering for. */
+  const [mention, setMention] = useState<MentionQuery | null>(null);
+  /** Which suggestion Enter would take. */
+  const [mentionIndex, setMentionIndex] = useState(0);
 
   const input = useRef<HTMLTextAreaElement>(null);
   const filePicker = useRef<HTMLInputElement>(null);
@@ -106,6 +123,15 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   const uploadsEnabled = canAttach && (limits?.enabled ?? false);
   const maxFileBytes = parseBytes(limits?.maxFileBytes);
   const maxPerMessage = limits?.maxPerMessage ?? 0;
+
+  // Who the `@` being typed could mean. An empty list is what closes the
+  // picker: there is no separate open flag to fall out of step with the draft,
+  // so a query that names nobody stops offering rather than offering nothing.
+  const suggestions = useMemo(
+    () => (mention === null ? [] : rankMentions(mention.query, mentions)),
+    [mention, mentions],
+  );
+  const active = Math.min(mentionIndex, Math.max(0, suggestions.length - 1));
 
   // The box grows with the message instead of scrolling a single line.
   useEffect(() => {
@@ -124,6 +150,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     setPickerTab(null);
     setPending([]);
     setDragDepth(0);
+    setMention(null);
     for (const cancel of running.current.values()) cancel();
     running.current.clear();
   }, [channelId]);
@@ -155,6 +182,36 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
 
     // The caret has to be placed after React has written the new value, or the
     // browser puts it back at the end of the box.
+    requestAnimationFrame(() => {
+      const node = input.current;
+      if (!node) return;
+      node.focus();
+      node.setSelectionRange(next.caret, next.caret);
+    });
+  }
+
+  /** Reads what is being named from wherever the caret has just landed. */
+  function refreshMention(value: string, at: number) {
+    setMention(findMentionQuery(value, at));
+    setMentionIndex(0);
+  }
+
+  /**
+   * Writes the chosen name over the `@…` it was picked for.
+   *
+   * The name goes in as text, because that is what a mention is here: the
+   * server stores words, and the reader's client resolves them again. A
+   * nickname holding a space survives it, since the longest name wins when the
+   * message is read back.
+   */
+  function chooseMention(target: MentionTarget) {
+    if (!mention) return;
+    const next = insertAtCaret(draft, mention.start, mention.end, `@${target.name}`);
+
+    setDraft(next.value);
+    setMention(null);
+    caret.current = { start: next.caret, end: next.caret };
+
     requestAnimationFrame(() => {
       const node = input.current;
       if (!node) return;
@@ -282,6 +339,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     try {
       await onSend(content, ready.map((item) => item.attachment!.id));
       setDraft("");
+      setMention(null);
       clearPending();
     } catch (failure) {
       // The draft and its files are deliberately left in place: a rejected
@@ -294,6 +352,33 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    // While a name is being picked these keys belong to the list, and Enter
+    // above all: somebody halfway through choosing who to talk to has not
+    // finished writing the message yet.
+    if (suggestions.length > 0) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        // Wrapping rather than stopping, and by adding rather than
+        // subtracting, so up from the first lands on the last.
+        const step = event.key === "ArrowDown" ? 1 : suggestions.length - 1;
+        setMentionIndex((current) => (Math.min(current, suggestions.length - 1) + step) % suggestions.length);
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        chooseMention(suggestions[active]!);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        // Stopped here so Escape means "not that name" rather than closing
+        // whatever else on screen would have taken it.
+        event.stopPropagation();
+        setMention(null);
+        return;
+      }
+    }
+
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void submit();
@@ -351,6 +436,15 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       onDragLeave={() => setDragDepth((depth) => Math.max(0, depth - 1))}
       onDrop={onDrop}
     >
+      {suggestions.length > 0 ? (
+        <MentionPicker
+          targets={suggestions}
+          active={active}
+          onHover={setMentionIndex}
+          onPick={chooseMention}
+        />
+      ) : null}
+
       {error ? <p className="composer__error">{error}</p> : null}
 
       {pending.length > 0 ? (
@@ -394,11 +488,22 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           placeholder={t("chat.messagePlaceholder", { channel: channelName })}
           aria-label={t("chat.messagePlaceholder", { channel: channelName })}
           disabled={sending}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            refreshMention(event.target.value, event.target.selectionStart);
+          }}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          onSelect={rememberCaret}
-          onBlur={rememberCaret}
+          onSelect={(event) => {
+            rememberCaret();
+            // Moving the caret into or out of a name changes who is being
+            // offered, and arrow keys move it without changing the text.
+            refreshMention(event.currentTarget.value, event.currentTarget.selectionStart);
+          }}
+          onBlur={() => {
+            rememberCaret();
+            setMention(null);
+          }}
         />
 
         {remaining <= COUNTER_THRESHOLD ? (

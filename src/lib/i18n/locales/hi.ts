@@ -129,6 +129,13 @@ export const hi: TranslationSchema = {
     emoji: "इमोजी पिकर",
     send: "संदेश भेजें",
   },
+  mentions: {
+    title: "उल्लेख करें",
+    hint: "जोड़ने के लिए एंटर",
+    role: "भूमिका",
+    everyone: "सर्वर के सभी लोगों को सूचित करता है",
+    here: "ऑनलाइन सभी लोगों को सूचित करता है",
+  },
   emoji: {
     searchPlaceholder: "इमोजी खोजें...",
     recent: "अक्सर उपयोग किए गए",
