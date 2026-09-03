@@ -41,10 +41,13 @@
   --online: #3ba55d;
   --warning: #e0a030;
 
-  --radius-sm: 4px;
-  --radius: 8px;
-  --radius-lg: 12px;
-  --radius-full: 999px;
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
 
   --shadow-raised: 0 4px 16px rgba(0, 0, 0, 0.32);
   --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.5);
@@ -165,4 +168,12 @@ textarea {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+[data-animations="disabled"] *,
+[data-animations="disabled"] *::before,
+[data-animations="disabled"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
 }

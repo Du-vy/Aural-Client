@@ -521,6 +521,8 @@ export const en = {
         densityTitle: "Message Density",
         densityCozy: "Cozy (Spacious with full avatars)",
         densityCompact: "Compact (IRC style, more messages on screen)",
+        animationsTitle: "Interface Animations",
+        animationsDesc: "Enable fluid micro-interactions, squircle morphing, and elastic transitions. Turn off for zero-latency static rendering.",
         fontScaling: "Font Scaling",
         previewTitle: "Live Chat Preview",
         importSuccess: "Theme imported successfully!",

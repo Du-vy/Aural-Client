@@ -76,12 +76,16 @@
   height: 30px;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
-  transition: background var(--speed) ease, color var(--speed) ease;
+  transition: background var(--speed) ease, color var(--speed) ease, transform 80ms ease;
 }
 
 .iconbtn:hover:not(:disabled) {
   background: var(--hover);
   color: var(--text);
+}
+
+.iconbtn:active:not(:disabled) {
+  transform: scale(0.92);
 }
 
 .iconbtn[aria-pressed="true"] {

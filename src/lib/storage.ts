@@ -224,5 +224,36 @@ export function initDensity(): MessageDensity {
   return density;
 }
 
+const ANIMATIONS_KEY = "aural.animations.v1";
+
+export function readAnimations(): boolean {
+  try {
+    const raw = localStorage.getItem(ANIMATIONS_KEY);
+    return raw !== "disabled";
+  } catch {
+    return true;
+  }
+}
+
+export function writeAnimations(enabled: boolean): void {
+  try {
+    localStorage.setItem(ANIMATIONS_KEY, enabled ? "enabled" : "disabled");
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-animations", enabled ? "enabled" : "disabled");
+    }
+  } catch {
+    // Storage is unavailable
+  }
+}
+
+export function initAnimations(): boolean {
+  const enabled = readAnimations();
+  if (typeof document !== "undefined") {
+    document.documentElement.setAttribute("data-animations", enabled ? "enabled" : "disabled");
+  }
+  return enabled;
+}
+
+
 
 

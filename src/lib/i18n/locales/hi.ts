@@ -518,6 +518,8 @@ export const hi: TranslationSchema = {
         densityTitle: "संदेश घनत्व",
         densityCozy: "सहज (पूर्ण अवतारों के साथ विशाल)",
         densityCompact: "संक्षिप्त (IRC शैली, स्क्रीन पर अधिक संदेश)",
+        animationsTitle: "इंटरफ़ेस एनिमेशन",
+        animationsDesc: "सहज एनिमेशन और ट्रांज़िशन सक्षम करें। तुरंत रेंडरिंग के लिए अक्षम करें।",
         fontScaling: "फ़ॉन्ट स्केलिंग",
         previewTitle: "लाइव चैट पूर्वावलोकन",
         importSuccess: "थीम सफलतापूर्वक आयात की गई!",

@@ -518,6 +518,8 @@ export const pt: TranslationSchema = {
         densityTitle: "Densidade de Mensagens",
         densityCozy: "Confortável (Espaçoso com avatares completos)",
         densityCompact: "Compacto (Estilo IRC, mais mensagens na tela)",
+        animationsTitle: "Animações de Interface",
+        animationsDesc: "Ativar microinterações fluidas e transições. Desative para renderização estática sem latência.",
         fontScaling: "Escala da Fonte",
         previewTitle: "Prévia do Chat ao Vivo",
         importSuccess: "Tema importado com sucesso!",

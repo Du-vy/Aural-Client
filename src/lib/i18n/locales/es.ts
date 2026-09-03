@@ -518,6 +518,8 @@ export const es: TranslationSchema = {
         densityTitle: "Densidad de Mensajes",
         densityCozy: "Cómoda (Espaciosa con avatares completos)",
         densityCompact: "Compacta (Estilo IRC, más mensajes visibles)",
+        animationsTitle: "Animaciones de Interfaz",
+        animationsDesc: "Habilita micro-interacciones fluidas, morphing de squircles y transiciones elásticas. Desactívalas para renderizado estático con latencia cero.",
         fontScaling: "Escala de Fuente",
         previewTitle: "Vista Previa en Tiempo Real",
         importSuccess: "¡Tema importado correctamente!",

@@ -518,6 +518,8 @@ export const de: TranslationSchema = {
         densityTitle: "Nachrichtendichte",
         densityCozy: "Gemütlich (Großzügig mit vollen Avataren)",
         densityCompact: "Kompakt (IRC-Stil, mehr Nachrichten auf dem Bildschirm)",
+        animationsTitle: "Benutzeroberflächen-Animationen",
+        animationsDesc: "Flüssige Mikro-Interaktionen und Übergänge aktivieren. Für latenzfreies statisches Rendering deaktivieren.",
         fontScaling: "Schriftskalierung",
         previewTitle: "Live-Chat-Vorschau",
         importSuccess: "Design erfolgreich importiert!",

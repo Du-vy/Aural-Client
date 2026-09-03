@@ -286,20 +286,29 @@
 }
 
 .msg__actions {
-  display: none;
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
   gap: 2px;
   align-self: flex-start;
-  margin-top: -10px;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-raised);
-  box-shadow: var(--shadow-raised);
+  margin-top: -12px;
+  padding: 3px 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-overlay);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: opacity 120ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 120ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .msg:hover .msg__actions,
 .msg:focus-within .msg__actions {
-  display: flex;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 /* --- composer -------------------------------------------------------------- */

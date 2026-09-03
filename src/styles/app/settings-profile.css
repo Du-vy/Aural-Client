@@ -39,7 +39,7 @@
   display: flex;
   background: var(--bg-input, #1e1f22);
   padding: 3px;
-  border-radius: var(--radius-sm, 8px);
+  border-radius: var(--radius-sm);
   gap: 4px;
   margin-top: 10px;
   margin-bottom: 12px;
@@ -53,7 +53,7 @@
   justify-content: center;
   gap: 8px;
   padding: 7px 12px;
-  border-radius: var(--radius-xs, 6px);
+  border-radius: var(--radius-xs);
   font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);

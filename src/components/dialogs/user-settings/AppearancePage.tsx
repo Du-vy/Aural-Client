@@ -11,6 +11,8 @@ import {
 import {
   readDensity,
   writeDensity,
+  readAnimations,
+  writeAnimations,
   type MessageDensity,
 } from "@/lib/storage";
 import {
@@ -46,11 +48,17 @@ export function AppearancePage() {
   } = useTheme();
 
   const [density, setDensityState] = useState<MessageDensity>(readDensity);
+  const [animations, setAnimationsState] = useState<boolean>(readAnimations);
   const [feedback, setFeedback] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const setDensity = (d: MessageDensity) => {
     setDensityState(d);
     writeDensity(d);
+  };
+
+  const setAnimations = (enabled: boolean) => {
+    setAnimationsState(enabled);
+    writeAnimations(enabled);
   };
 
   // Modals / prompts state
@@ -604,6 +612,26 @@ export function AppearancePage() {
                 {t("dialogs.userSettings.appearance.densityCompact")}
               </span>
             </span>
+          </label>
+        </div>
+      </div>
+
+      {/* Interface Animations Toggle */}
+      <div className="settings-card" style={{ marginTop: 16 }}>
+        <div className="settings-row">
+          <div className="settings-row__info">
+            <h3 className="settings-card__title">{t("dialogs.userSettings.appearance.animationsTitle")}</h3>
+            <p className="settings-card__subtitle">
+              {t("dialogs.userSettings.appearance.animationsDesc")}
+            </p>
+          </div>
+          <label className="settings-switch">
+            <input
+              type="checkbox"
+              checked={animations}
+              onChange={(e) => setAnimations(e.target.checked)}
+            />
+            <span className="settings-switch__slider" />
           </label>
         </div>
       </div>

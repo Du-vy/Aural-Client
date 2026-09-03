@@ -10,10 +10,14 @@
   padding: 9px 16px;
   font-size: 14px;
   font-weight: 500;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--bg-raised);
-  transition: background var(--speed) ease, color var(--speed) ease;
+  transition: background var(--speed) ease, color var(--speed) ease, transform 90ms ease, box-shadow var(--speed) ease;
   white-space: nowrap;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .btn:hover:not(:disabled) {
@@ -78,7 +82,7 @@
   padding: 10px 12px;
   background: var(--bg-input);
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   transition: border-color var(--speed) ease;
 }
 
@@ -105,7 +109,7 @@
 .alert {
   padding: 10px 12px;
   font-size: 13px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--danger-soft);
   color: var(--danger-hover);
   border: 1px solid rgba(229, 83, 75, 0.28);

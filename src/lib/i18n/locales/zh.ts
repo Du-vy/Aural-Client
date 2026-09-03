@@ -518,6 +518,8 @@ export const zh: TranslationSchema = {
         densityTitle: "消息密度",
         densityCozy: "宽松（舒适间距，展示完整头像）",
         densityCompact: "紧凑（IRC 风格，屏幕展示更多消息）",
+        animationsTitle: "界面动画",
+        animationsDesc: "启用流畅的微交互和过渡。关闭以获得零延迟的静态渲染。",
         fontScaling: "字体缩放",
         previewTitle: "聊天实时预览",
         importSuccess: "主题导入成功！",

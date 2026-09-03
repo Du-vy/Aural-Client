@@ -243,296 +243,302 @@ export function VoiceAudioPage() {
         <p className="settings-section__desc">{t("dialogs.userSettings.voice.desc")}</p>
       </header>
 
-      <div className="settings-grid-2">
-        <div className="settings-card">
-          <label className="settings-card__title" htmlFor="voice-input-dev">
-            {t("dialogs.userSettings.voice.inputDevice")}
-          </label>
-          <div style={{ marginTop: 8 }}>
-            <select
-              id="voice-input-dev"
-              className="select"
-              value={prefs.inputDeviceId}
-              onChange={(e) => setPreferences({ inputDeviceId: e.target.value })}
-            >
-              <option value="">{t("dialogs.userSettings.voice.systemDefault")}</option>
-              {devices.inputs.map((device) => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label || device.deviceId}
-                </option>
-              ))}
-            </select>
+      {/* Section 1: Audio Devices & Mic Test */}
+      <div className="settings-group">
+        <div className="settings-group__item">
+          <div className="settings-grid-2">
+            <div>
+              <label className="field__label" htmlFor="voice-input-dev">
+                {t("dialogs.userSettings.voice.inputDevice")}
+              </label>
+              <div style={{ marginTop: 8 }}>
+                <select
+                  id="voice-input-dev"
+                  className="select"
+                  value={prefs.inputDeviceId}
+                  onChange={(e) => setPreferences({ inputDeviceId: e.target.value })}
+                >
+                  <option value="">{t("dialogs.userSettings.voice.systemDefault")}</option>
+                  {devices.inputs.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || device.deviceId}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <Slider
+                label={t("dialogs.userSettings.voice.inputVolume")}
+                value={prefs.inputVolume}
+                min={0}
+                max={200}
+                suffix="%"
+                onChange={(inputVolume) => setPreferences({ inputVolume })}
+              />
+            </div>
+
+            <div>
+              <label className="field__label" htmlFor="voice-output-dev">
+                {t("dialogs.userSettings.voice.outputDevice")}
+              </label>
+              <div style={{ marginTop: 8 }}>
+                <select
+                  id="voice-output-dev"
+                  className="select"
+                  value={prefs.outputDeviceId}
+                  onChange={(e) => setPreferences({ outputDeviceId: e.target.value })}
+                >
+                  <option value="">{t("dialogs.userSettings.voice.systemDefault")}</option>
+                  {devices.outputs.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || device.deviceId}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <Slider
+                label={t("dialogs.userSettings.voice.outputVolume")}
+                value={prefs.outputVolume}
+                min={0}
+                max={200}
+                suffix="%"
+                onChange={(outputVolume) => setPreferences({ outputVolume })}
+              />
+            </div>
           </div>
 
-          <Slider
-            label={t("dialogs.userSettings.voice.inputVolume")}
-            value={prefs.inputVolume}
-            min={0}
-            max={200}
-            suffix="%"
-            onChange={(inputVolume) => setPreferences({ inputVolume })}
-          />
-        </div>
-
-        <div className="settings-card">
-          <label className="settings-card__title" htmlFor="voice-output-dev">
-            {t("dialogs.userSettings.voice.outputDevice")}
-          </label>
-          <div style={{ marginTop: 8 }}>
-            <select
-              id="voice-output-dev"
-              className="select"
-              value={prefs.outputDeviceId}
-              onChange={(e) => setPreferences({ outputDeviceId: e.target.value })}
-            >
-              <option value="">{t("dialogs.userSettings.voice.systemDefault")}</option>
-              {devices.outputs.map((device) => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label || device.deviceId}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <Slider
-            label={t("dialogs.userSettings.voice.outputVolume")}
-            value={prefs.outputVolume}
-            min={0}
-            max={200}
-            suffix="%"
-            onChange={(outputVolume) => setPreferences({ outputVolume })}
-          />
-        </div>
-      </div>
-
-      {namesHidden ? (
-        <div className="voice-grant">
-          <p className="field__hint" style={{ margin: 0 }}>
-            {t("dialogs.userSettings.voice.noDevices")}
-          </p>
-          <button type="button" className="btn" onClick={() => void grantAccess()}>
-            <MicIcon size={15} />
-            {t("voice.mic.allowAccess")}
-          </button>
-        </div>
-      ) : null}
-
-      <div className="settings-card" style={{ marginTop: 16 }}>
-        <h3 className="settings-card__title">{t("dialogs.userSettings.voice.micTestTitle")}</h3>
-        <p className="settings-card__subtitle">
-          {testing
-            ? t("dialogs.userSettings.voice.micTestListening")
-            : t("dialogs.userSettings.voice.micTestPrompt")}
-        </p>
-
-        <div className="mic-test-row" style={{ marginTop: 14 }}>
-          {inCall ? null : (
-            <button
-              type="button"
-              className={testing ? "btn btn--danger" : "btn btn--primary"}
-              onClick={() => setTesting((previous) => !previous)}
-            >
-              <MicIcon size={16} />
-              {testing
-                ? t("dialogs.userSettings.voice.stopMic")
-                : t("dialogs.userSettings.voice.checkMic")}
-            </button>
-          )}
-
-          <div className="voice-meter" style={{ flex: 1 }}>
-            <div
-              className={
-                shownLevel >= prefs.threshold
-                  ? "voice-meter__fill"
-                  : "voice-meter__fill voice-meter__fill--under"
-              }
-              style={{ width: `${shownLevel}%` }}
-            />
-            {prefs.mode === "activity" ? (
-              <div className="voice-meter__threshold" style={{ left: `${prefs.threshold}%` }} />
-            ) : null}
-          </div>
-        </div>
-
-        {testError ? (
-          <p className="field__error" style={{ marginTop: 10 }}>
-            {t(`voice.mic.${testError}`)}
-          </p>
-        ) : null}
-
-        {prefs.mode === "activity" ? (
-          <>
-            <Slider
-              label={t("dialogs.userSettings.voice.threshold")}
-              value={prefs.threshold}
-              min={0}
-              max={100}
-              suffix="%"
-              onChange={(threshold) => setPreferences({ threshold })}
-            />
-            <p className="settings-card__subtitle" style={{ marginTop: 6 }}>
-              {t("dialogs.userSettings.voice.thresholdDesc")}
-            </p>
-          </>
-        ) : null}
-      </div>
-
-      <div className="settings-card" style={{ marginTop: 16 }}>
-        <h3 className="settings-card__title">{t("dialogs.userSettings.voice.inputMode")}</h3>
-        <div className="settings-radio-group" style={{ marginTop: 12 }}>
-          <label className={`settings-radio-card ${prefs.mode === "activity" ? "settings-radio-card--active" : ""}`}>
-            <input
-              type="radio"
-              name="input-mode"
-              checked={prefs.mode === "activity"}
-              onChange={() => setPreferences({ mode: "activity" })}
-            />
-            <span className="settings-radio-card__body">
-              <span className="settings-radio-card__title">
-                {t("dialogs.userSettings.voice.voiceActivity")}
-              </span>
-              <span className="settings-card__subtitle">
-                {t("dialogs.userSettings.voice.voiceActivityDesc")}
-              </span>
-            </span>
-          </label>
-
-          <label className={`settings-radio-card ${prefs.mode === "ptt" ? "settings-radio-card--active" : ""}`}>
-            <input
-              type="radio"
-              name="input-mode"
-              checked={prefs.mode === "ptt"}
-              onChange={() => setPreferences({ mode: "ptt" })}
-            />
-            <span className="settings-radio-card__body">
-              <span className="settings-radio-card__title">
-                {t("dialogs.userSettings.voice.pushToTalk")}
-              </span>
-              <span className="settings-card__subtitle">
-                {t("dialogs.userSettings.voice.pushToTalkDesc")}
-              </span>
-            </span>
-          </label>
-        </div>
-
-        {prefs.mode === "ptt" ? (
-          <>
-            <div className="voice-device-row" style={{ marginTop: 14 }}>
-              <span className="field__label">{t("dialogs.userSettings.voice.pushToTalkKey")}</span>
-              <button
-                type="button"
-                className={recordingKey ? "voice-key voice-key--recording" : "voice-key"}
-                onClick={() => setRecordingKey(true)}
-              >
-                {recordingKey
-                  ? t("dialogs.userSettings.voice.pushToTalkRecording")
-                  : describeKey(prefs.pttKey)}
+          {namesHidden ? (
+            <div className="voice-grant" style={{ marginTop: 16 }}>
+              <p className="field__hint" style={{ margin: 0 }}>
+                {t("dialogs.userSettings.voice.noDevices")}
+              </p>
+              <button type="button" className="btn" onClick={() => void grantAccess()}>
+                <MicIcon size={15} />
+                {t("voice.mic.allowAccess")}
               </button>
             </div>
-            <Slider
-              label={t("dialogs.userSettings.voice.pushToTalkRelease")}
-              value={prefs.pttReleaseMs}
-              min={0}
-              max={1000}
-              step={50}
-              suffix=" ms"
-              onChange={(pttReleaseMs) => setPreferences({ pttReleaseMs })}
-            />
-            <p className="settings-card__subtitle" style={{ marginTop: 6 }}>
-              {t("dialogs.userSettings.voice.pushToTalkWindowOnly")}
-            </p>
-          </>
-        ) : null}
-      </div>
-
-      <div className="settings-card" style={{ marginTop: 16 }}>
-        <h3 className="settings-card__title">{t("dialogs.userSettings.voice.qualityTitle")}</h3>
-        <p className="settings-card__subtitle">{t("dialogs.userSettings.voice.qualityDesc")}</p>
-
-        <Slider
-          label={t("dialogs.userSettings.voice.bitrate")}
-          value={bitrate}
-          min={config?.minBitrate ?? 16000}
-          max={config?.maxBitrate ?? 128000}
-          step={1000}
-          format={(value) => `${Math.round(value / 1000)} kb/s`}
-          onChange={(value) => setPreferences({ bitrate: value })}
-        />
-        <p className="settings-card__subtitle" style={{ marginTop: 6 }}>
-          {config
-            ? t("dialogs.userSettings.voice.bitrateServerRange", {
-                min: `${Math.round(config.minBitrate / 1000)} kb/s`,
-                max: `${Math.round(config.maxBitrate / 1000)} kb/s`,
-              })
-            : t("dialogs.userSettings.voice.bitrateNoServer")}
-        </p>
-      </div>
-
-      <div className="settings-card" style={{ marginTop: 16 }}>
-        <h3 className="settings-card__title">
-          {t("dialogs.userSettings.voice.noiseSuppression")}
-        </h3>
-        <p className="settings-card__subtitle">
-          {t("dialogs.userSettings.voice.noiseSuppressionDesc")}
-        </p>
-
-        <div className="settings-radio-group" style={{ marginTop: 12 }}>
-          {SUPPRESSION_CHOICES.map((choice) => {
-            const isChecked = prefs.noiseSuppression === choice.value;
-            return (
-              <label
-                className={`settings-radio-card ${isChecked ? "settings-radio-card--active" : ""}`}
-                key={choice.value}
-              >
-                <input
-                  type="radio"
-                  name="noise-suppression"
-                  checked={isChecked}
-                  onChange={() => setPreferences({ noiseSuppression: choice.value })}
-                />
-                <span className="settings-radio-card__body">
-                  <span className="settings-radio-card__title">{t(choice.title)}</span>
-                  <span className="settings-card__subtitle">{t(choice.description)}</span>
-                </span>
-              </label>
-            );
-          })}
+          ) : null}
         </div>
 
-        {/*
-          Choosing RNNoise and silently getting the browser's suppressor
-          instead would be the kind of quiet lie this client goes out of its
-          way not to tell, so a session that fell back says so.
-        */}
-        {prefs.noiseSuppression === "rnnoise" && denoising === false ? (
-          <p className="field__error" style={{ marginTop: 10 }}>
-            {t("dialogs.userSettings.voice.rnnoiseUnavailable")}
+        <div className="settings-group__item">
+          <h3 className="settings-card__title">{t("dialogs.userSettings.voice.micTestTitle")}</h3>
+          <p className="settings-card__subtitle">
+            {testing
+              ? t("dialogs.userSettings.voice.micTestListening")
+              : t("dialogs.userSettings.voice.micTestPrompt")}
           </p>
-        ) : null}
+
+          <div className="mic-test-row" style={{ marginTop: 14 }}>
+            {inCall ? null : (
+              <button
+                type="button"
+                className={testing ? "btn btn--danger" : "btn btn--primary"}
+                onClick={() => setTesting((previous) => !previous)}
+              >
+                <MicIcon size={16} />
+                {testing
+                  ? t("dialogs.userSettings.voice.stopMic")
+                  : t("dialogs.userSettings.voice.checkMic")}
+              </button>
+            )}
+
+            <div className="voice-meter" style={{ flex: 1 }}>
+              <div
+                className={
+                  shownLevel >= prefs.threshold
+                    ? "voice-meter__fill"
+                    : "voice-meter__fill voice-meter__fill--under"
+                }
+                style={{ width: `${shownLevel}%` }}
+              />
+              {prefs.mode === "activity" ? (
+                <div className="voice-meter__threshold" style={{ left: `${prefs.threshold}%` }} />
+              ) : null}
+            </div>
+          </div>
+
+          {testError ? (
+            <p className="field__error" style={{ marginTop: 10 }}>
+              {t(`voice.mic.${testError}`)}
+            </p>
+          ) : null}
+
+          {prefs.mode === "activity" ? (
+            <div style={{ marginTop: 12 }}>
+              <Slider
+                label={t("dialogs.userSettings.voice.threshold")}
+                value={prefs.threshold}
+                min={0}
+                max={100}
+                suffix="%"
+                onChange={(threshold) => setPreferences({ threshold })}
+              />
+              <p className="settings-card__subtitle" style={{ marginTop: 6 }}>
+                {t("dialogs.userSettings.voice.thresholdDesc")}
+              </p>
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      <div className="settings-card" style={{ marginTop: 16 }}>
-        <h3 className="settings-card__title">{t("dialogs.userSettings.voice.processingTitle")}</h3>
+      {/* Section 2: Input Mode */}
+      <div className="settings-group" style={{ marginTop: 20 }}>
+        <div className="settings-group__item">
+          <h3 className="settings-card__title">{t("dialogs.userSettings.voice.inputMode")}</h3>
+          <div className="settings-radio-group" style={{ marginTop: 12 }}>
+            <label className={`settings-radio-card ${prefs.mode === "activity" ? "settings-radio-card--active" : ""}`}>
+              <input
+                type="radio"
+                name="input-mode"
+                checked={prefs.mode === "activity"}
+                onChange={() => setPreferences({ mode: "activity" })}
+              />
+              <span className="settings-radio-card__body">
+                <span className="settings-radio-card__title">
+                  {t("dialogs.userSettings.voice.voiceActivity")}
+                </span>
+                <span className="settings-card__subtitle">
+                  {t("dialogs.userSettings.voice.voiceActivityDesc")}
+                </span>
+              </span>
+            </label>
 
-        <VoiceToggle
-          title={t("dialogs.userSettings.voice.echoCancellation")}
-          description={t("dialogs.userSettings.voice.echoCancellationDesc")}
-          checked={prefs.echoCancellation}
-          onChange={(echoCancellation) => setPreferences({ echoCancellation })}
-          first
-        />
-        <VoiceToggle
-          title={t("dialogs.userSettings.voice.gainControl")}
-          description={t("dialogs.userSettings.voice.gainControlDesc")}
-          checked={prefs.autoGainControl}
-          onChange={(autoGainControl) => setPreferences({ autoGainControl })}
-        />
-        <VoiceToggle
-          title={t("dialogs.userSettings.voice.joinMuted")}
-          description={t("dialogs.userSettings.voice.joinMutedDesc")}
-          checked={prefs.joinMuted}
-          onChange={(joinMuted) => setPreferences({ joinMuted })}
-        />
+            <label className={`settings-radio-card ${prefs.mode === "ptt" ? "settings-radio-card--active" : ""}`}>
+              <input
+                type="radio"
+                name="input-mode"
+                checked={prefs.mode === "ptt"}
+                onChange={() => setPreferences({ mode: "ptt" })}
+              />
+              <span className="settings-radio-card__body">
+                <span className="settings-radio-card__title">
+                  {t("dialogs.userSettings.voice.pushToTalk")}
+                </span>
+                <span className="settings-card__subtitle">
+                  {t("dialogs.userSettings.voice.pushToTalkDesc")}
+                </span>
+              </span>
+            </label>
+          </div>
+
+          {prefs.mode === "ptt" ? (
+            <div style={{ marginTop: 14 }}>
+              <div className="voice-device-row">
+                <span className="field__label">{t("dialogs.userSettings.voice.pushToTalkKey")}</span>
+                <button
+                  type="button"
+                  className={recordingKey ? "voice-key voice-key--recording" : "voice-key"}
+                  onClick={() => setRecordingKey(true)}
+                >
+                  {recordingKey
+                    ? t("dialogs.userSettings.voice.pushToTalkRecording")
+                    : describeKey(prefs.pttKey)}
+                </button>
+              </div>
+              <Slider
+                label={t("dialogs.userSettings.voice.pushToTalkRelease")}
+                value={prefs.pttReleaseMs}
+                min={0}
+                max={1000}
+                step={50}
+                suffix=" ms"
+                onChange={(pttReleaseMs) => setPreferences({ pttReleaseMs })}
+              />
+              <p className="settings-card__subtitle" style={{ marginTop: 6 }}>
+                {t("dialogs.userSettings.voice.pushToTalkWindowOnly")}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Section 3: Advanced Audio & Voice Processing */}
+      <div className="settings-group" style={{ marginTop: 20 }}>
+        <div className="settings-group__item">
+          <h3 className="settings-card__title">{t("dialogs.userSettings.voice.qualityTitle")}</h3>
+          <p className="settings-card__subtitle">{t("dialogs.userSettings.voice.qualityDesc")}</p>
+
+          <Slider
+            label={t("dialogs.userSettings.voice.bitrate")}
+            value={bitrate}
+            min={config?.minBitrate ?? 16000}
+            max={config?.maxBitrate ?? 128000}
+            step={1000}
+            format={(value) => `${Math.round(value / 1000)} kb/s`}
+            onChange={(value) => setPreferences({ bitrate: value })}
+          />
+          <p className="settings-card__subtitle" style={{ marginTop: 6 }}>
+            {config
+              ? t("dialogs.userSettings.voice.bitrateServerRange", {
+                  min: `${Math.round(config.minBitrate / 1000)} kb/s`,
+                  max: `${Math.round(config.maxBitrate / 1000)} kb/s`,
+                })
+              : t("dialogs.userSettings.voice.bitrateNoServer")}
+          </p>
+        </div>
+
+        <div className="settings-group__item">
+          <h3 className="settings-card__title">
+            {t("dialogs.userSettings.voice.noiseSuppression")}
+          </h3>
+          <p className="settings-card__subtitle">
+            {t("dialogs.userSettings.voice.noiseSuppressionDesc")}
+          </p>
+
+          <div className="settings-radio-group" style={{ marginTop: 12 }}>
+            {SUPPRESSION_CHOICES.map((choice) => {
+              const isChecked = prefs.noiseSuppression === choice.value;
+              return (
+                <label
+                  className={`settings-radio-card ${isChecked ? "settings-radio-card--active" : ""}`}
+                  key={choice.value}
+                >
+                  <input
+                    type="radio"
+                    name="noise-suppression"
+                    checked={isChecked}
+                    onChange={() => setPreferences({ noiseSuppression: choice.value })}
+                  />
+                  <span className="settings-radio-card__body">
+                    <span className="settings-radio-card__title">{t(choice.title)}</span>
+                    <span className="settings-card__subtitle">{t(choice.description)}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+
+          {prefs.noiseSuppression === "rnnoise" && denoising === false ? (
+            <p className="field__error" style={{ marginTop: 10 }}>
+              {t("dialogs.userSettings.voice.rnnoiseUnavailable")}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="settings-group__item">
+          <h3 className="settings-card__title">{t("dialogs.userSettings.voice.processingTitle")}</h3>
+
+          <VoiceToggle
+            title={t("dialogs.userSettings.voice.echoCancellation")}
+            description={t("dialogs.userSettings.voice.echoCancellationDesc")}
+            checked={prefs.echoCancellation}
+            onChange={(echoCancellation) => setPreferences({ echoCancellation })}
+            first
+          />
+          <VoiceToggle
+            title={t("dialogs.userSettings.voice.gainControl")}
+            description={t("dialogs.userSettings.voice.gainControlDesc")}
+            checked={prefs.autoGainControl}
+            onChange={(autoGainControl) => setPreferences({ autoGainControl })}
+          />
+          <VoiceToggle
+            title={t("dialogs.userSettings.voice.joinMuted")}
+            description={t("dialogs.userSettings.voice.joinMutedDesc")}
+            checked={prefs.joinMuted}
+            onChange={(joinMuted) => setPreferences({ joinMuted })}
+          />
+        </div>
       </div>
     </div>
   );
