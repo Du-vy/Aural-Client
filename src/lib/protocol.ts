@@ -82,6 +82,11 @@ export const Op = {
   DMDelete: "dm.delete",
   DMRead: "dm.read",
 
+  WebhookList: "webhook.list",
+  WebhookCreate: "webhook.create",
+  WebhookUpdate: "webhook.update",
+  WebhookDelete: "webhook.delete",
+
   RoleCreate: "role.create",
   RoleUpdate: "role.update",
   RoleDelete: "role.delete",
@@ -355,6 +360,96 @@ export interface MessageBase {
   editedAt: number | null;
   /** Files posted with the message. They are deleted along with it. */
   attachments?: Attachment[];
+  /**
+   * Set on, and only on, a message that arrived through a webhook. It is what
+   * tells this client to render an application rather than a member whose
+   * account is gone, which is the other reason `userId` is null.
+   */
+  webhook?: MessageWebhook;
+  /** The rich cards the message carries. Only a webhook produces them. */
+  embeds?: Embed[];
+}
+
+/** The sender of a message that came in through a webhook. */
+export interface MessageWebhook {
+  id: number;
+  /** An absolute URL, or absent: a webhook is an outside service. */
+  avatar?: string | null;
+}
+
+/**
+ * A webhook: a URL that posts into one channel with no identity behind it.
+ *
+ * It only ever reaches somebody who may manage webhooks in that channel,
+ * because `token` is the whole of its authentication.
+ */
+export interface Webhook {
+  id: number;
+  channelId: number;
+  name: string;
+  avatar?: string | null;
+  token: string;
+  /** The path a delivery is posted to, relative to the server root. */
+  url: string;
+  creatorId?: number;
+  createdAt: number;
+  /** Zero until the first delivery. */
+  lastUsedAt: number;
+}
+
+/**
+ * The embed objects below are Discord's, field for field and name for name,
+ * snake_case included. That is deliberate: an application that already posts
+ * to a Discord webhook has to work here by changing nothing but the URL, and
+ * translating the shape would mean a second specification to keep in step with
+ * somebody else's. See `internal/protocol/payloads.go` for the same note on
+ * the other side of the wire.
+ */
+export interface Embed {
+  title?: string;
+  type?: string;
+  description?: string;
+  url?: string;
+  /** An ISO 8601 instant, shown in the footer. */
+  timestamp?: string;
+  /** The stripe down the left edge, as a 24-bit RGB integer. */
+  color?: number;
+  footer?: EmbedFooter;
+  image?: EmbedMedia;
+  thumbnail?: EmbedMedia;
+  video?: EmbedMedia;
+  provider?: EmbedProvider;
+  author?: EmbedAuthor;
+  fields?: EmbedField[];
+}
+
+export interface EmbedFooter {
+  text: string;
+  icon_url?: string;
+}
+
+export interface EmbedMedia {
+  url?: string;
+  width?: number;
+  height?: number;
+}
+
+export interface EmbedProvider {
+  name?: string;
+  url?: string;
+}
+
+export interface EmbedAuthor {
+  name: string;
+  url?: string;
+  icon_url?: string;
+}
+
+/** One name/value pair. Inline fields share a row, up to three across. */
+export interface EmbedField {
+  name: string;
+  value: string;
+  inline?: boolean;
 }
 
 /** One post in a text channel. */
@@ -801,6 +896,43 @@ export interface DMDeletedEvent {
   userId: number;
   conversationId: number;
   messageId: number;
+}
+
+/**
+ * Webhook management, which is deliberately request/reply with no events: a
+ * webhook object carries the token that is the whole of its authentication, so
+ * it is only ever handed to somebody who asked for it and may manage it. A
+ * screen that shows them re-reads the list after every change.
+ */
+export interface WebhookListRequest {
+  /** Omitted, or zero, to read every channel the caller may manage. */
+  channelId?: number;
+}
+
+export interface WebhookListResult {
+  webhooks: Webhook[];
+}
+
+export interface WebhookCreateRequest {
+  channelId: number;
+  name: string;
+  /** An absolute http(s) URL, or empty for none. */
+  avatar?: string;
+}
+
+export interface WebhookUpdateRequest {
+  webhookId: number;
+  name?: string;
+  avatar?: string;
+  channelId?: number;
+}
+
+export interface WebhookDeleteRequest {
+  webhookId: number;
+}
+
+export interface WebhookEvent {
+  webhook: Webhook;
 }
 
 export interface RoleEvent {

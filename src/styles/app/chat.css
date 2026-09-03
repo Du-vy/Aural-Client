@@ -377,3 +377,31 @@
   color: var(--danger);
 }
 
+
+/* --- webhook messages ------------------------------------------------------ */
+
+/* A webhook's picture is an absolute URL on somebody else's host, so it is
+   sized here rather than trusted to arrive at the right size. */
+.msg__avatar-webhook {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-raised);
+}
+
+/* A webhook posts under any name it likes and has no account behind it, which
+   is exactly what somebody would use to impersonate a member. The badge is what
+   says so, and it is deliberately the loudest thing on the line after the name. */
+.msg__app-badge {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.5;
+}

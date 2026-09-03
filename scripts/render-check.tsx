@@ -31,6 +31,7 @@ const { ContextMenu } = await import("@/components/ContextMenu");
 const { EmojiPicker } = await import("@/components/EmojiPicker");
 const { MentionPicker } = await import("@/components/MentionPicker");
 const { MessageList } = await import("@/components/MessageList");
+const { RichEmbeds, colorOf } = await import("@/components/embeds/RichEmbed");
 const { SearchResults } = await import("@/components/SearchResults");
 const { insertAtCaret } = await import("@/components/MessageComposer");
 const { ServerSettingsDialog } = await import("@/components/dialogs/ServerSettingsDialog");
@@ -69,7 +70,7 @@ const {
 } = await import("@/store/session");
 const { useServers } = await import("@/store/servers");
 const { createConnection } = await import("@/store/connection");
-const { unreadTotals } = await import("@/store/selectors");
+const { unreadTotals, manageableWebhookChannels } = await import("@/store/selectors");
 const { setLanguage, getLanguage, t, SUPPORTED_LANGUAGES } = await import("@/lib/i18n");
 
 type Attachment = import("@/lib/protocol").Attachment;
@@ -1777,6 +1778,209 @@ console.log("\nkick user dialog & offline kick verification");
     ["kick-dialog", "kick-dialog__user-card", "kick-dialog__textarea", "kick-purge__grid", "BadActor"],
   );
 }
+
+console.log("\nwebhooks");
+{
+  seed();
+
+  const alertEmbed = {
+    title: "Disk almost full",
+    description: "`/dev/sda1` is at **91%** — see [the dashboard](https://example.com/d)",
+    url: "https://example.com/alert",
+    color: 0xe5534b,
+    author: { name: "monitor", icon_url: "https://example.com/monitor.png" },
+    footer: { text: "node-1" },
+    timestamp: "2026-09-03T10:00:00Z",
+    fields: [
+      { name: "Host", value: "node-1", inline: true },
+      { name: "Free", value: "4 GB", inline: true },
+      { name: "Mount", value: "/", inline: false },
+    ],
+    thumbnail: { url: "https://example.com/thumb.png" },
+  };
+
+  // A webhook message: no account behind it, so the badge and the picture come
+  // from the message itself rather than from the member list.
+  render(
+    "message list holding a webhook message with a card",
+    <MessageList
+      channelName="general"
+      messages={[
+        {
+          id: 501,
+          userId: null,
+          author: "Buildbot",
+          content: "",
+          createdAt: nowSeconds - 60,
+          editedAt: null,
+          webhook: { id: 7, avatar: "https://example.com/bot.png" },
+          embeds: [alertEmbed],
+        },
+      ]}
+      users={seededUsers}
+      roles={seededRoles}
+      self={admin}
+      hasMore={false}
+      hasMoreAfter={false}
+      loading={false}
+      error={null}
+      canManageMessages={false}
+      jump={null}
+      onJumpDone={noop}
+      onLoadOlder={noop}
+      onLoadNewer={noop}
+      onReturnToPresent={noop}
+      onEdit={noop}
+      onDelete={noop}
+    />,
+    [
+      "Buildbot",
+      "msg__app-badge",
+      "msg__avatar-webhook",
+      "https://example.com/bot.png",
+      "rich-embed",
+      "Disk almost full",
+      // A card with no words in the message is still the whole message, so an
+      // empty paragraph must not push it down the row.
+      "node-1",
+    ],
+  );
+
+  // Two webhooks posting under two names must not share one header, even though
+  // both messages have a null userId.
+  render(
+    "two webhooks in a row keep their own headers",
+    <MessageList
+      channelName="general"
+      messages={[
+        {
+          id: 502,
+          userId: null,
+          author: "Buildbot",
+          content: "build 41 passed",
+          createdAt: nowSeconds - 40,
+          editedAt: null,
+          webhook: { id: 7 },
+        },
+        {
+          id: 503,
+          userId: null,
+          author: "Alertmanager",
+          content: "cpu is high",
+          createdAt: nowSeconds - 39,
+          editedAt: null,
+          webhook: { id: 8 },
+        },
+      ]}
+      users={seededUsers}
+      roles={seededRoles}
+      self={admin}
+      hasMore={false}
+      hasMoreAfter={false}
+      loading={false}
+      error={null}
+      canManageMessages={false}
+      jump={null}
+      onJumpDone={noop}
+      onLoadOlder={noop}
+      onLoadNewer={noop}
+      onReturnToPresent={noop}
+      onEdit={noop}
+      onDelete={noop}
+    />,
+    ["Buildbot", "Alertmanager"],
+  );
+
+  render(
+    "a rich embed draws its author, fields, footer and thumbnail",
+    <RichEmbeds embeds={[alertEmbed]} onOpenLink={noop} />,
+    [
+      "rich-embed__author",
+      "monitor",
+      "rich-embed__title",
+      "rich-embed__field--inline",
+      "Host",
+      "Mount",
+      "rich-embed__thumbnail",
+      "rich-embed__footer",
+      // The description is Markdown, so the link in it becomes a link.
+      "the dashboard",
+    ],
+  );
+
+  // A card whose fields are all absent still has to render rather than throw:
+  // what arrives is written by somebody else's software.
+  render("a rich embed with nothing but a description", <RichEmbeds embeds={[{ description: "just this" }]} onOpenLink={noop} />, [
+    "just this",
+  ]);
+  render("no embeds draws nothing at all", <RichEmbeds embeds={[]} onOpenLink={noop} />, []);
+
+  checkThat("a colour becomes a hex string", colorOf(0xe5534b) === "#e5534b");
+  checkThat("a colour keeps its leading zeroes", colorOf(0x0000ff) === "#0000ff");
+  checkThat("no colour is no colour", colorOf(undefined) === undefined);
+
+  // Who may mint a webhook is asked per channel, because the permission is held
+  // per channel.
+  const state = useSession.getState();
+  checkThat(
+    "an administrator may create a webhook in every text channel",
+    manageableWebhookChannels(admin, state.roles, state.channels).length ===
+      [...state.channels.values()].filter((channel) => channel.type === "text").length,
+  );
+  checkThat(
+    "a plain guest may create one nowhere",
+    manageableWebhookChannels(guest, state.roles, state.channels).length === 0,
+  );
+  checkThat(
+    "and nobody at all may create one nowhere",
+    manageableWebhookChannels(null, state.roles, state.channels).length === 0,
+  );
+}
+
+{
+  // The webhook card lives behind the integrations tab, so the dialog is
+  // mounted and the tab is clicked: rendering the dialog alone would only ever
+  // prove the overview page works.
+  checks += 1;
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    seed();
+    act(() => {
+      root.render(<ServerSettingsDialog onClose={noop} />);
+    });
+    const tab = [...container.querySelectorAll("button")].find((button) =>
+      (button.textContent ?? "").includes("Integrations"),
+    );
+    if (!tab) throw new Error("the integrations tab is missing");
+    act(() => {
+      tab.click();
+    });
+    const html = container.innerHTML;
+    for (const needle of ["webhook-card__compat", "Webhooks", "New Webhook", "KLIPY"]) {
+      if (!html.includes(needle)) throw new Error(`rendered without ${JSON.stringify(needle)}`);
+    }
+    console.log("  ok    the integrations tab shows both the Klipy key and the webhook card");
+  } catch (error) {
+    console.error(
+      `  FAIL  the integrations tab shows both the Klipy key and the webhook card: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    failed = true;
+  } finally {
+    try {
+      act(() => {
+        root.unmount();
+      });
+    } catch {
+      // Unmount failures are not what this check is about.
+    }
+    container.remove();
+  }
+}
+
 
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);
 

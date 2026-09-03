@@ -74,7 +74,7 @@ export function isMarkdown(attachment: Attachment): boolean {
  */
 export function attachmentUrl(address: ServerAddress | null, attachment: Attachment): string {
   if (!address) return attachment.url;
-  return `${origin(address)}${attachment.url}`;
+  return `${serverOrigin(address)}${attachment.url}`;
 }
 
 /**
@@ -125,8 +125,14 @@ export interface RunningUpload {
   cancel(): void;
 }
 
-/** The scheme, host and port of a server, with IPv6 bracketed. */
-function origin(address: ServerAddress): string {
+/**
+ * The scheme, host and port of a server, with IPv6 bracketed.
+ *
+ * Exported because every relative path this server hands out — an attachment,
+ * an avatar, a webhook URL — is resolved against it, and there should be one
+ * answer to "where is this server" rather than one per caller.
+ */
+export function serverOrigin(address: ServerAddress): string {
   const scheme = address.secure ? "https" : "http";
   const host = address.host.includes(":") && !address.host.startsWith("[")
     ? `[${address.host}]`
@@ -136,7 +142,7 @@ function origin(address: ServerAddress): string {
 
 /** The endpoint one file is posted to. */
 function uploadEndpoint(address: ServerAddress, channelId: number): string {
-  return `${origin(address)}/upload?channel=${channelId}`;
+  return `${serverOrigin(address)}/upload?channel=${channelId}`;
 }
 
 /**
@@ -180,7 +186,7 @@ export interface RunningMediaUpload {
 }
 
 function mediaUploadEndpoint(address: ServerAddress, type: "avatar" | "banner"): string {
-  return `${origin(address)}/upload/${type}`;
+  return `${serverOrigin(address)}/upload/${type}`;
 }
 
 export function uploadAvatar(options: MediaUploadOptions): RunningMediaUpload {

@@ -122,6 +122,35 @@ export function useChannelPermissions(channelId: number | null): bigint {
   });
 }
 
+/**
+ * The text channels a user may create a webhook in.
+ *
+ * A webhook belongs to one channel, so the permission is asked per channel
+ * rather than server-wide: somebody may hold it in one place and nowhere else,
+ * and the picker must offer exactly the places they hold it.
+ *
+ * It is a plain function rather than a hook because it builds a fresh array,
+ * and a selector that does that hands React a new snapshot on every render.
+ * Callers hold it behind a `useMemo`, exactly as they do `buildChannelTree`.
+ */
+export function manageableWebhookChannels(
+  self: User | null,
+  roles: ReadonlyMap<number, Role>,
+  channels: ReadonlyMap<number, Channel>,
+): Channel[] {
+  if (!self) return [];
+  const base = permissionsOf(self, roles);
+  const everyone = everyoneRoleId(roles);
+
+  const out: Channel[] = [];
+  for (const channel of channels.values()) {
+    if (channel.type !== "text") continue;
+    const mask = resolveChannelPermissions(base, everyone, self.roles, channel.id, channels);
+    if (has(mask, Perm.ManageWebhooks)) out.push(channel);
+  }
+  return out.sort((a, b) => a.position - b.position || a.id - b.id);
+}
+
 /** Whether the caller holds a permission, optionally scoped to a channel. */
 export function useCan(want: bigint, channelId: number | null = null): boolean {
   const mask = useChannelPermissions(channelId);

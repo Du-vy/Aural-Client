@@ -10,9 +10,11 @@ import {
   isSet,
   parse,
 } from "@/lib/permissions";
-import { describeError, type Role, type VoiceSettings } from "@/lib/protocol";
+import { describeError, type Role, type VoiceSettings, type Webhook } from "@/lib/protocol";
+import { formatDateTime } from "@/lib/time";
+import { serverOrigin } from "@/lib/uploads";
 import { useSession } from "@/store/session";
-import { useMyPermissions, useMyRank } from "@/store/selectors";
+import { manageableWebhookChannels, useMyPermissions, useMyRank } from "@/store/selectors";
 import { SettingsModal, type SettingsNavCategory } from "../SettingsModal";
 import {
   FileTextIcon,
@@ -28,6 +30,7 @@ import {
   UsersIcon,
   UserXIcon,
   VoiceIcon,
+  WebhookIcon,
   LogOutIcon,
 } from "../Icons";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -994,9 +997,356 @@ function ServerIntegrationsPage() {
           )}
         </form>
       </div>
+
+      <ServerWebhooksCard />
     </div>
   );
 }
+
+/**
+ * Webhook management.
+ *
+ * The list is fetched here rather than held in the session store: every entry
+ * carries the token that is the whole of a webhook's authentication, and there
+ * is no reason for a set of live credentials to sit in memory for the length of
+ * a session when one screen reads them. There are no webhook events either, so
+ * the list is re-read after every change this screen makes.
+ */
+function ServerWebhooksCard() {
+  const { t } = useTranslation();
+  const self = useSession((state) => state.self);
+  const roles = useSession((state) => state.roles);
+  const channels = useSession((state) => state.channels);
+  const address = useSession((state) => state.address);
+  const listWebhooks = useSession((state) => state.listWebhooks);
+  const createWebhook = useSession((state) => state.createWebhook);
+  const deleteWebhook = useSession((state) => state.deleteWebhook);
+
+  const targets = useMemo(
+    () => manageableWebhookChannels(self, roles, channels),
+    [self, roles, channels],
+  );
+
+  const [webhooks, setWebhooks] = useState<Webhook[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [avatar, setAvatar] = useState("");
+  const [channelId, setChannelId] = useState<number | null>(null);
+  const [revealed, setRevealed] = useState<number | null>(null);
+  const [copied, setCopied] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Webhook | null>(null);
+
+  const allowed = targets.length > 0;
+
+  async function refresh() {
+    try {
+      setWebhooks(await listWebhooks());
+      setError(null);
+    } catch (caught) {
+      setError(describeError(caught));
+    }
+  }
+
+  useEffect(() => {
+    if (!allowed) {
+      setWebhooks([]);
+      return;
+    }
+    let live = true;
+    listWebhooks()
+      .then((list) => {
+        if (live) {
+          setWebhooks(list);
+          setError(null);
+        }
+      })
+      .catch((caught) => {
+        if (live) setError(describeError(caught));
+      });
+    return () => {
+      live = false;
+    };
+  }, [allowed, listWebhooks]);
+
+  // The picker starts on the first channel the caller may act in, so the common
+  // case is a name and a button.
+  useEffect(() => {
+    if (channelId === null && targets.length > 0) setChannelId(targets[0]!.id);
+  }, [channelId, targets]);
+
+  /**
+   * The URL an application is given. The server hands back a path, so a client
+   * that reached this server by address, by hostname or through a proxy all
+   * build the same working URL from the address they already hold.
+   */
+  function fullUrl(webhook: Webhook): string {
+    if (!address) return webhook.url;
+    return serverOrigin(address) + webhook.url;
+  }
+
+  async function handleCreate(event: FormEvent) {
+    event.preventDefault();
+    if (busy || channelId === null || name.trim() === "") return;
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await createWebhook({
+        channelId,
+        name: name.trim(),
+        avatar: avatar.trim() || undefined,
+      });
+      setName("");
+      setAvatar("");
+      setCreating(false);
+      // Shown at once: the URL is the thing somebody came here for, and making
+      // them find it again in the list is a step for nothing.
+      setRevealed(created.id);
+      await refresh();
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete(webhook: Webhook) {
+    setPendingDelete(null);
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteWebhook(webhook.id);
+      await refresh();
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyUrl(webhook: Webhook) {
+    try {
+      await navigator.clipboard.writeText(fullUrl(webhook));
+      setCopied(webhook.id);
+      setTimeout(() => setCopied((current) => (current === webhook.id ? null : current)), 2000);
+    } catch {
+      // Clipboard access can be refused. Showing the URL is the fallback: it
+      // can then be selected and copied by hand.
+      setRevealed(webhook.id);
+    }
+  }
+
+  return (
+    <>
+      <div className="settings-card settings-card--integration">
+        <div className="settings-card__header">
+          <div className="settings-card__header-info">
+            <div className="webhook-card__service">
+              <span className="settings-card__service-icon webhook-card__icon">
+                <WebhookIcon size={20} />
+              </span>
+              <h3 className="settings-card__title webhook-card__heading">
+                {t("dialogs.serverSettings.integrations.webhooksTitle")}
+              </h3>
+            </div>
+            <p className="settings-card__subtitle webhook-card__desc">
+              {t("dialogs.serverSettings.integrations.webhooksDesc")}
+            </p>
+            <p className="webhook-card__compat">
+              {t("dialogs.serverSettings.integrations.webhooksCompat")}
+            </p>
+          </div>
+        </div>
+
+        {!allowed ? (
+          <p className="webhook-card__empty">
+            {t("dialogs.serverSettings.integrations.noChannels")}
+          </p>
+        ) : (
+          <>
+            {webhooks.length === 0 ? (
+              <p className="webhook-card__empty">
+                {t("dialogs.serverSettings.integrations.empty")}
+              </p>
+            ) : (
+              <ul className="webhook-list">
+                {webhooks.map((webhook) => {
+                  const channel = channels.get(webhook.channelId);
+                  const open = revealed === webhook.id;
+                  return (
+                    <li key={webhook.id} className="webhook">
+                      <div className="webhook__row">
+                        <span className="webhook__icon" aria-hidden="true">
+                          {webhook.avatar ? (
+                            <img src={webhook.avatar} alt="" referrerPolicy="no-referrer" />
+                          ) : (
+                            <WebhookIcon size={16} />
+                          )}
+                        </span>
+                        <div className="webhook__info">
+                          <span className="webhook__name">{webhook.name}</span>
+                          <span className="webhook__meta">
+                            {channel ? `#${channel.name} · ` : ""}
+                            {webhook.lastUsedAt > 0
+                              ? t("dialogs.serverSettings.integrations.lastUsed", {
+                                  when: formatDateTime(webhook.lastUsedAt),
+                                })
+                              : t("dialogs.serverSettings.integrations.neverUsed")}
+                          </span>
+                        </div>
+                        <div className="webhook__actions">
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--sm"
+                            onClick={() => setRevealed(open ? null : webhook.id)}
+                          >
+                            {open
+                              ? t("dialogs.serverSettings.integrations.hideUrl")
+                              : t("dialogs.serverSettings.integrations.showUrl")}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--sm"
+                            onClick={() => void copyUrl(webhook)}
+                          >
+                            {copied === webhook.id
+                              ? t("common.copied")
+                              : t("dialogs.serverSettings.integrations.copyUrl")}
+                          </button>
+                          <button
+                            type="button"
+                            className="iconbtn iconbtn--danger"
+                            title={t("dialogs.serverSettings.integrations.deleteWebhook")}
+                            aria-label={t("dialogs.serverSettings.integrations.deleteWebhook")}
+                            onClick={() => setPendingDelete(webhook)}
+                            disabled={busy}
+                          >
+                            <TrashIcon size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {open ? (
+                        <div className="field webhook__url">
+                          <label className="field__label" htmlFor={`webhook-url-${webhook.id}`}>
+                            {t("dialogs.serverSettings.integrations.urlLabel")}
+                          </label>
+                          <input
+                            id={`webhook-url-${webhook.id}`}
+                            className="input webhook__url-input"
+                            value={fullUrl(webhook)}
+                            readOnly
+                            onFocus={(event) => event.currentTarget.select()}
+                            spellCheck={false}
+                          />
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {creating ? (
+              <form className="webhook-form" onSubmit={handleCreate}>
+                <div className="field">
+                  <label className="field__label" htmlFor="webhook-name">
+                    {t("dialogs.serverSettings.integrations.nameLabel")}
+                  </label>
+                  <input
+                    id="webhook-name"
+                    className="input"
+                    value={name}
+                    autoFocus
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder={t("dialogs.serverSettings.integrations.namePlaceholder")}
+                    maxLength={80}
+                  />
+                </div>
+                <div className="field">
+                  <label className="field__label" htmlFor="webhook-channel">
+                    {t("dialogs.serverSettings.integrations.channelLabel")}
+                  </label>
+                  <select
+                    id="webhook-channel"
+                    className="input"
+                    value={channelId ?? ""}
+                    onChange={(event) => setChannelId(Number(event.target.value))}
+                  >
+                    {targets.map((channel) => (
+                      <option key={channel.id} value={channel.id}>
+                        #{channel.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label className="field__label" htmlFor="webhook-avatar">
+                    {t("dialogs.serverSettings.integrations.avatarLabel")}
+                  </label>
+                  <input
+                    id="webhook-avatar"
+                    className="input webhook__url-input"
+                    value={avatar}
+                    onChange={(event) => setAvatar(event.target.value)}
+                    placeholder={t("dialogs.serverSettings.integrations.avatarPlaceholder")}
+                    spellCheck={false}
+                  />
+                </div>
+                <div className="webhook-form__actions">
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={() => setCreating(false)}
+                    disabled={busy}
+                  >
+                    {t("common.cancel")}
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn--primary"
+                    disabled={busy || name.trim() === "" || channelId === null}
+                  >
+                    {busy ? t("common.loading") : t("dialogs.serverSettings.integrations.create")}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="webhook-card__footer">
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => setCreating(true)}
+                  disabled={busy}
+                >
+                  <PlusIcon size={14} />
+                  {t("dialogs.serverSettings.integrations.createWebhook")}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {error ? <p className="webhook-card__error">{error}</p> : null}
+      </div>
+
+      {pendingDelete ? (
+        <ConfirmDialog
+          title={t("dialogs.serverSettings.integrations.deleteWebhook")}
+          subtitle={t("dialogs.serverSettings.integrations.deleteConfirm", {
+            name: pendingDelete.name,
+          })}
+          confirmText={t("common.delete")}
+          danger
+          onConfirm={() => void handleDelete(pendingDelete)}
+          onClose={() => setPendingDelete(null)}
+        />
+      ) : null}
+    </>
+  );
+}
+
 
 function ServerAuditPage() {
   const { t } = useTranslation();

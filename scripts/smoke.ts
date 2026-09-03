@@ -20,7 +20,13 @@ import { parseAddress, fetchServerInfo } from "../src/lib/address";
 import { Gateway } from "../src/lib/gateway";
 import { Perm, has, resolve, resolveChannelPermissions } from "../src/lib/permissions";
 import { buildDirectory, buildSearchRequest, parseSearchInput } from "../src/lib/search";
-import { attachmentKind, attachmentUrl, downloadUrl, formatBytes } from "../src/lib/uploads";
+import {
+  attachmentKind,
+  attachmentUrl,
+  downloadUrl,
+  formatBytes,
+  serverOrigin,
+} from "../src/lib/uploads";
 import { applyOpusPreferences, opusPreferences } from "../src/lib/voice/sdp";
 import {
   Ev,
@@ -41,6 +47,8 @@ import {
   type UserMovedEvent,
   type VoiceConnectResult,
   type VoiceStateEvent,
+  type WebhookEvent,
+  type WebhookListResult,
 } from "../src/lib/protocol";
 import { useServers } from "../src/store/servers";
 import { useSession } from "../src/store/session";
@@ -685,6 +693,62 @@ async function main() {
 
     await other.gateway.request(Op.ChannelDelete, { channelId: created.channel.id });
     check(true, "an administrator can delete a channel");
+
+    // Webhooks: the one surface where a service that has never heard of Aural
+    // posts into it. The round trip is worth driving from here rather than only
+    // from the server's own tests, because what it proves is that the URL this
+    // client builds from the path the server hands back is a URL that works.
+    console.log("\nwebhooks");
+    const webhookChannel = ready.channels.find((channel) => channel.type === "text")!;
+    const minted = await other.gateway.request<WebhookEvent>(Op.WebhookCreate, {
+      channelId: webhookChannel.id,
+      name: "Smoke Webhook",
+    });
+    check(minted.webhook.token.length > 20, "a webhook is given a token");
+    check(
+      minted.webhook.url === `/api/webhooks/${minted.webhook.id}/${minted.webhook.token}`,
+      "and a URL in the shape Discord uses",
+    );
+
+    const deliveryUrl = serverOrigin(parsed) + minted.webhook.url;
+    const delivered = await fetch(`${deliveryUrl}?wait=true`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: "posted by something that has never heard of Aural",
+        username: "Smoke Bot",
+        embeds: [{ title: "A card", description: "with a body", color: 0x12b8a0 }],
+      }),
+    });
+    check(delivered.status === 200, `a Discord-shaped delivery is accepted (${delivered.status})`);
+    const deliveredBody = (await delivered.json()) as { id: string; webhook_id: string };
+    check(typeof deliveredBody.id === "string", "and answers with the message id, as Discord does");
+
+    // The message reached the channel, with the card and the per-delivery name.
+    // Bob's log still holds the messages posted earlier in this run, so the
+    // events are drained until the one this delivery caused turns up.
+    let arrived = await bob.log.wait<MessageEvent>(Ev.MessageCreated);
+    for (let drained = 0; drained < 16 && !arrived.message.webhook; drained += 1) {
+      arrived = await bob.log.wait<MessageEvent>(Ev.MessageCreated);
+    }
+    check(arrived.message.author === "Smoke Bot", "the delivery's username is what the message says");
+    check(arrived.message.userId === null, "and it is attributed to no identity");
+    check(arrived.message.webhook?.id === minted.webhook.id, "the message names the webhook that posted it");
+    check((arrived.message.embeds ?? []).length === 1, "the card travelled with it");
+
+    const listed = await other.gateway.request<WebhookListResult>(Op.WebhookList, {});
+    check(
+      listed.webhooks.some((hook) => hook.id === minted.webhook.id && hook.lastUsedAt > 0),
+      "and the webhook records that it was used",
+    );
+
+    await other.gateway.request(Op.WebhookDelete, { webhookId: minted.webhook.id });
+    const revoked = await fetch(deliveryUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "should not arrive" }),
+    });
+    check(revoked.status === 404, "deleting a webhook revokes its URL");
   } else if (!ownerToken) {
     console.log("\nownership: skipped, pass --owner-token to include it");
   }

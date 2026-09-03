@@ -57,6 +57,15 @@
   width: 100%;
 }
 
+/* A compact button, for the rows of a list where a full-height one would set
+   the line height rather than sit inside it. */
+.btn--sm {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: var(--radius-xs);
+}
+
+
 .field {
   display: flex;
   flex-direction: column;

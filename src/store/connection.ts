@@ -64,6 +64,9 @@ import {
   type VoiceSpeakingEvent,
   type VoiceState,
   type VoiceStateEvent,
+  type Webhook,
+  type WebhookEvent,
+  type WebhookListResult,
 } from "@/lib/protocol";
 import {
   clearToken,
@@ -468,6 +471,23 @@ export interface ConnectionState {
   refreshConversations(): Promise<void>;
   /** Drops one conversation from the held list. */
   closeConversation(userId: number): void;
+
+  /**
+   * Webhooks. They are read on demand rather than held in the store: the list
+   * carries the token that is the whole of a webhook's authentication, only
+   * reaches somebody who may manage it, and is only ever looked at from one
+   * settings screen. Keeping it in every connection's state would put a set of
+   * live credentials in memory for the whole session to no end.
+   */
+  listWebhooks(channelId?: number): Promise<Webhook[]>;
+  createWebhook(input: { channelId: number; name: string; avatar?: string }): Promise<Webhook>;
+  updateWebhook(input: {
+    webhookId: number;
+    name?: string;
+    avatar?: string;
+    channelId?: number;
+  }): Promise<Webhook>;
+  deleteWebhook(webhookId: number): Promise<void>;
 
   createRole(input: { name: string; color?: string; permissions?: string; hoist?: boolean }): Promise<void>;
   updateRole(input: {
@@ -2053,6 +2073,27 @@ export function createConnection({
 
       async deleteMessage(messageId) {
         await requireGateway().request(Op.MessageDelete, { messageId });
+      },
+
+      async listWebhooks(channelId) {
+        const result = await requireGateway().request<WebhookListResult>(Op.WebhookList, {
+          channelId,
+        });
+        return result.webhooks;
+      },
+
+      async createWebhook(input) {
+        const result = await requireGateway().request<WebhookEvent>(Op.WebhookCreate, input);
+        return result.webhook;
+      },
+
+      async updateWebhook(input) {
+        const result = await requireGateway().request<WebhookEvent>(Op.WebhookUpdate, input);
+        return result.webhook;
+      },
+
+      async deleteWebhook(webhookId) {
+        await requireGateway().request(Op.WebhookDelete, { webhookId });
       },
 
       async createRole(input) {

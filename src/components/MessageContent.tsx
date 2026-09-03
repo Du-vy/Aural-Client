@@ -8,10 +8,11 @@ import {
   type MentionDirectory,
   type MentionTarget,
 } from "@/lib/mentions";
-import type { Attachment, User } from "@/lib/protocol";
+import type { Attachment, Embed, User } from "@/lib/protocol";
 import { formatFull } from "@/lib/time";
 import { MessageAttachments } from "./attachments/MessageAttachments";
 import { MessageEmbeds } from "./embeds/MessageEmbeds";
+import { RichEmbeds } from "./embeds/RichEmbed";
 
 /** One run of the message: words, a link, or somebody being named. */
 type Piece =
@@ -24,6 +25,12 @@ interface MessageContentProps {
   editedAt: number | null;
   /** Files posted with the message, rendered under whatever it said. */
   attachments?: readonly Attachment[];
+  /**
+   * The rich cards the message carries, which only a webhook produces. They
+   * are very often the whole message: a build result or an alert says nothing
+   * in words at all.
+   */
+  embeds?: readonly Embed[];
   /** Who can be named, so an `@name` in the text resolves to them. */
   mentions?: MentionDirectory;
   /** The reader, so the mentions that reach them are marked as such. */
@@ -44,6 +51,7 @@ export function MessageContent({
   content,
   editedAt,
   attachments,
+  embeds,
   mentions = EMPTY_MENTIONS,
   self = null,
   onOpenLink,
@@ -55,6 +63,7 @@ export function MessageContent({
   const tokens = useMemo(() => tokenizeMessageText(content), [content]);
   const jumboEmoji = useMemo(() => isEmojiOnly(content), [content]);
   const files = attachments ?? [];
+  const cards = embeds ?? [];
 
   // Links are found first and never looked inside, so a `@` in a URL stays
   // part of the address rather than becoming somebody's name.
@@ -76,12 +85,16 @@ export function MessageContent({
     return out;
   }, [tokens, mentions]);
 
-  // A message that carries files may say nothing at all: the picture is the
-  // message, and an empty paragraph above it would be a line of blank space.
-  if (content.trim() === "" && files.length > 0) {
+  // A message that carries files or cards may say nothing at all: the picture
+  // is the message, and an empty paragraph above it would be a line of blank
+  // space.
+  if (content.trim() === "" && (files.length > 0 || cards.length > 0)) {
     return (
       <div className="msg__content-wrap">
-        <MessageAttachments attachments={files} onOpenLink={onOpenLink} />
+        <RichEmbeds embeds={cards} onOpenLink={onOpenLink} />
+        {files.length > 0 ? (
+          <MessageAttachments attachments={files} onOpenLink={onOpenLink} />
+        ) : null}
         {editedAt !== null ? (
           <span className="msg__edited" title={formatFull(editedAt)}>
             {t("chat.edited")}
@@ -96,6 +109,7 @@ export function MessageContent({
     return (
       <div className="msg__media-only">
         <MessageEmbeds urls={urls} onOpenLink={onOpenLink} />
+        <RichEmbeds embeds={cards} onOpenLink={onOpenLink} />
         {files.length > 0 ? (
           <MessageAttachments attachments={files} onOpenLink={onOpenLink} />
         ) : null}
@@ -175,6 +189,8 @@ export function MessageContent({
       </p>
 
       {urls.length > 0 && <MessageEmbeds urls={urls} onOpenLink={onOpenLink} />}
+
+      <RichEmbeds embeds={cards} onOpenLink={onOpenLink} />
 
       {files.length > 0 ? (
         <MessageAttachments attachments={files} onOpenLink={onOpenLink} />

@@ -41,10 +41,15 @@ export function buildRows(messages: readonly MessageBase[], now: Date = new Date
     const previous = index > 0 ? messages[index - 1] : undefined;
 
     const newDay = !previous || !sameDay(previous.createdAt, message.createdAt);
+    // A webhook posts with no identity behind it, so two different webhooks —
+    // or one webhook posting under two different names — both arrive with a
+    // null userId. Comparing which webhook it was is what keeps them from
+    // sharing a header.
     const sameAuthor =
       previous !== undefined &&
       previous.userId === message.userId &&
-      previous.author === message.author;
+      previous.author === message.author &&
+      (previous.webhook?.id ?? null) === (message.webhook?.id ?? null);
     const withinWindow =
       previous !== undefined &&
       message.createdAt - previous.createdAt <= GROUPING_WINDOW_SECONDS;
@@ -501,10 +506,17 @@ function MessageRow({
 }: MessageRowProps) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState(message.content);
+  const [webhookAvatarBroken, setWebhookAvatarBroken] = useState(false);
 
   // The author's colour is only knowable while they are connected, because
   // roles travel with the live user record and not with the message.
   const color = author ? (colorRoleOf(author, roles)?.color ?? null) : null;
+
+  // A webhook's picture is an absolute URL on somebody else's host, so it is
+  // used as it arrived. One that will not load falls back to the initial every
+  // other authorless message already shows.
+  const webhookAvatar =
+    !webhookAvatarBroken && message.webhook?.avatar ? message.webhook.avatar : null;
 
   // A message that names the reader is marked as a whole row: the pill inside
   // it says who was named, and the row says it was them.
@@ -532,6 +544,15 @@ function MessageRow({
             >
               <Avatar user={author} size="md" />
             </button>
+          ) : webhookAvatar ? (
+            <img
+              src={webhookAvatar}
+              alt=""
+              className="msg__avatar-webhook"
+              referrerPolicy="no-referrer"
+              aria-hidden="true"
+              onError={() => setWebhookAvatarBroken(true)}
+            />
           ) : (
             <span className="msg__avatar-offline" aria-hidden="true">
               {message.author.slice(0, 1).toUpperCase()}
@@ -568,6 +589,14 @@ function MessageRow({
                 {message.author}
               </span>
             )}
+            {message.webhook ? (
+              // A webhook has no account behind it, and a name with no account
+              // behind it is exactly what somebody would use to impersonate a
+              // member. The badge is what says so.
+              <span className="msg__app-badge" title={t("chat.webhookBadgeTitle")}>
+                {t("chat.webhookBadge")}
+              </span>
+            ) : null}
             <time className="msg__time" title={formatFull(message.createdAt)}>
               {formatTime(message.createdAt)}
             </time>
@@ -615,6 +644,7 @@ function MessageRow({
             content={message.content}
             editedAt={message.editedAt}
             attachments={message.attachments}
+            embeds={message.embeds}
             mentions={mentions}
             self={self}
             onOpenLink={onOpenLink}

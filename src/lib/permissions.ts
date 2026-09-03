@@ -33,6 +33,13 @@ export const Perm = {
   ManageNicknames: 1n << 11n,
   /** Other people's messages. Deleting your own needs no permission. */
   ManageMessages: 1n << 12n,
+  /**
+   * Creating, editing and deleting the webhooks of a channel. Its own bit
+   * rather than part of ManageChannels: a webhook URL is a standing permission
+   * to post, so handing somebody the right to mint one is a larger thing than
+   * letting them rename a channel.
+   */
+  ManageWebhooks: 1n << 13n,
 
   KickUsers: 1n << 16n,
   MoveUsers: 1n << 17n,
@@ -62,6 +69,7 @@ export const PERMISSION_ORDER: PermissionName[] = [
   "ManageServer",
   "ManageNicknames",
   "ManageMessages",
+  "ManageWebhooks",
   "KickUsers",
   "MoveUsers",
   "MuteUsers",
@@ -86,6 +94,7 @@ export const PERMISSION_HELP: Record<PermissionName, string> = {
   ManageServer: "Rename the server",
   ManageNicknames: "Change other members' nicknames",
   ManageMessages: "Delete other members' messages",
+  ManageWebhooks: "Create and revoke the webhooks of a channel",
   KickUsers: "Disconnect a member",
   MoveUsers: "Move a member between voice channels",
   MuteUsers: "Mute a member in voice",

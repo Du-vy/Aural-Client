@@ -8,8 +8,8 @@ React and TypeScript on Vite, wrapped by Tauri v2 so the same codebase ships as
 a desktop app and an Android app.
 
 > **Status: v0.6.** Connecting, identity, the channel tree, roles, permissions,
-> presence, text messaging, file attachments, search and voice all work against
-> a real server.
+> presence, text messaging, file attachments, search, voice and webhooks all
+> work against a real server.
 
 ## Quick start
 
@@ -432,8 +432,14 @@ between servers only after being asked about.
 [`docs/MULTI-SERVER.md`](docs/MULTI-SERVER.md) has the memory budget behind all
 of that.
 
-**Later** — screen sharing, a global push-to-talk hotkey in the native shell,
-and Aural Hub for finding public servers.
+**Unreleased** — webhooks: a management screen under Server Settings →
+Integrations that mints the URL an outside service posts to, and the rendering
+for what arrives through one — an app badge, the sender's own name and picture,
+and the rich cards a Discord-shaped delivery carries, laid out the way the
+services that send them expect.
+
+**Later** — bots, screen sharing, a global push-to-talk hotkey in the native
+shell, and Aural Hub for finding public servers.
 
 ## License
 
