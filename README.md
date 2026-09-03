@@ -7,7 +7,7 @@ people run their own, and you reach them by address.
 React and TypeScript on Vite, wrapped by Tauri v2 so the same codebase ships as
 a desktop app and an Android app.
 
-> **Status: v0.5.** Connecting, identity, the channel tree, roles, permissions,
+> **Status: v0.6.** Connecting, identity, the channel tree, roles, permissions,
 > presence, text messaging, file attachments, search and voice all work against
 > a real server.
 
