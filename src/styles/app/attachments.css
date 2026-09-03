@@ -418,6 +418,20 @@
   box-shadow: var(--shadow-overlay);
 }
 
+.lightbox__broken {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 48px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  font-size: 14px;
+  box-shadow: var(--shadow-overlay);
+}
+
 /* --- the composer tray ---------------------------------------------------- */
 
 .composer__file-input {

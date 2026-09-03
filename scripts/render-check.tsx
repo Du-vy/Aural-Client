@@ -1069,6 +1069,51 @@ function checkThat(name: string, condition: boolean): void {
 }
 
 {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  act(() => {
+    root.render(
+      <MessageContent
+        content="https://example.com/cat.png"
+        editedAt={null}
+        onOpenLink={noop}
+      />,
+    );
+  });
+
+  const img = container.querySelector<HTMLImageElement>(".msg-embed__image");
+  checkThat("an external image embed renders an image element", img !== null);
+  checkThat("lightbox is initially not open", container.querySelector(".lightbox") === null);
+
+  act(() => {
+    img?.click();
+  });
+
+  checkThat("clicking an external image opens the lightbox", container.querySelector(".lightbox") !== null);
+  checkThat(
+    "the lightbox displays the image filename in header",
+    container.querySelector(".lightbox__name")?.textContent === "cat.png",
+  );
+
+  const closeBtn = container.querySelector<HTMLButtonElement>(
+    '.lightbox button[aria-label="Close"], .lightbox button[title="Close"]',
+  );
+  act(() => {
+    closeBtn?.click();
+  });
+
+  checkThat("closing the lightbox hides it", container.querySelector(".lightbox") === null);
+
+  act(() => {
+    root.unmount();
+  });
+  container.remove();
+}
+
+
+{
   // A preview that never resolves renders exactly like one still loading, so
   // the only way to tell them apart is to open one and wait for it. This is
   // what catches an effect that cancels its own request.
