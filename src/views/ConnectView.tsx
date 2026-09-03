@@ -6,21 +6,27 @@ import { LanguageSelector } from "@/components/LanguageSelector";
 import { DEFAULT_PORT, fetchServerInfo, parseAddress } from "@/lib/address";
 import { useTranslation } from "@/lib/i18n";
 import type { ServerInfo } from "@/lib/protocol";
-import { useSession } from "@/store/session";
+import { useServerRegistry, useServers } from "@/store/servers";
 
 type Mode = "guest" | "signin";
 
 /**
  * The connect screen. Servers are reached by address, so this is the closest
  * thing Aural has to a home page: pick a saved one, or type where to go.
+ *
+ * It reads the registry rather than any one connection, because it is the one
+ * screen that is about all of them: which are open, which is being dialled,
+ * and what went wrong with the last attempt.
  */
 export function ConnectView() {
   const { t } = useTranslation();
-  const saved = useSession((state) => state.saved);
-  const status = useSession((state) => state.status);
-  const error = useSession((state) => state.error);
-  const connect = useSession((state) => state.connect);
-  const forget = useSession((state) => state.forget);
+  const saved = useServerRegistry((state) => state.saved);
+  const openConnections = useServerRegistry((state) => state.connections);
+  const dialing = useServerRegistry((state) => state.dialing);
+  const error = useServerRegistry((state) => state.error);
+  const notice = useServerRegistry((state) => state.notice);
+  const connect = useServers.getState().connect;
+  const forget = useServers.getState().forget;
 
   const [address, setAddress] = useState("");
   const [nickname, setNickname] = useState("");
@@ -30,7 +36,7 @@ export function ConnectView() {
   const [mode, setMode] = useState<Mode>("guest");
   const [preview, setPreview] = useState<ServerInfo | null>(null);
 
-  const busy = status === "connecting" || status === "reconnecting";
+  const busy = dialing.length > 0;
 
   useEffect(() => {
     setPreview(null);
@@ -103,13 +109,20 @@ export function ConnectView() {
                 <button
                   className="saved__main"
                   onClick={() => void connectSaved(server.id, server.address)}
-                  disabled={busy}
+                  disabled={dialing.includes(server.id)}
                 >
                   <span className="saved__badge">{server.name.slice(0, 2).toUpperCase()}</span>
                   <span className="saved__body">
                     <span className="saved__name" title={server.name}>{server.name}</span>
                     <span className="saved__address" title={server.address || server.id}>{server.address || server.id}</span>
                   </span>
+                  {/* A server already open is one click from being looked at,
+                      not one handshake: clicking it brings it to the front. */}
+                  {dialing.includes(server.id) ? (
+                    <span className="spinner" />
+                  ) : openConnections.has(server.id) ? (
+                    <span className="saved__open">{t("connect.openHere")}</span>
+                  ) : null}
                 </button>
                 <button
                   className="saved__forget"
@@ -138,7 +151,7 @@ export function ConnectView() {
             </p>
           </div>
 
-          {error ? <p className="alert">{error}</p> : null}
+          {error ?? notice ? <p className="alert">{error ?? notice}</p> : null}
 
           <div className="field">
             <label className="field__label" htmlFor="address">

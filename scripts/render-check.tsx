@@ -27,6 +27,7 @@ const { MemberDialog } = await import("@/components/dialogs/MemberDialog");
 const { NicknameDialog } = await import("@/components/dialogs/NicknameDialog");
 const { ContextMenu } = await import("@/components/ContextMenu");
 const { EmojiPicker } = await import("@/components/EmojiPicker");
+const { MentionPicker } = await import("@/components/MentionPicker");
 const { MessageList } = await import("@/components/MessageList");
 const { SearchResults } = await import("@/components/SearchResults");
 const { insertAtCaret } = await import("@/components/MessageComposer");
@@ -42,6 +43,7 @@ const { parseMarkdown, parseInline } = await import("@/lib/markdown");
 const { attachmentKind, formatBytes, extensionOf, attachmentUrl } = await import("@/lib/uploads");
 const { parseAddress } = await import("@/lib/address");
 const { extractUrls, classifyUrl, isOnlyMediaUrls, tokenizeMessageText } = await import("@/lib/links");
+const { buildMentions, findMentionQuery, rankMentions, splitMentions } = await import("@/lib/mentions");
 const {
   activeTokenAt,
   buildDirectory,
@@ -54,7 +56,18 @@ const {
 } = await import("@/lib/search");
 const { addTrustedDomain, isDomainTrusted } = await import("@/lib/storage");
 const { Perm, format } = await import("@/lib/permissions");
-const { useSession, EMPTY_SEARCH, CHANNEL_WINDOW, clampWindow } = await import("@/store/session");
+const {
+  useSession,
+  EMPTY_SEARCH,
+  CHANNEL_WINDOW,
+  IDLE_CHANNEL_WINDOW,
+  OPEN_CHANNEL_LIMIT,
+  clampWindow,
+  mentionsSelf,
+} = await import("@/store/session");
+const { useServers } = await import("@/store/servers");
+const { createConnection } = await import("@/store/connection");
+const { unreadTotals } = await import("@/store/selectors");
 const { setLanguage, getLanguage, t, SUPPORTED_LANGUAGES } = await import("@/lib/i18n");
 
 type Attachment = import("@/lib/protocol").Attachment;
@@ -237,6 +250,9 @@ const channels: Channel[] = [
   { id: 2, parentId: 1, name: "general", type: "text", topic: "Welcome to Aural", position: 0, userLimit: 0, overwrites: [] },
   { id: 3, parentId: 1, name: "Lobby", type: "voice", topic: "", position: 1, userLimit: 4, overwrites: [] },
   { id: 4, parentId: null, name: "Loose channel", type: "voice", topic: "", position: 0, userLimit: 0, overwrites: [] },
+  // A second text channel, so there is one the view does not open by itself:
+  // an unread badge only means anything on a channel nobody is reading.
+  { id: 5, parentId: 1, name: "announcements", type: "text", topic: "", position: 2, userLimit: 0, overwrites: [] },
 ];
 
 const admin: User = {
@@ -319,9 +335,62 @@ const seededHistory = new Map([
   [2, { messages, hasMore: true, hasMoreAfter: false, loading: false, error: null }],
 ]);
 
+const seededUsers = new Map([
+  [admin.id, admin],
+  [guest.id, guest],
+  [absent.id, absent],
+]);
+const seededRoles = new Map(roles.map((role) => [role.id, role]));
+
+/** Everyone this check can name, for a mention in a message and in the picker. */
+const mentionDirectory = buildMentions(seededUsers, seededRoles);
+
+const testServerId = "127.0.0.1:9871";
+const savedServers = [
+  { id: testServerId, address: testServerId, name: "Test Server", nickname: "Pablo" },
+  { id: "192.168.1.20:9871", address: "192.168.1.20:9871", name: "Second Server", nickname: "Pablo" },
+];
+
+/**
+ * One connection, with a host that answers for a registry that is not running.
+ *
+ * The client renders whichever connection is in front, so seeded state that
+ * nothing is looking at renders the connect screen instead: the registry has
+ * to be told about this one before any of it appears.
+ */
+const testConnection = createConnection({
+  id: testServerId,
+  address: testServerId,
+  host: {
+    foreground: () => true,
+    ownsVoice: () => false,
+    callElsewhere: () => false,
+    takeVoice: () => undefined,
+    dropVoice: () => undefined,
+    savedChanged: () => undefined,
+    ended: () => undefined,
+  },
+});
+
+function seedRegistry(overrides: Partial<Parameters<typeof useServers.setState>[0]> = {}) {
+  useServers.setState({
+    connections: new Map([[testServerId, testConnection]]),
+    order: [testServerId],
+    foregroundId: testServerId,
+    voiceId: null,
+    dialing: [],
+    error: null,
+    notice: null,
+    saved: savedServers,
+    ...overrides,
+  });
+}
+
 function seed(overrides: Partial<Parameters<typeof useSession.setState>[0]> = {}) {
+  seedRegistry();
   useSession.setState({
     status: "connected",
+    serverId: testServerId,
     server,
     self: admin,
     users: new Map([
@@ -331,18 +400,35 @@ function seed(overrides: Partial<Parameters<typeof useSession.setState>[0]> = {}
     ]),
     channels: new Map(channels.map((channel) => [channel.id, channel])),
     roles: new Map(roles.map((role) => [role.id, role])),
-    saved: [{ id: "127.0.0.1:9871", address: "127.0.0.1:9871", name: "Test Server", nickname: "Pablo" }],
-    savedId: "127.0.0.1:9871",
     notice: "A notice, so its banner renders too.",
     history: seededHistory,
+    unread: new Map(),
+    activeChannelId: 2,
+    voiceStates: new Map(),
+    speaking: new Set(),
     ...overrides,
   });
+}
+
+/** Back to nothing open, which is the connect screen. */
+function seedDisconnected() {
+  useServers.setState({
+    connections: new Map(),
+    order: [],
+    foregroundId: null,
+    voiceId: null,
+    dialing: [],
+    error: null,
+    notice: null,
+    saved: [],
+  });
+  useSession.setState({ status: "idle", server: null, self: null });
 }
 
 console.log("\nrendering the client\n");
 
 console.log("disconnected");
-useSession.setState({ status: "idle", server: null, self: null, saved: [] });
+seedDisconnected();
 render("connect screen", <App />);
 
 console.log("\nconnected as an administrator");
@@ -451,7 +537,7 @@ render(
     messages={messages}
     users={new Map([[guest.id, guest]])}
     roles={new Map(roles.map((role) => [role.id, role]))}
-    selfId={admin.id}
+    self={admin}
     hasMore={false}
     hasMoreAfter={false}
     loading={false}
@@ -466,6 +552,42 @@ render(
     onDelete={noop}
   />,
   ["The server refused that.", "First of a block."],
+);
+
+// A message that names the reader marks the whole row, not just the name.
+render(
+  "message list holding a message that names the reader",
+  <MessageList
+    channelName="general"
+    messages={[
+      {
+        id: 9,
+        channelId: 2,
+        userId: guest.id,
+        author: "Bob",
+        content: "@Pablo could you look at this",
+        createdAt: nowSeconds - 30,
+        editedAt: null,
+      },
+    ]}
+    users={seededUsers}
+    roles={seededRoles}
+    self={admin}
+    mentions={mentionDirectory}
+    hasMore={false}
+    hasMoreAfter={false}
+    loading={false}
+    error={null}
+    canManageMessages={false}
+    jump={null}
+    onJumpDone={noop}
+    onLoadOlder={noop}
+    onLoadNewer={noop}
+    onReturnToPresent={noop}
+    onEdit={noop}
+    onDelete={noop}
+  />,
+  ["msg--mention", "mention--self", "@Pablo"],
 );
 
 // With SendMessages taken off everyone, the composer is replaced by a reason.
@@ -510,6 +632,32 @@ seed({
   ]),
 });
 render("chat with an emoji-only message", <App />, ["msg__content--jumbo"]);
+
+// A name that resolves is drawn as a mention; one that does not is left alone.
+render(
+  "message naming a member, a role and everyone",
+  <MessageContent
+    content="thanks @bob, @Admin and @everyone — not @nobody"
+    editedAt={null}
+    mentions={mentionDirectory}
+    self={admin}
+    onOpenLink={noop}
+    onOpenMember={noop}
+  />,
+  ["mention", "@Bob", "@Admin", "@everyone", "@nobody"],
+);
+
+// The picker over the composer, offering everybody when nothing is typed yet.
+render(
+  "the mention picker",
+  <MentionPicker
+    targets={rankMentions("", mentionDirectory)}
+    active={0}
+    onHover={noop}
+    onPick={noop}
+  />,
+  ["mention-option", "Bob", "everyone"],
+);
 
 // A message with an external link is rendered as an interactive link.
 render(
@@ -880,7 +1028,7 @@ function checkThat(name: string, condition: boolean): void {
         messages={[withFile]}
         users={new Map([[admin.id, admin]])}
         roles={new Map(roles.map((role) => [role.id, role]))}
-        selfId={admin.id}
+        self={admin}
         hasMore={false}
         hasMoreAfter={false}
         loading={false}
@@ -1054,7 +1202,7 @@ console.log("\nthe query language");
 }
 
 console.log("\nmulti-language (i18n) verification");
-useSession.setState({ status: "idle", server: null, self: null, saved: [] });
+seedDisconnected();
 for (const lang of SUPPORTED_LANGUAGES) {
   setLanguage(lang.code);
   checkThat(`language can be set to ${lang.name} (${lang.code})`, getLanguage() === lang.code);
@@ -1116,6 +1264,160 @@ console.log("\nchannel window");
   );
 }
 
+
+console.log("\nseveral servers at once");
+
+{
+  // A channel that has been left keeps the page under its composer and nothing
+  // above it: the difference between one full window and one per channel ever
+  // opened.
+  const run = (from: number, count: number): Message[] =>
+    Array.from({ length: count }, (_, index) => ({
+      id: from + index,
+      channelId: 1,
+      userId: 1,
+      author: "Pablo",
+      content: `message ${from + index}`,
+      createdAt: nowSeconds - (count - index),
+      editedAt: null,
+    }));
+
+  const full = run(1, CHANNEL_WINDOW);
+  const idle = clampWindow(full, "newest", IDLE_CHANNEL_WINDOW);
+  checkThat("leaving a channel cuts it to one page", idle.messages.length === IDLE_CHANNEL_WINDOW);
+  checkThat(
+    "and the page kept is the one under the composer",
+    idle.messages.at(-1)?.id === CHANNEL_WINDOW,
+  );
+  checkThat("with the rest reachable again by asking", idle.hasMore === true);
+
+  // The window bounds one channel; this bounds how many of them there are.
+  // Without it, somebody who walks through fifty channels holds fifty windows
+  // and is reading one of them.
+  seed();
+  const many = new Map(
+    Array.from({ length: OPEN_CHANNEL_LIMIT + 4 }, (_, index) => [
+      index + 1,
+      { messages: run(1, 3), hasMore: false, hasMoreAfter: false, loading: false, error: null },
+    ]),
+  );
+  many.set(3, {
+    messages: run(1, CHANNEL_WINDOW),
+    hasMore: false,
+    hasMoreAfter: false,
+    loading: false,
+    error: null,
+  });
+  useSession.setState({ history: many, activeChannelId: null });
+  useSession.getState().setActiveChannel(3);
+  const kept = useSession.getState().history;
+  checkThat("only so many channels keep their messages", kept.size === OPEN_CHANNEL_LIMIT);
+  checkThat("and the cut never takes the one being read", kept.has(3));
+
+  // Reading somewhere else is what cuts the channel just left back to a page.
+  useSession.getState().setActiveChannel(4);
+  checkThat(
+    "leaving a channel trims it where it stands",
+    useSession.getState().history.get(3)?.messages.length === IDLE_CHANNEL_WINDOW,
+  );
+  checkThat(
+    "and says the rest is a request away",
+    useSession.getState().history.get(3)?.hasMore === true,
+  );
+  seed();
+
+  // Unread is what a connection in the background holds instead of messages.
+  const waiting = unreadTotals(
+    new Map([
+      [1, { count: 3, mention: false }],
+      [2, { count: 4, mention: true }],
+    ]),
+  );
+  checkThat("a rail badge sums every channel", waiting.count === 7);
+  checkThat("and counts the channels that named you", waiting.mentions === 1);
+  checkThat("nothing waiting is nothing to draw", unreadTotals(new Map()).count === 0);
+
+  const me = { ...admin, nickname: "Pablo", username: "pablo" };
+  checkThat("a message naming you is a mention", mentionsSelf("hey @Pablo look", me));
+  checkThat("case is not what tells two people apart", mentionsSelf("@pablo?", me));
+  checkThat("the username counts as much as the nickname", mentionsSelf("cc @pablo", me));
+  checkThat(
+    "a longer name that starts the same is somebody else",
+    !mentionsSelf("@Pablonia is a country", me),
+  );
+  checkThat("and a bare mention of nobody is not one", !mentionsSelf("email me @ work", me));
+  checkThat(
+    "a role somebody holds names them as surely as their own name does",
+    mentionsSelf("@Admin look at this", admin, seededRoles),
+  );
+  checkThat("and everyone means everyone", mentionsSelf("@everyone stand up", guest, seededRoles));
+}
+
+{
+  // What an `@` resolves to when a message is read back, which is the only
+  // place a mention exists: the server stored the words and nothing else.
+  const named = (content: string) =>
+    splitMentions(content, mentionDirectory).filter((token) => token.type === "mention");
+
+  checkThat("a nickname reaches the member it names", named("hi @Bob")[0]?.target.id === guest.id);
+  checkThat(
+    "a username reaches the same person their nickname does",
+    named("@carla?")[0]?.target.name === "Carla",
+  );
+  checkThat("a name nobody answers to is left as typed", named("@nobody at all").length === 0);
+  checkThat("an email address is not somebody being named", named("write to bob@b.example").length === 0);
+  checkThat("a role can be named as well as a person", named("@Admin please")[0]?.target.kind === "role");
+  checkThat("and everyone is a name of its own", named("@everyone")[0]?.target.kind === "keyword");
+
+  // The picker follows the caret rather than the end of the box.
+  checkThat("typing an @ starts a name", findMentionQuery("hey @bo", 7)?.query === "bo");
+  checkThat("which ends at the caret", findMentionQuery("hey @bo there", 7)?.query === "bo");
+  checkThat("an address is not a name being typed", findMentionQuery("bob@bo", 6) === null);
+  checkThat("nor is a name left behind on another line", findMentionQuery("@bob\nnext", 9) === null);
+  checkThat("two spaces end it", findMentionQuery("@bo  and", 8) === null);
+  checkThat(
+    "a name just written does not ask to be written again",
+    findMentionQuery("hey @Bob ", 9) === null,
+  );
+  checkThat(
+    "but a nickname may still hold a space of its own",
+    findMentionQuery("@Bob S", 6)?.query === "Bob S",
+  );
+
+  checkThat(
+    "the best answer to what was typed is offered first",
+    rankMentions("bo", mentionDirectory)[0]?.name === "Bob",
+  );
+  checkThat(
+    "somebody who is here outranks a role and a keyword",
+    rankMentions("", mentionDirectory)[0]?.kind === "user",
+  );
+  checkThat(
+    "and a name nobody answers to offers nothing at all",
+    rankMentions("nobody", mentionDirectory).length === 0,
+  );
+}
+
+{
+  // The rail is the one part of the client that is about servers nobody is
+  // looking at: what is waiting on them, and which one has the call.
+  seed({
+    unread: new Map([[5, { count: 3, mention: true }]]),
+    activeChannelId: null,
+  });
+  render("server view with unread channels", <App />, ["channel--unread", "channel__badge"]);
+
+  useServers.setState({ voiceId: testServerId });
+  render("rail with a call running", <App />, ["rail__call"]);
+  useServers.setState({ voiceId: null });
+
+  // A server open but behind another one: the badge is the whole of what it is
+  // holding, and its rail entry has to draw it.
+  seed({ unread: new Map([[5, { count: 5, mention: false }]]), activeChannelId: null });
+  useSession.setState({ serverId: "192.168.1.20:9871" });
+  render("rail badge for a server in the background", <App />, ["rail__badge"]);
+  seed();
+}
 
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);
 

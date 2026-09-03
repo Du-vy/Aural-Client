@@ -1,118 +1,123 @@
 # Multiple simultaneous servers
 
-Aural connects to one server at a time. The rail down the left of
-[`ServerView`](../src/views/ServerView.tsx) looks like Discord's, but clicking
-another entry does not switch between live connections — it drops the one that
-is open and dials the new one. This note records why that is, what already
-generalises, and what the shape of the change would be, because the decision
-that matters is not the plumbing but how much memory a server in the background
-is allowed to hold.
+Aural holds as many server connections as somebody opens, and renders one of
+them. The rail down the left of [`ServerView`](../src/views/ServerView.tsx)
+switches between live connections rather than dropping one to dial the next.
 
-Written alongside the per-channel window in
-[`src/store/session.ts`](../src/store/session.ts), which is the half of the
-problem that could be solved without any of this.
+The decision that mattered was never the plumbing. It was how much memory a
+server in the background is allowed to hold, because that is what decides
+whether holding five of them costs five times one. This note records the answer
+and where each part of it lives.
 
 ---
 
-## Where it stands
+## The shape
 
-`useSession` is one store holding one `Gateway`, and `connect()` closes the
-previous socket before opening the next:
+Three files, in the order a read should take them:
 
-```ts
-const previous = get().gateway;
-previous?.close("switching servers");
-```
-
-Everything the connection knew goes with it — `users`, `channels`, `roles`,
-`history`, `search`, `jump` are all replaced with empty ones. So the cost of a
-background server today is zero, and the cost of coming back to one is a full
-handshake plus a fresh page of whichever channel is opened. On a local server
-that is imperceptible. Over the internet, on a server with many channels, it is
-the whole reason this is worth doing.
-
-## What already generalises
-
-More than expected, because the identity model never assumed one server:
-
-- **Bookmarks are per server and carry their own credentials.**
-  `SavedServer` in [`src/lib/storage.ts`](../src/lib/storage.ts) is keyed by
-  `host:port` and holds its own `token`, `nickname` and `username`. Two live
-  connections would need no new storage, and because the key is the address, a
-  client cannot accidentally hold two connections to one server and displace
-  itself — the server allows one session per identity, and that rule bites
-  per server, not across them.
-- **Permission resolution is pure.**
-  [`src/lib/permissions.ts`](../src/lib/permissions.ts) takes roles and a user
-  and returns a mask. It reads no global state, so it works against as many
-  servers as it is handed.
-- **The voice store is already told which server it is on.** `VoiceLink` in
-  [`src/store/voice.ts`](../src/store/voice.ts) carries `serverId`, and
-  per-person volumes are keyed by it, because volumes had to survive a
-  reconnection. That key is exactly the one a second connection would need.
-
-## What is singular and would have to move
-
-- **The store itself.** `useSession` would become a store per connection, with
-  a small registry above it naming which is in the foreground. Every component
-  reads `useSession(...)` directly, so the mechanical part of the change is
-  routing those reads through the foreground connection.
-- **The reconnection state lives in module scope**, not in the store:
-  `reconnectTimer`, `reconnectAttempt`, `lastOptions`, `resumeChannelId`,
-  `connectionEpoch`, `scheduledEpoch`, `jumpNonce`. One backoff for one
-  connection. These move inside the per-connection closure; nothing about them
-  is hard, but they are silent — two connections would share one timer and one
-  epoch counter and misbehave in ways that look like a server problem.
-- **Voice stays singular on purpose.** One microphone, one media session. A
-  second connection should be able to be in a text channel and not in a voice
-  one; entering voice on a background server means leaving it on the
-  foreground one. That is a product decision, not a technical limit, and it
-  should be made deliberately rather than discovered.
+- **[`src/store/connection.ts`](../src/store/connection.ts)** — one connection:
+  the socket, the roster, the channels, the roles, the messages, the search, and
+  the reconnection backoff. It is a store per connection built by
+  `createConnection`, not a slice of a global one. Everything that used to sit in
+  module scope — the retry timer, the attempt count, the epoch counter, the
+  channel to walk back into after a drop — lives in that closure. Two
+  connections sharing one timer and one epoch counter misbehave in ways that
+  look like a server problem.
+- **[`src/store/servers.ts`](../src/store/servers.ts)** — the registry: every
+  connection held, which one is in the foreground, which one has the microphone,
+  and the bookmarks. It owns the three decisions no single connection can make
+  for itself, and hands each one a small `ConnectionHost` to ask them through.
+  That is what keeps the two files from importing each other.
+- **[`src/store/session.ts`](../src/store/session.ts)** — `useSession`, which is
+  now a view of whichever connection is in front. Every component that reads
+  `useSession(...)` means "the server I am looking at", so none of them had to
+  change. Anything that has to reach past the foreground — the rail, the call
+  strip, a badge on a server nobody is looking at — reads the registry directly
+  through `useConnection`, `useCall` or `useServerRegistry`.
 
 ## The memory budget
 
-This is the part worth settling first, because it decides everything else.
+This is the part that decides everything else.
 
-The per-channel window bounds one connection: `CHANNEL_WINDOW` messages per
-channel, trimmed at whichever end the reader is furthest from. What it does not
-bound is the number of channels, or the number of connections. A client holding
-five servers of thirty channels each, all filled, would be holding a hundred and
-fifty windows.
+- **The foreground server** keeps the full window on the channel being read
+  (`CHANNEL_WINDOW`, four pages), and the page under the composer on channels
+  recently left (`IDLE_CHANNEL_WINDOW`). Coming back to one of those is instant;
+  going further back is a request, which is what it was before it was read.
+- **A cut of the channels themselves.** The window bounds one channel;
+  `OPEN_CHANNEL_LIMIT` bounds how many of them hold anything at all. The cut
+  falls on whichever were read longest ago, and never on the one on screen or
+  one with a request in flight. Without it, somebody who walks through fifty
+  channels holds fifty windows and is reading one of them.
+- **Background servers keep no messages.** Going behind another server drops the
+  history, the search and the jump on the way out — at the moment the reason for
+  holding them goes, not the next time they are asked for. What they keep is what
+  a badge needs: a count per channel and whether any of it named you. The
+  messages behind that badge are one request away and stale by the time somebody
+  looks at them.
 
-The rule that follows from that, and the one Discord settled on:
+That asymmetry is what keeps N connections from costing N times one. Everything
+else a background connection holds — the roster, the channel tree, the voice
+states — is bounded by the server rather than by how long the client has been
+running.
 
-- **The foreground server** keeps the full window on the channel being read,
-  and the last page on channels recently left, so going back is instant.
-- **Background servers keep no messages at all.** They hold what the unread
-  badge needs — the last read message id, a count, whether anything mentioned
-  you — and fetch history when they come to the front. A background connection
-  is worth having for presence, for notifications and for skipping the
-  handshake; it is not worth having for the messages, which are one request
-  away and stale by the time you look.
+## Unread
 
-That asymmetry is what keeps N connections from costing N times one connection.
-Without it, the window is a bound on a number that is still multiplied by
-however many servers somebody has bookmarked.
+The protocol has no unread of its own, and no mentions either: a message is
+text. So the client counts what it can honestly count. A message is *read* only
+where somebody could have read it — the channel open on the connection in the
+foreground, in a window that is actually visible — and a *mention* is an `@`
+followed by a nickname or username with nothing wordlike after it, matched
+case-insensitively and never on a substring. `mentionsSelf` is deliberately mean
+about substrings, because a badge that lights up for somebody else's name is
+worse than one that misses.
 
-A **least-recently-used cut of the channels themselves** is the remaining gap
-even for one connection: a history entry is created when a channel is first
-opened and is dropped only when the channel is deleted, when it stops being
-visible, or when the connection ends. Bounded per channel, unbounded in
-channels. It has not been done because the window made it much less urgent —
-thirty channels at a full window is a few thousand messages, not a few hundred
-thousand — but it is the honest completion of this, and it is a prerequisite
-for background servers rather than a separate task.
+Coming back to a hidden window clears the channel that is open, which is what
+`visibilitychange` in `ServerView` is for.
 
-## Order of work
+## Voice stays singular
 
-1. LRU cut of channel histories in one connection, keyed on when a channel was
-   last read. Small, testable now, and needed by everything below.
-2. Move the module-scope reconnection state into the store's closure. No
-   behaviour change; makes a second instance possible at all.
-3. A registry of connections with one in the foreground, and component reads
-   routed through it.
-4. Unread state for background connections, which is the only thing they hold.
-5. Decide voice: one media session, and what entering it on a second server
-   does to the first.
+One microphone, one media session, however many servers are open. What is *not*
+singular is who is in which voice channel: user ids are per server, so
+`voiceStates` and `speaking` live in each connection, and a client looking at
+server A never draws the mute icon of whoever happens to share an id on server
+B. [`src/store/voice.ts`](../src/store/voice.ts) keeps the engine, the
+preferences, the devices and this client's own state on the server carrying the
+call.
 
-Steps 1 and 2 are worth doing whether or not the rest ever happens.
+Entering a voice channel takes the microphone from whichever connection had it,
+and the registry leaves that server's channel on the way — nobody is left
+sitting in a channel this client stopped listening to. That is a product
+decision rather than a technical limit, so the interface asks first: joining
+voice while a call runs on another server opens a confirmation naming both.
+The store does what it is told either way, which is what keeps a moderator
+moving somebody into a channel working through the same path.
+
+The one place that guard is not enough is a reconnection. A server coming back
+walks into the channel it was dropped from, and doing that would take the
+microphone from a call that started meanwhile. `restoreChannel` declines when
+another connection is in one: whoever is in a call now chose to be, and more
+recently.
+
+## What the interface shows
+
+- Each rail entry reads its own connection: a ring when it is connected, a
+  faded state while it is dialling or coming back, an unread badge (red when
+  something named you), and a dot on the server carrying the call.
+- Right-clicking a rail entry opens it, copies its address, disconnects it
+  without forgetting it, or forgets it entirely.
+- The call strip reads the connection carrying the call rather than the one on
+  screen, and names that server when they differ, with a click to go there.
+- A connection that ends while others are open reports it as a notice naming the
+  server, because it is read from wherever the reader happens to be by then.
+- The connect screen is the registry's screen: it marks the servers already
+  open, dials the rest, and shows what went wrong with the last attempt.
+
+## What is checked
+
+- `scripts/render-check.tsx` mounts the rail with badges and a call running,
+  and drives the least-recently-read cut and the idle trim directly.
+- `scripts/smoke.ts` takes `--second-address` and runs the two-server half
+  against two live servers: that a background connection holds presence and no
+  messages, that a message arriving on it becomes a badge and a mention, that
+  coming back fetches the channel and clears it, and that entering voice on one
+  server moves the media session off the other and leaves its channel.

@@ -48,8 +48,22 @@ import {
 } from "@/lib/storage";
 import { Perm, has } from "@/lib/permissions";
 import type { Channel, ChannelType, User } from "@/lib/protocol";
+import type { SavedServer } from "@/lib/storage";
 import { useSession } from "@/store/session";
-import { assignableRoles, isOnline, outranks, useMyPermissions } from "@/store/selectors";
+import {
+  callLocation,
+  useConnection,
+  useServerRegistry,
+  useServers,
+  type CallLocation,
+} from "@/store/servers";
+import {
+  assignableRoles,
+  isOnline,
+  outranks,
+  unreadTotals,
+  useMyPermissions,
+} from "@/store/selectors";
 
 type Dialog =
   | { kind: "none" }
@@ -64,12 +78,14 @@ type Dialog =
   | { kind: "member"; userId: number; anchorRect?: DOMRect }
   | { kind: "nickname"; userId: number }
   | { kind: "confirmDeleteChannel"; channel: Channel }
-  | { kind: "confirmKick"; userId: number };
+  | { kind: "confirmKick"; userId: number }
+  | { kind: "confirmMoveCall"; channel: Channel; call: CallLocation };
 
 type ContextMenuState =
   | { kind: "user"; x: number; y: number; user: User }
   | { kind: "channel"; x: number; y: number; channel: Channel }
   | { kind: "server"; x: number; y: number }
+  | { kind: "rail"; x: number; y: number; entry: SavedServer }
   | null;
 
 import { useTranslation } from "@/lib/i18n";
@@ -85,12 +101,19 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   const roles = useSession((state) => state.roles);
   const users = useSession((state) => state.users);
   const self = useSession((state) => state.self);
-  const saved = useSession((state) => state.saved);
-  const savedId = useSession((state) => state.savedId);
+  const serverId = useSession((state) => state.serverId);
+  const status = useSession((state) => state.status);
   const notice = useSession((state) => state.notice);
   const dismissNotice = useSession((state) => state.dismissNotice);
-  const connect = useSession((state) => state.connect);
   const address = useSession((state) => state.address);
+  const joinChannel = useSession((state) => state.joinChannel);
+  const setActiveChannel = useSession((state) => state.setActiveChannel);
+  // The rail is about every server this client knows, not the one on screen,
+  // so it reads the registry: bookmarks for the entries, and each connection
+  // for what its entry has to say.
+  const saved = useServerRegistry((state) => state.saved);
+  const openHere = useServerRegistry((state) => state.connections);
+  const railNotice = useServerRegistry((state) => state.notice);
   const deleteChannel = useSession((state) => state.deleteChannel);
   const setRoleMembership = useSession((state) => state.setRoleMembership);
   const moveUser = useSession((state) => state.moveUser);
@@ -99,7 +122,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   const openSearch = useSession((state) => state.openSearch);
   const jump = useSession((state) => state.jump);
   const permissions = useMyPermissions();
-  const voiceStates = useVoice((state) => state.states);
+  const voiceStates = useSession((state) => state.voiceStates);
   const moderateVoice = useVoice((state) => state.moderate);
 
   const [dialog, setDialog] = useState<Dialog>({ kind: "none" });
@@ -122,6 +145,26 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       .sort((a, b) => a.position - b.position)[0];
     setSelectedChannelId(firstText?.id ?? null);
   }, [channels, selectedChannelId]);
+
+  // What is being read decides three things at once: where an arriving message
+  // does not count as unread, which channel keeps its full window, and what the
+  // least-recently-read cut is allowed to take.
+  useEffect(() => {
+    const channel = selectedChannelId === null ? null : channels.get(selectedChannelId);
+    setActiveChannel(channel?.type === "text" ? channel.id : null);
+  }, [selectedChannelId, channels, setActiveChannel]);
+
+  // A window behind something else is not being read, so what arrives in it
+  // counts. Coming back to it is what clears the channel that is open.
+  useEffect(() => {
+    function onVisibility() {
+      if (document.visibilityState !== "visible") return;
+      const { activeChannelId, markRead } = useSession.getState();
+      if (activeChannelId !== null) markRead(activeChannelId);
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
   // Prevent accidental file drop on unhandled window areas from navigating away
   useEffect(() => {
@@ -170,6 +213,24 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   );
   const canManageChannels = has(permissions, Perm.ManageChannels);
 
+  /**
+   * Joining a voice channel, which is the one thing in this interface that can
+   * reach across servers.
+   *
+   * There is one microphone, so entering a call anywhere ends the one that is
+   * running. That is a decision worth putting in front of somebody rather than
+   * making for them, so a call on another server is asked about first; the
+   * store does what it is told either way.
+   */
+  function joinVoice(channel: Channel) {
+    const call = callLocation();
+    if (call && call.serverId !== serverId) {
+      setDialog({ kind: "confirmMoveCall", channel, call });
+      return;
+    }
+    void joinChannel(channel.id);
+  }
+
   function startResize(e: React.PointerEvent<HTMLDivElement>) {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -207,7 +268,51 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   }
 
   const contextMenuItems: MenuEntry[] = useMemo(() => {
-    if (!contextMenu || !server) return [];
+    if (!contextMenu) return [];
+
+    if (contextMenu.kind === "rail") {
+      const entry = contextMenu.entry;
+      const live = openHere.has(entry.id);
+      const entries: MenuEntry[] = [
+        {
+          id: "rail-open",
+          label: t("server.switchTo", { name: entry.name }),
+          icon: <AuralMark size={16} />,
+          onClick: () =>
+            void useServers
+              .getState()
+              .connect({ address: entry.address, nickname: entry.nickname })
+              .catch(() => {
+                // The connect screen renders the failure.
+              }),
+        },
+        {
+          id: "rail-copy-address",
+          label: t("server.copyAddress"),
+          icon: <CopyIcon size={16} />,
+          onClick: () => void navigator.clipboard.writeText(entry.address || entry.id),
+        },
+      ];
+      entries.push({ type: "separator" });
+      if (live) {
+        entries.push({
+          id: "rail-disconnect",
+          label: t("server.disconnectFrom", { name: entry.name }),
+          icon: <HangUpIcon size={16} />,
+          onClick: () => useServers.getState().close(entry.id),
+        });
+      }
+      entries.push({
+        id: "rail-forget",
+        label: t("server.forgetServer"),
+        icon: <TrashIcon size={16} />,
+        danger: true,
+        onClick: () => useServers.getState().forget(entry.id),
+      });
+      return entries;
+    }
+
+    if (!server) return [];
 
     if (contextMenu.kind === "server") {
       const entries: MenuEntry[] = [];
@@ -427,6 +532,8 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   }, [
     contextMenu,
     server,
+    openHere,
+    address,
     canManageServer,
     canManageChannels,
     deleteChannel,
@@ -442,7 +549,23 @@ export function ServerView({ onAddServer }: ServerViewProps) {
     t,
   ]);
 
-  if (!server) return null;
+  // A connection that is up but has not been told anything yet: dialling, or
+  // signing somebody else in on the same address. The rail is not drawn here
+  // because this is a whole-screen moment, and it is a short one.
+  if (!server) {
+    return (
+      <div className="content">
+        <div className="placeholder">
+          <span className="spinner" />
+          <p className="placeholder__body">
+            {status === "reconnecting"
+              ? t("server.reconnectingBanner")
+              : t("server.connectingBanner")}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Search and the member list share the right-hand column: one query at a
   // time is what somebody is reading, and the results are that query.
@@ -457,21 +580,17 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       className={shellClasses.join(" ")}
       style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
     >
-      <nav className="rail" aria-label={t("server.channels")}>
+      <nav className="rail" aria-label={t("connect.savedServers")}>
         {saved.map((entry) => (
-          <button
+          <RailServer
             key={entry.id}
-            className={entry.id === savedId ? "rail__item rail__item--active" : "rail__item"}
-            onClick={() => void connect({ address: entry.address, nickname: entry.nickname })}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
+            entry={entry}
+            active={entry.id === serverId}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              setContextMenu({ kind: "rail", x: event.clientX, y: event.clientY, entry });
             }}
-            title={entry.name}
-            aria-label={entry.name}
-          >
-            {entry.name.slice(0, 1).toUpperCase()}
-          </button>
+          />
         ))}
 
         <button
@@ -511,6 +630,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
             setSelectedChannelId(id);
             setDrawerOpen(false);
           }}
+          onJoinVoice={joinVoice}
           onCreateChannel={(parentId) => setDialog({ kind: "channel", parentId })}
           onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
           onDeleteChannel={(channel) => setDialog({ kind: "confirmDeleteChannel", channel })}
@@ -579,10 +699,14 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           </button>
         </header>
 
-        {notice ? (
+        {notice ?? railNotice ? (
           <div className="notice">
-            <span>{notice}</span>
-            <button className="notice__close" onClick={dismissNotice} aria-label={t("common.close")}>
+            <span>{notice ?? railNotice}</span>
+            <button
+              className="notice__close"
+              onClick={notice ? dismissNotice : () => useServers.getState().dismissNotice()}
+              aria-label={t("common.close")}
+            >
               <CloseIcon size={15} />
             </button>
           </div>
@@ -696,6 +820,24 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           onClose={() => setDialog({ kind: "none" })}
         />
       ) : null}
+      {dialog.kind === "confirmMoveCall" ? (
+        <ConfirmDialog
+          title={t("dialogs.confirm.moveCallTitle")}
+          subtitle={t("dialogs.confirm.moveCallConfirm", {
+            channel: dialog.call.channelName,
+            server: dialog.call.serverName,
+            target: dialog.channel.name,
+          })}
+          confirmText={t("dialogs.confirm.moveCallButton")}
+          danger={false}
+          onConfirm={() => {
+            // Taking the microphone leaves the other call: `moveCallTo` does
+            // that on the way in, so there is nothing to undo here first.
+            void joinChannel(dialog.channel.id);
+          }}
+          onClose={() => setDialog({ kind: "none" })}
+        />
+      ) : null}
       {dialog.kind === "confirmKick" ? (
         (() => {
           const target = users.get(dialog.userId);
@@ -718,3 +860,76 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   );
 }
 
+/**
+ * One entry of the server rail.
+ *
+ * It reads its own connection rather than the one in the foreground, because
+ * the point of the rail is what the servers nobody is looking at have to say:
+ * whether they are up, what is waiting in them, and which one has the call.
+ */
+function RailServer({
+  entry,
+  active,
+  onContextMenu,
+}: {
+  entry: SavedServer;
+  active: boolean;
+  onContextMenu(event: React.MouseEvent): void;
+}) {
+  const { t } = useTranslation();
+  const status = useConnection(entry.id, (state) => state.status);
+  const unread = useConnection(entry.id, (state) => state.unread);
+  const name = useConnection(entry.id, (state) => state.server?.name) ?? entry.name;
+  const inCall = useServerRegistry((state) => state.voiceId === entry.id);
+  const dialing = useServerRegistry((state) => state.dialing.includes(entry.id));
+
+  const waiting = useMemo(() => unreadTotals(unread), [unread]);
+
+  const classes = ["rail__item"];
+  if (active) classes.push("rail__item--active");
+  if (status === "connected") classes.push("rail__item--live");
+  if (dialing || status === "connecting" || status === "reconnecting") {
+    classes.push("rail__item--pending");
+  }
+  if (waiting.count > 0) classes.push("rail__item--unread");
+
+  const title = dialing
+    ? t("server.connectingTo", { name })
+    : status === "reconnecting"
+      ? t("server.reconnectingTo", { name })
+      : waiting.mentions > 0
+        ? `${name} — ${t("server.unreadMentions", { count: waiting.mentions })}`
+        : waiting.count > 0
+          ? `${name} — ${t("server.unreadMessages", { count: waiting.count })}`
+          : name;
+
+  return (
+    <button
+      className={classes.join(" ")}
+      onClick={() =>
+        void useServers
+          .getState()
+          .connect({ address: entry.address, nickname: entry.nickname })
+          .catch(() => {
+            // The connect screen renders the failure; the entry stays put.
+          })
+      }
+      onContextMenu={onContextMenu}
+      title={title}
+      aria-label={title}
+      aria-current={active ? "true" : undefined}
+    >
+      {name.slice(0, 1).toUpperCase()}
+      {waiting.count > 0 && !active ? (
+        <span
+          className={
+            waiting.mentions > 0 ? "rail__badge rail__badge--mention" : "rail__badge"
+          }
+        >
+          {waiting.count > 99 ? "99+" : waiting.count}
+        </span>
+      ) : null}
+      {inCall ? <span className="rail__call" title={t("server.inCall")} aria-hidden="true" /> : null}
+    </button>
+  );
+}

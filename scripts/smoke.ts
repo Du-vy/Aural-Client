@@ -7,6 +7,10 @@
  * the gateway runs unmodified outside a browser.
  *
  *   node --run smoke -- --address 127.0.0.1:9871 --owner-token XXXX-XXXX
+ *
+ * Pass `--second-address` as well to include the checks that need two servers
+ * at once: what a connection in the background holds, and where the one media
+ * session goes.
  */
 
 import { readFile } from "node:fs/promises";
@@ -36,6 +40,7 @@ import {
   type VoiceConnectResult,
   type VoiceStateEvent,
 } from "../src/lib/protocol";
+import { useServers } from "../src/store/servers";
 import { useSession } from "../src/store/session";
 
 /** The rates Opus encodes at. 44100 is deliberately not one of them. */
@@ -672,9 +677,14 @@ async function main() {
   // interface actually binds to, which is the only way to catch a wiring
   // mistake between an arriving event and the state a component reads.
   console.log("\nthe store, end to end");
-  const store = useSession.getState();
-  await store.connect({ address: addressInput, nickname: "Store", asNewGuest: true });
+  // Dialling goes through the registry, which is what creates the connection
+  // and puts it in the foreground; `useSession` is the view of whichever one
+  // that is, exactly as every component sees it.
+  await useServers
+    .getState()
+    .connect({ address: addressInput, nickname: "Store", asNewGuest: true });
   check(useSession.getState().status === "connected", "the store connects");
+  check(useServers.getState().foregroundId !== null, "and is the connection on screen");
 
   const live = useSession.getState();
   check(live.self !== null, "the store knows who it is");
@@ -912,7 +922,101 @@ async function main() {
     }
   }
 
-  useSession.getState().disconnect();
+  // Two connections at once, which is the whole of what a registry above the
+  // store is for: one server on screen holding its messages, the rest holding
+  // presence and a badge.
+  const secondInput = arg("second-address");
+  if (!secondInput) {
+    console.log("\nseveral servers: skipped, pass --second-address to include it");
+  } else {
+    console.log("\nseveral servers");
+    const firstId = useServers.getState().foregroundId!;
+    const first = useServers.getState().connections.get(firstId)!;
+
+    await useServers
+      .getState()
+      .connect({ address: secondInput, nickname: "Store", asNewGuest: true });
+    const secondId = useServers.getState().foregroundId!;
+    check(secondId !== firstId, "a second server opens beside the first");
+    check(useServers.getState().connections.size === 2, "and both connections are held");
+    check(useSession.getState().serverId === secondId, "the one just opened is the one on screen");
+
+    check(first.getState().status === "connected", "the first server stays connected");
+    check(first.getState().users.size > 0, "and still knows who is there");
+    check(first.getState().history.size === 0, "but holds no messages while it is behind");
+
+    // What a connection in the background is for: a message arriving on it is
+    // a badge, not a page.
+    const heckler = await open(addressInput);
+    await heckler.gateway.request<Ready>(Op.AuthGuest, { nickname: "Heckler" });
+    await heckler.gateway.request(Op.MessageSend, {
+      channelId: storeText.id,
+      content: "anybody there?",
+    });
+    await settle();
+    check(
+      first.getState().unread.get(storeText.id)?.count === 1,
+      "a message on a server in the background counts as unread",
+    );
+    check(first.getState().history.size === 0, "and is not held as a message");
+
+    await heckler.gateway.request(Op.MessageSend, {
+      channelId: storeText.id,
+      content: "@Store are you about?",
+    });
+    await settle();
+    const waiting = first.getState().unread.get(storeText.id);
+    check(waiting?.count === 2, "a second message adds to the badge");
+    check(waiting?.mention === true, "and one that names you sets the mention flag");
+
+    // Coming back to it costs one request, which is the trade the asymmetry
+    // was made for.
+    useServers.getState().focus(firstId);
+    check(useServers.getState().foregroundId === firstId, "the first server comes back to the front");
+    check(useSession.getState().serverId === firstId, "and is what the session reads again");
+    first.getState().setActiveChannel(storeText.id);
+    await first.getState().openChannel(storeText.id);
+    check(
+      (first.getState().history.get(storeText.id)?.messages.length ?? 0) > 0,
+      "its messages are fetched again on the way in",
+    );
+    check(!first.getState().unread.has(storeText.id), "and reading the channel clears its badge");
+
+    heckler.gateway.close();
+    await settle();
+
+    // One microphone: entering a voice channel anywhere ends the call running
+    // anywhere else, and the server that had it is left rather than abandoned.
+    const voiceOn = (state: typeof first extends { getState(): infer S } ? S : never) =>
+      [...state.channels.values()].find((channel) => channel.type === "voice");
+    const firstVoice = voiceOn(first.getState());
+    const second = useServers.getState().connections.get(secondId)!;
+    const secondVoice = voiceOn(second.getState());
+    if (firstVoice && secondVoice) {
+      await first.getState().joinChannel(firstVoice.id);
+      await settle();
+      check(useServers.getState().voiceId === firstId, "joining voice takes the one media session");
+
+      await second.getState().joinChannel(secondVoice.id);
+      await settle();
+      check(useServers.getState().voiceId === secondId, "joining voice elsewhere moves it");
+      check(
+        first.getState().self?.channelId === null,
+        "and leaves the channel on the server that had it",
+      );
+      await second.getState().leaveChannel();
+      await settle();
+      check(useServers.getState().voiceId === null, "leaving voice gives the media session up");
+    }
+
+    useServers.getState().close(secondId);
+    check(useServers.getState().connections.size === 1, "closing one server leaves the other alone");
+    check(useServers.getState().foregroundId === firstId, "with the remaining one on screen");
+  }
+
+  const openId = useServers.getState().foregroundId!;
+  useServers.getState().close(openId);
+  check(!useServers.getState().connections.has(openId), "leaving a server takes it off the rail");
 
   console.log(`\n${checks} checks passed.\n`);
 }

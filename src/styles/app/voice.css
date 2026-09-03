@@ -251,3 +251,20 @@
   color: var(--accent);
 }
 
+/* Which server the call is on, shown only while it is not the one on screen:
+   a call outlives looking at the server carrying it. */
+.voicepanel__server {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.voicepanel__server:hover {
+  color: var(--text);
+}

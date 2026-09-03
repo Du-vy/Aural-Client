@@ -13,6 +13,7 @@ import {
   resolveChannelPermissions,
 } from "@/lib/permissions";
 import type { Channel, Role, User } from "@/lib/protocol";
+import type { Unread } from "./connection";
 import { useSession } from "./session";
 
 export interface ChannelNode {
@@ -258,4 +259,24 @@ export function assignableRoles(
 /** Whether a role's permission mask literally contains a bit. */
 export function roleHas(role: Role, bit: bigint): boolean {
   return (parse(role.permissions) & bit) === bit;
+}
+
+/**
+ * What a whole server has waiting, for the one badge the rail can draw.
+ *
+ * The channels are summed rather than counted, because a rail entry answers
+ * "is there anything here" and "does any of it name me", and a reader who
+ * wants the breakdown is one click from the channel list that has it.
+ */
+export function unreadTotals(unread: ReadonlyMap<number, Unread>): {
+  count: number;
+  mentions: number;
+} {
+  let count = 0;
+  let mentions = 0;
+  for (const entry of unread.values()) {
+    count += entry.count;
+    if (entry.mention) mentions += 1;
+  }
+  return { count, mentions };
 }

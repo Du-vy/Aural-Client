@@ -190,3 +190,16 @@
   gap: 6px;
 }
 
+/* A saved server that is already open. Clicking it looks at it rather than
+   dialling it again. */
+.saved__open {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

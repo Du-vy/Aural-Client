@@ -2,11 +2,16 @@
  * The voice store: one media session and everything the interface draws about
  * it.
  *
- * It is deliberately downstream of the session store rather than beside it.
- * `session.ts` owns the connection, hands this store a way to talk over it, and
- * forwards the voice events it receives; nothing here reaches back. That is
- * what keeps the two from importing each other, and it means a client with no
+ * It is deliberately downstream of a connection rather than beside it.
+ * `connection.ts` owns the socket, hands this store a way to talk over it, and
+ * forwards the signalling it receives; nothing here reaches back. That is what
+ * keeps the two from importing each other, and it means a client with no
  * microphone, or a server with no audio plane, simply never wakes this up.
+ *
+ * There is one of these however many servers are open, because there is one
+ * microphone. What is *not* here is who is in which voice channel: user ids
+ * are per server, so that lives in each connection, and only the call itself
+ * is singular. Which connection holds it is decided in `servers.ts`.
  */
 
 import { create } from "zustand";
@@ -21,9 +26,7 @@ import {
   type VoicePeerEvent,
   type VoiceResetEvent,
   type VoiceSignalEvent,
-  type VoiceSpeakingEvent,
   type VoiceState,
-  type VoiceStateEvent,
 } from "@/lib/protocol";
 import { listDevices, type AudioDevices, type MicrophoneFailure } from "@/lib/voice/audio";
 import { VoiceEngine, type EngineSettings, type VoiceStatus } from "@/lib/voice/engine";
@@ -39,12 +42,20 @@ import {
   type VoicePreferences,
 } from "@/lib/voice/settings";
 
-/** What the session store hands over so this one can talk to the server. */
+/** What a connection hands over so this store can talk to its server. */
 export interface VoiceLink {
   selfId: number;
   /** The saved-server id, which is what per-person volumes are keyed by. */
   serverId: string | null;
   request<T>(op: string, payload?: unknown): Promise<T>;
+  /**
+   * The engine's own account of whether this client is transmitting.
+   *
+   * It goes back to the connection because that is where everybody's speaking
+   * state is kept, and this one is the only entry that does not arrive as an
+   * event: the microphone knows sooner and more accurately than a round trip.
+   */
+  onSelfSpeaking(speaking: boolean): void;
 }
 
 interface VoiceStoreState {
@@ -65,10 +76,14 @@ interface VoiceStoreState {
   mode: VoiceConfig["mode"] | null;
   hostUserId: number | null;
 
-  /** Everybody's voice state, across every channel this client can see. */
-  states: Map<number, VoiceState>;
-  /** Who is transmitting right now. */
-  speaking: Set<number>;
+  /**
+   * This client's own voice state on the server carrying the call.
+   *
+   * It is the one entry of that server's map this store needs: the engine
+   * enforces a mute it did not choose, and the buttons read what the server
+   * says rather than what was asked for.
+   */
+  own: VoiceState | null;
   /** Whose audio is actually arriving here. */
   audible: Set<number>;
 
@@ -82,10 +97,18 @@ interface VoiceStoreState {
   /** What the server will carry, once it has said. */
   config: VoiceConfig | null;
 
-  /** Wiring, called by the session store. */
-  attach(link: VoiceLink, config: VoiceConfig | undefined, iceServers: ICEServer[], states: VoiceState[]): void;
+  /** Wiring, called by the connection that carries the call. */
+  attach(
+    link: VoiceLink,
+    config: VoiceConfig | undefined,
+    iceServers: ICEServer[],
+    own: VoiceState | null,
+  ): void;
   detach(): void;
+  /** Signalling only: presence is the connection's, not this store's. */
   handleEvent(op: string, payload: unknown): void;
+  /** This client's own voice state changed on the server carrying the call. */
+  setOwnState(state: VoiceState | null): void;
   /** This client entered or left a voice channel, however it got there. */
   enter(channelId: number): void;
   exit(): void;
@@ -94,8 +117,8 @@ interface VoiceStoreState {
 
   /** Actions the interface calls. */
   setPreferences(patch: Partial<VoicePreferences>): void;
-  setUserVolume(userId: number, percent: number): void;
-  volumeFor(userId: number): number;
+  setUserVolume(userId: number, percent: number, serverId?: string | null): void;
+  volumeFor(userId: number, serverId?: string | null): number;
   toggleMute(): Promise<void>;
   toggleDeafen(): Promise<void>;
   moderate(userId: number, patch: { mute?: boolean; deaf?: boolean }): Promise<void>;
@@ -109,7 +132,7 @@ interface VoiceStoreState {
    */
   retryMicrophone(): Promise<void>;
   setMeterActive(active: boolean): void;
-  /** The voice state of this client, if it has one. */
+  /** The voice state of this client, if it has one. Reads `own`. */
   self(): VoiceState | null;
 }
 
@@ -140,16 +163,6 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
       threshold: prefs.threshold,
       bitrate: resolveBitrate(prefs, config ?? undefined),
     };
-  }
-
-  /** Marks somebody as speaking, or not, without rebuilding the set for nothing. */
-  function markSpeaking(userId: number, speaking: boolean): void {
-    const current = get().speaking;
-    if (current.has(userId) === speaking) return;
-    const next = new Set(current);
-    if (speaking) next.add(userId);
-    else next.delete(userId);
-    set({ speaking: next });
   }
 
   function markAudible(userId: number, present: boolean): void {
@@ -184,9 +197,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
           onLevel: (level) => {
             if (get().meterActive) set({ level });
           },
-          onSpeaking: (speaking) => {
-            if (link) markSpeaking(link.selfId, speaking);
-          },
+          onSpeaking: (speaking) => link?.onSelfSpeaking(speaking),
           onHost: (hostUserId) => set({ hostUserId }),
           onAudio: (userId, present) => markAudible(userId, present),
           onMicrophone: (micError) => set({ micError }),
@@ -269,8 +280,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
     denoising: null,
     mode: null,
     hostUserId: null,
-    states: new Map(),
-    speaking: new Set(),
+    own: null,
     audible: new Set(),
     level: 0,
     meterActive: false,
@@ -279,7 +289,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
     devices: { inputs: [], outputs: [] },
     config: null,
 
-    attach(nextLink, config, servers, states) {
+    attach(nextLink, config, servers, own) {
       // A full snapshot arrives on every resync as well as on connecting, and
       // a resync is something an unrelated permission edit causes. Rebuilding
       // the engine there would cut off everybody's call because somebody
@@ -294,19 +304,14 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
       set({
         config: config ?? null,
         mode: config?.mode ?? null,
-        states: new Map(states.map((state) => [state.userId, state])),
+        own,
       });
       if (sameSession) {
-        // Anything this client can no longer see is gone from the snapshot,
-        // and so is anybody who was speaking in it.
-        const known = new Set(states.map((state) => state.userId));
-        const speaking = new Set([...get().speaking].filter((id) => known.has(id)));
-        set({ speaking });
         syncOwnState();
         return;
       }
 
-      set({ speaking: new Set(), audible: new Set() });
+      set({ audible: new Set() });
       engine = buildEngine();
       watchKeyboard();
 
@@ -335,8 +340,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
         denoising: null,
         mode: null,
         hostUserId: null,
-        states: new Map(),
-        speaking: new Set(),
+        own: null,
         audible: new Set(),
         level: 0,
         config: null,
@@ -383,38 +387,16 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
 
     participantGone(userId) {
       engine?.handleParticipantGone(userId);
-      const states = new Map(get().states);
-      states.delete(userId);
-      set({ states });
-      markSpeaking(userId, false);
       markAudible(userId, false);
+    },
+
+    setOwnState(state) {
+      set({ own: state });
+      syncOwnState();
     },
 
     handleEvent(op, payload) {
       switch (op) {
-        case Ev.VoiceState: {
-          const { state } = payload as VoiceStateEvent;
-          const states = new Map(get().states);
-          if (state.connected || state.channelId !== 0) {
-            states.set(state.userId, state);
-          } else {
-            states.delete(state.userId);
-          }
-          set({ states });
-          if (link && state.userId === link.selfId) syncOwnState();
-          if (!state.connected) markSpeaking(state.userId, false);
-          return;
-        }
-
-        case Ev.VoiceSpeaking: {
-          const event = payload as VoiceSpeakingEvent;
-          // This client's own indicator is driven by its own microphone, which
-          // knows sooner and more accurately than a round trip does.
-          if (link && event.userId === link.selfId) return;
-          markSpeaking(event.userId, event.speaking);
-          return;
-        }
-
         case Ev.VoiceSignal:
           void engine?.handleSignal(payload as VoiceSignalEvent);
           return;
@@ -450,15 +432,19 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
       if (patch.mode !== undefined || patch.pttKey !== undefined) watchKeyboard();
     },
 
-    setUserVolume(userId, percent) {
-      if (!link?.serverId) return;
-      const volumes = storeUserVolume(get().volumes, link.serverId, userId, percent);
+    setUserVolume(userId, percent, serverId) {
+      // A volume belongs to a person on a server, and the person being turned
+      // down is not always on the server carrying the call: the member list of
+      // whatever is on screen offers the same slider.
+      const on = serverId ?? link?.serverId ?? null;
+      if (!on) return;
+      const volumes = storeUserVolume(get().volumes, on, userId, percent);
       set({ volumes });
-      engine?.setUserVolume(userId, percent);
+      if (on === link?.serverId) engine?.setUserVolume(userId, percent);
     },
 
-    volumeFor(userId) {
-      return userVolume(get().volumes, link?.serverId ?? null, userId);
+    volumeFor(userId, serverId) {
+      return userVolume(get().volumes, serverId ?? link?.serverId ?? null, userId);
     },
 
     async toggleMute() {
@@ -498,8 +484,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
     },
 
     self() {
-      if (!link) return null;
-      return get().states.get(link.selfId) ?? null;
+      return get().own;
     },
   };
 });

@@ -1,6 +1,6 @@
 import { useTranslation } from "@/lib/i18n";
 import { canOpenPrivacySettings, openPrivacySettings } from "@/lib/open";
-import { useSession } from "@/store/session";
+import { useCall, useServerRegistry, useServers } from "@/store/servers";
 import { useVoice } from "@/store/voice";
 import {
   BroadcastIcon,
@@ -24,13 +24,21 @@ interface VoicePanelProps {
  * It answers the three questions somebody in a call actually has — am I
  * connected, who is carrying this, and how do I get out — and puts mute and
  * deafen where a hand already is. Everything finer lives in settings.
+ *
+ * It reads the connection carrying the call rather than the one on screen,
+ * because a call outlives looking at the server it is on: leaving it, muting
+ * on it and seeing who is relaying it all have to work from anywhere.
  */
 export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
   const { t } = useTranslation();
-  const self = useSession((state) => state.self);
-  const channels = useSession((state) => state.channels);
-  const users = useSession((state) => state.users);
-  const leaveChannel = useSession((state) => state.leaveChannel);
+  const self = useCall((state) => state.self);
+  const channels = useCall((state) => state.channels);
+  const users = useCall((state) => state.users);
+  const voiceStates = useCall((state) => state.voiceStates);
+  const leaveChannel = useCall((state) => state.leaveChannel);
+  const callServerId = useCall((state) => state.serverId);
+  const callServerName = useCall((state) => state.server?.name ?? "");
+  const foregroundId = useServerRegistry((state) => state.foregroundId);
 
   const status = useVoice((state) => state.status);
   const notice = useVoice((state) => state.notice);
@@ -38,7 +46,6 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
   const carriesAudio = useVoice((state) => state.config?.enabled ?? false);
   const mode = useVoice((state) => state.mode);
   const hostUserId = useVoice((state) => state.hostUserId);
-  const states = useVoice((state) => state.states);
   const toggleMute = useVoice((state) => state.toggleMute);
   const toggleDeafen = useVoice((state) => state.toggleDeafen);
   const retryMicrophone = useVoice((state) => state.retryMicrophone);
@@ -50,7 +57,8 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
   const channel = channelId === null ? null : channels.get(channelId);
   if (!self || !channel || channel.type !== "voice") return null;
 
-  const own = states.get(self.id);
+  const elsewhere = callServerId !== "" && callServerId !== foregroundId;
+  const own = voiceStates.get(self.id);
   const muted = own ? own.selfMute || own.mute : false;
   const deafened = own ? own.selfDeaf || own.deaf : false;
 
@@ -96,6 +104,16 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
             <VoiceIcon size={12} />
             {channel.name}
           </span>
+          {elsewhere ? (
+            <button
+              type="button"
+              className="voicepanel__server"
+              onClick={() => useServers.getState().focus(callServerId)}
+              title={t("voice.callOnServerGo", { server: callServerName })}
+            >
+              {t("voice.callOnServer", { server: callServerName })}
+            </button>
+          ) : null}
         </span>
         <button
           className="iconbtn iconbtn--danger"

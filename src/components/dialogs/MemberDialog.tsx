@@ -32,9 +32,12 @@ export function MemberDialog({ userId, anchorRect, onClose }: MemberDialogProps)
   const kickUser = useSession((state) => state.kickUser);
   const permissions = useMyPermissions();
 
-  const voiceState = useVoice((state) => state.states.get(userId));
+  const voiceState = useSession((state) => state.voiceStates.get(userId));
+  // Volumes are keyed by server as well as by person, and this dialog is
+  // always about the server on screen, which is not always the one in a call.
+  const serverId = useSession((state) => state.serverId);
   const setUserVolume = useVoice((state) => state.setUserVolume);
-  const volume = useVoice((state) => state.volumeFor(userId));
+  const volume = useVoice((state) => state.volumeFor(userId, serverId));
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -332,14 +335,14 @@ export function MemberDialog({ userId, anchorRect, onClose }: MemberDialogProps)
                   min={0}
                   max={200}
                   value={volume}
-                  onChange={(event) => setUserVolume(user.id, Number(event.target.value))}
+                  onChange={(event) => setUserVolume(user.id, Number(event.target.value), serverId)}
                 />
                 {volume !== 100 ? (
                   <button
                     type="button"
                     className="btn btn--ghost btn--sm"
                     style={{ alignSelf: "flex-start", marginTop: 4 }}
-                    onClick={() => setUserVolume(user.id, 100)}
+                    onClick={() => setUserVolume(user.id, 100, serverId)}
                   >
                     {t("voice.resetVolume")}
                   </button>

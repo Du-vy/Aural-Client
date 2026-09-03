@@ -67,6 +67,69 @@
   background: var(--text);
 }
 
+/* A server that is open but not on screen: it is holding a connection, and
+   the ring is the only thing that says so. */
+.rail__item--live::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid var(--accent);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.rail__item--active::after,
+.rail__item--pending::after {
+  display: none;
+}
+
+.rail__item--pending {
+  opacity: 0.6;
+}
+
+.rail__item--unread:not(.rail__item--active) {
+  color: var(--text);
+}
+
+/* What is waiting on a server nobody is looking at. A mention is a different
+   colour rather than a different shape: the count already says how much. */
+.rail__badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  border: 2px solid var(--bg-rail);
+  background: var(--text-muted);
+  color: var(--bg-rail);
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.rail__badge--mention {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* The one call, on whichever server is carrying it. */
+.rail__call {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-rail);
+  background: var(--online);
+}
+
 .rail__divider {
   width: 32px;
   height: 1px;
@@ -213,6 +276,35 @@
 
 .channel--joined {
   color: var(--text);
+}
+
+/* A channel with something in it, on the server being looked at. The weight
+   carries it; the badge is only for the part that named you. */
+.channel--unread {
+  color: var(--text);
+}
+
+.channel--unread .channel__name {
+  font-weight: 700;
+}
+
+.channel--unread .channel__icon {
+  color: var(--text);
+}
+
+.channel__badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .channel__icon {

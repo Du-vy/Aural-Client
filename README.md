@@ -124,6 +124,32 @@ for enforcement.
 Masks are 64-bit and travel as decimal strings, so they are `bigint` here: a
 JavaScript number loses precision above 2^53.
 
+### Mentions
+
+Typing `@` opens a list of who can be named: the members of the server, the
+roles on it, and the two keywords `@everyone` and `@here`. Arrow keys move it,
+Enter or Tab writes the name, Escape dismisses it.
+
+**A mention is text.** The protocol has no field for one — a message is words,
+and words are all the server stores — so `src/lib/mentions.ts` is a convention
+over them rather than a wire format. That has one real consequence and one real
+benefit. The consequence is that a client cannot enforce anything about them:
+`@everyone` lights a badge on the clients that see it and claims no authority
+the person typing did not already have. The benefit is that a mention is
+resolved when it is *read*, against whoever this client knows right now, so
+renaming somebody renames them through the whole history — the same reason a
+message carries its author's name live rather than frozen.
+
+A name resolves against every spelling its owner answers to, nickname and
+username alike, longest match first so a nickname holding a space survives the
+round trip. A name nobody answers to is left exactly as it was typed: an `@`
+in front of a stranger is characters, not a person, and drawing it as a
+mention would be the client inventing one.
+
+Being named marks the whole row, not just the pill inside it, and lights the
+channel and server badges through the same `mentionsSelf` the unread counters
+already used — now aware of roles as well as names.
+
 ### Attachments
 
 The `+` beside the message box picks files; dropping them on the composer or
@@ -265,7 +291,9 @@ src/lib/voice/settings.ts  voice preferences, kept on this machine
 src/store/voice.ts       one media session and what the interface draws of it
 src/lib/markdown.ts      a Markdown subset, parsed to nodes and never to markup
 src/lib/storage.ts       saved servers and their session tokens
-src/store/session.ts     one connection and everything known about it
+src/store/connection.ts  one connection and everything known about it
+src/store/servers.ts     every connection held, and which one is on screen
+src/store/session.ts     the connection in the foreground, as components read it
 src/store/selectors.ts   derived views: the channel tree, member groups, access
 src/views/               the two screens: connect, and a connected server
 src/components/          the panels, the chat, and the dialogs
@@ -396,10 +424,16 @@ gain control, a bitrate chosen within what the server allows, per-person volume,
 mute and deafen for yourself and for others, speaking indicators in the channel
 tree, and a voice page in server settings for administrators.
 
+**v0.6 (in this tree, unreleased)** — several servers at once: the rail switches between live
+connections instead of dropping one to dial the next, the server in front keeps
+its messages while the rest keep presence and an unread badge, channel histories
+are cut back on a least-recently-read basis, and the one media session moves
+between servers only after being asked about.
+[`docs/MULTI-SERVER.md`](docs/MULTI-SERVER.md) has the memory budget behind all
+of that.
+
 **Later** — screen sharing, a global push-to-talk hotkey in the native shell,
-multiple simultaneous server connections — [`docs/MULTI-SERVER.md`](docs/MULTI-SERVER.md)
-records where that stands, what already generalises, and the memory budget that
-decides the rest — and Aural Hub for finding public servers.
+and Aural Hub for finding public servers.
 
 ## License
 

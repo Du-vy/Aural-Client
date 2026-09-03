@@ -3,14 +3,13 @@ import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { Perm, has, resolveChannelPermissions, resolve } from "@/lib/permissions";
 import type { Channel, Role, User, ChannelType } from "@/lib/protocol";
-import { useSession } from "@/store/session";
+import { useSession, type Unread } from "@/store/session";
 import {
   buildChannelTree,
   everyoneRoleId,
   usersInChannel,
   type ChannelNode,
 } from "@/store/selectors";
-import { useVoice } from "@/store/voice";
 import { Avatar } from "./Avatar";
 import {
   BroadcastIcon,
@@ -27,6 +26,12 @@ import {
 interface ChannelSidebarProps {
   selectedChannelId: number | null;
   onSelectChannel(channelId: number): void;
+  /**
+   * Entering a voice channel. It goes back up rather than straight to the
+   * store because there is one microphone across every server open, so a call
+   * running somewhere else is a question before it is a request.
+   */
+  onJoinVoice(channel: Channel): void;
   onCreateChannel(parentId: number | null): void;
   onOpenMember(userId: number, anchorRect?: DOMRect): void;
   onDeleteChannel?(channel: Channel): void;
@@ -62,6 +67,7 @@ function sameTarget(a: DropTarget | null, b: DropTarget | null): boolean {
 export function ChannelSidebar({
   selectedChannelId,
   onSelectChannel,
+  onJoinVoice,
   onCreateChannel,
   onOpenMember,
   onDeleteChannel,
@@ -74,7 +80,7 @@ export function ChannelSidebar({
   const roles = useSession((state) => state.roles);
   const users = useSession((state) => state.users);
   const self = useSession((state) => state.self);
-  const joinChannel = useSession((state) => state.joinChannel);
+  const unread = useSession((state) => state.unread);
   const deleteChannel = useSession((state) => state.deleteChannel);
   const updateChannel = useSession((state) => state.updateChannel);
 
@@ -524,8 +530,9 @@ export function ChannelSidebar({
                     has(permissionsIn(node.channel.id), Perm.ManageChannels)
                   }
                   selected={selectedChannelId === channel.id}
+                  unread={unread.get(channel.id)}
                   onSelect={() => onSelectChannel(channel.id)}
-                  onJoin={() => void joinChannel(channel.id)}
+                  onJoin={() => onJoinVoice(channel)}
                   onDelete={() => handleDelete(channel)}
                   onOpenMember={onOpenMember}
                   onContextMenuChannel={onContextMenuChannel}
@@ -556,8 +563,9 @@ export function ChannelSidebar({
                 has(permissionsIn(node.channel.id), Perm.ManageChannels)
               }
               selected={selectedChannelId === node.channel.id}
+              unread={unread.get(node.channel.id)}
               onSelect={() => onSelectChannel(node.channel.id)}
-              onJoin={() => void joinChannel(node.channel.id)}
+              onJoin={() => onJoinVoice(node.channel)}
               onDelete={() => handleDelete(node.channel)}
               onOpenMember={onOpenMember}
               onContextMenuChannel={onContextMenuChannel}
@@ -742,6 +750,8 @@ interface ChannelRowProps {
   permissions: bigint;
   canManage: boolean;
   selected: boolean;
+  /** What is waiting in this channel, or nothing. */
+  unread?: Unread;
   onSelect(): void;
   onJoin(): void;
   onDelete(): void;
@@ -764,6 +774,7 @@ function ChannelRow({
   permissions,
   canManage,
   selected,
+  unread,
   onSelect,
   onJoin,
   onDelete,
@@ -785,8 +796,11 @@ function ChannelRow({
   const full = channel.userLimit > 0 && occupants.length >= channel.userLimit && !joined;
   const disabled = isVoice && (!canConnect || full);
 
+  const waiting = !isVoice && !selected && unread !== undefined && unread.count > 0;
+
   const classes = ["channel"];
   if (selected) classes.push("channel--active");
+  if (waiting) classes.push("channel--unread");
   if (joined) classes.push("channel--joined");
   if (isDragging) classes.push("channel--dragging");
   if (disabled) classes.push("channel--disabled");
@@ -844,6 +858,14 @@ function ChannelRow({
         <span className="channel__name">
           {channel.name}
         </span>
+        {waiting && unread.mention ? (
+          <span
+            className="channel__badge"
+            title={t("server.unreadMessages", { count: unread.count })}
+          >
+            {unread.count > 99 ? "99+" : unread.count}
+          </span>
+        ) : null}
         {channel.userLimit > 0 ? (
           <span className="channel__count">
             {occupants.length}/{channel.userLimit}
@@ -908,8 +930,8 @@ interface OccupantProps {
  */
 function Occupant({ user, self, roles, onOpenMember, onContextMenuMember }: OccupantProps) {
   const { t } = useTranslation();
-  const state = useVoice((voice) => voice.states.get(user.id));
-  const speaking = useVoice((voice) => voice.speaking.has(user.id));
+  const state = useSession((session) => session.voiceStates.get(user.id));
+  const speaking = useSession((session) => session.speaking.has(user.id));
 
   const muted = state ? state.selfMute || state.mute : false;
   const deafened = state ? state.selfDeaf || state.deaf : false;
