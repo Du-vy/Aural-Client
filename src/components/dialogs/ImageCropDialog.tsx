@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { Modal } from "../Modal";
 import { SparklesIcon, RotateCcwIcon, CheckIcon, UploadIcon } from "../Icons";
+import { cropImage } from "@/lib/imageCrop";
 
 interface ImageCropDialogProps {
   file: File;
@@ -20,6 +21,7 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [processing, setProcessing] = useState(false);
+  const [cropProgress, setCropProgress] = useState<number | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -39,7 +41,7 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
     setPan({ x: 0, y: 0 });
   };
 
-  // Pointer event handlers for silky-smooth dragging on all devices
+  // Pointer event handlers for smooth dragging
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     try {
@@ -71,12 +73,9 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
     setZoom((prev) => Math.max(0.2, Math.min(4, Number((prev + delta).toFixed(3)))));
   };
 
-  // Confirming is what closes the dialog, but not every path gets there: a
-  // canvas that will not give a context, or a blob that never arrives, both
-  // return without it. Clearing the flag here is what stops those leaving the
-  // dialog open with every button disabled.
   const finish = (result: File) => {
     setProcessing(false);
+    setCropProgress(null);
     onConfirm(result);
   };
 
@@ -86,6 +85,7 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
       return;
     }
     setProcessing(true);
+    setCropProgress(0);
 
     try {
       const img = imgRef.current;
@@ -93,63 +93,31 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
       const overlayRect = overlay.getBoundingClientRect();
       const imgRect = img.getBoundingClientRect();
 
-      // Desired output dimensions
-      const targetWidth = type === "avatar" ? 384 : 960;
-      const targetHeight = type === "avatar" ? 384 : 320;
+      // Target output dimensions:
+      // Avatars: 384x384 for static, 256x256 for GIF (lightweight & crisp)
+      // Banners: 960x320 for static, 640x213 for GIF (3:1 aspect ratio)
+      const targetWidth = type === "avatar" ? (isGif ? 256 : 384) : isGif ? 640 : 960;
+      const targetHeight = type === "avatar" ? (isGif ? 256 : 384) : isGif ? 213 : 320;
 
-      const canvas = document.createElement("canvas");
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-      const ctx = canvas.getContext("2d");
-
-      if (!ctx) {
-        finish(file);
-        return;
-      }
-
-      // Scale ratio between on-screen displayed image and natural image pixels
       const scaleX = img.naturalWidth / imgRect.width;
       const scaleY = img.naturalHeight / imgRect.height;
 
-      // Crop coordinates relative to the natural image
       const cropX = (overlayRect.left - imgRect.left) * scaleX;
       const cropY = (overlayRect.top - imgRect.top) * scaleY;
       const cropWidth = overlayRect.width * scaleX;
       const cropHeight = overlayRect.height * scaleY;
 
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
+      const croppedResult = await cropImage({
+        file,
+        crop: { x: cropX, y: cropY, width: cropWidth, height: cropHeight },
+        outputWidth: targetWidth,
+        outputHeight: targetHeight,
+        onProgress: (fraction) => setCropProgress(fraction),
+      });
 
-      ctx.drawImage(
-        img,
-        cropX,
-        cropY,
-        cropWidth,
-        cropHeight,
-        0,
-        0,
-        targetWidth,
-        targetHeight,
-      );
-
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            finish(file);
-            return;
-          }
-          const outputExt = file.type === "image/png" ? "png" : "webp";
-          const outputType = file.type === "image/png" ? "image/png" : "image/webp";
-          const croppedFile = new File([blob], `${file.name.replace(/\.[^/.]+$/, "")}.${outputExt}`, {
-            type: outputType,
-            lastModified: Date.now(),
-          });
-          finish(croppedFile);
-        },
-        file.type === "image/png" ? "image/png" : "image/webp",
-        0.92,
-      );
-    } catch {
+      finish(croppedResult);
+    } catch (err) {
+      console.error("Cropping failed:", err);
       finish(file);
     }
   };
@@ -162,7 +130,7 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
   const subtitle = t("crop.dragAndZoomHint");
 
   return (
-    <Modal title={title} subtitle={subtitle} onClose={onClose}>
+    <Modal wide title={title} subtitle={subtitle} onClose={onClose}>
       <div className="image-crop-dialog">
         {/* Viewport container with mask */}
         <div
@@ -199,13 +167,14 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
           />
         </div>
 
-        {/* Zoom Controls (Active for both static images and previewing GIFs) */}
+        {/* Zoom Controls */}
         <div className="image-crop-controls">
           <button
             type="button"
             className="btn btn--sm btn--ghost"
             onClick={() => setZoom((prev) => Math.max(0.2, Number((prev - 0.15).toFixed(2))))}
             title={t("crop.zoomOut")}
+            disabled={processing}
           >
             −
           </button>
@@ -217,12 +186,14 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
             value={zoom}
             onChange={(e) => setZoom(parseFloat(e.target.value))}
             className="image-crop-slider"
+            disabled={processing}
           />
           <button
             type="button"
             className="btn btn--sm btn--ghost"
             onClick={() => setZoom((prev) => Math.min(4, Number((prev + 0.15).toFixed(2))))}
             title={t("crop.zoomIn")}
+            disabled={processing}
           >
             +
           </button>
@@ -234,6 +205,7 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
               setPan({ x: 0, y: 0 });
             }}
             title={t("crop.reset")}
+            disabled={processing}
           >
             <RotateCcwIcon size={14} />
           </button>
@@ -241,7 +213,7 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
 
         {/* GIF animation preservation notice */}
         {isGif ? (
-          <div className="alert alert--info" style={{ marginTop: 4, display: "flex", gap: 8, alignItems: "center" }}>
+          <div className="alert alert--info" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <SparklesIcon size={18} />
             <span style={{ fontSize: 13 }}>
               {t("crop.gifNotice")}
@@ -249,33 +221,65 @@ export function ImageCropDialog({ file, type, onConfirm, onClose }: ImageCropDia
           </div>
         ) : null}
 
+        {/* Encoding progress bar for animated GIFs */}
+        {isGif && processing && cropProgress !== null ? (
+          <div className="image-crop-progress">
+            <div className="image-crop-progress__label">
+              <span>{t("crop.cropping")}</span>
+              <span>{Math.round(cropProgress * 100)}%</span>
+            </div>
+            <div className="image-crop-progress__bar">
+              <div
+                className="image-crop-progress__fill"
+                style={{ width: `${Math.round(cropProgress * 100)}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
+
         {/* Footer Actions */}
         <div className="image-crop-footer">
-          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={processing}>
-            {t("common.cancel")}
-          </button>
+          <div className="image-crop-footer__left">
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={onClose}
+              disabled={processing}
+            >
+              {t("common.cancel")}
+            </button>
 
-          {isGif ? (
+            {isGif ? (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={handleUploadOriginalGif}
+                disabled={processing}
+                title={t("crop.uploadOriginalGifTip")}
+              >
+                <UploadIcon size={16} />
+                <span>{t("crop.uploadOriginal")}</span>
+              </button>
+            ) : null}
+          </div>
+
+          <div className="image-crop-footer__right">
             <button
               type="button"
               className="btn btn--primary"
-              onClick={handleUploadOriginalGif}
+              onClick={() => void handleApplyCropped()}
               disabled={processing}
             >
-              <UploadIcon size={16} />
-              <span>{t("crop.uploadOriginalGif")}</span>
+              <CheckIcon size={16} />
+              <span>
+                {processing
+                  ? cropProgress !== null
+                    ? `${t("crop.cropping")} ${Math.round(cropProgress * 100)}%`
+                    : t("common.loading")
+                  : t("crop.applyCrop")}
+              </span>
             </button>
-          ) : null}
-
-          <button
-            type="button"
-            className={isGif ? "btn btn--ghost" : "btn btn--primary"}
-            onClick={() => void handleApplyCropped()}
-            disabled={processing}
-          >
-            <CheckIcon size={16} />
-            <span>{processing ? t("common.loading") : isGif ? t("crop.cropStatic") : t("common.save")}</span>
-          </button>
+          </div>
         </div>
       </div>
     </Modal>

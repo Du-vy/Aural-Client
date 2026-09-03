@@ -166,7 +166,7 @@ function ProfileTab() {
       style={{ display: "flex", flexDirection: "column", gap: 16 }}
     >
       {error ? <p className="alert">{error}</p> : null}
-      {saved ? <p className="alert alert--info">{t("common.save")}</p> : null}
+      {saved ? <p className="alert alert--info">{t("common.saved")}</p> : null}
 
       <div className="field">
         <label className="field__label" htmlFor="nickname-field">

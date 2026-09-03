@@ -268,15 +268,14 @@
 .image-crop-dialog {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  max-width: 480px;
-  margin: 0 auto;
+  gap: 14px;
+  width: 100%;
 }
 
 .image-crop-viewport {
   position: relative;
   width: 100%;
-  height: 260px;
+  height: 280px;
   background: #0f1012;
   border-radius: var(--radius, 8px);
   overflow: hidden;
@@ -304,17 +303,15 @@
 
 .image-crop-overlay--avatar {
   border-radius: 50%;
-  width: 190px;
-  height: 190px;
+  width: 200px;
+  height: 200px;
   margin: auto;
 }
 
 .image-crop-overlay--banner {
   border-radius: var(--radius, 8px);
-  width: 90%;
-  /* 3:1, which is the shape the banner is saved at (960x320). A fixed height
-     here made the mask a different shape at every window width, so what came
-     out was never quite what the mask showed. */
+  width: 92%;
+  /* 3:1 aspect ratio matching the saved banner */
   aspect-ratio: 3 / 1;
   max-height: 100%;
   margin: auto;
@@ -324,7 +321,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 8px;
+  padding: 0 4px;
 }
 
 .image-crop-zoom-label {
@@ -338,11 +335,66 @@
   accent-color: var(--accent);
 }
 
+.image-crop-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(var(--accent-rgb, 79, 142, 247), 0.08);
+  border: 1px solid rgba(var(--accent-rgb, 79, 142, 247), 0.2);
+  border-radius: var(--radius, 8px);
+}
+
+.image-crop-progress__label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.image-crop-progress__bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.image-crop-progress__fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.15s ease-out;
+}
+
 .image-crop-footer {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   margin-top: 4px;
+}
+
+.image-crop-footer__left,
+.image-crop-footer__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 520px) {
+  .image-crop-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .image-crop-footer__left,
+  .image-crop-footer__right {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
 /* --- Discord-Style Profile Card & Member Dialog --- */

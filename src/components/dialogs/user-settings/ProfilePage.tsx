@@ -1,4 +1,4 @@
-import { useState, useRef, type FormEvent } from "react";
+import { useState, useRef, useEffect, type FormEvent } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { Perm, has } from "@/lib/permissions";
 import { describeError } from "@/lib/protocol";
@@ -9,6 +9,7 @@ import { Avatar, resolveAvatarUrl } from "@/components/Avatar";
 import { ImageCropDialog } from "@/components/dialogs/ImageCropDialog";
 import {
   CameraIcon,
+  CheckIcon,
   ImageIcon,
   TrashIcon,
   UploadIcon,
@@ -42,6 +43,13 @@ export function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+
+  // Auto-dismiss saved message after 4 seconds
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => setSaved(false), 4000);
+    return () => clearTimeout(timer);
+  }, [saved]);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -221,11 +229,23 @@ export function ProfilePage() {
         </p>
       </header>
 
-      {error ? <div className="alert alert--danger">{error}</div> : null}
-      {saved ? <div className="alert alert--info">{t("common.saved")}</div> : null}
+      {error ? (
+        <div className="alert alert--danger">
+          <span>{error}</span>
+        </div>
+      ) : null}
+      {saved ? (
+        <div className="alert alert--info">
+          <CheckIcon size={16} />
+          <span>{t("common.saved")}</span>
+        </div>
+      ) : null}
       {uploadProgress !== null ? (
         <div className="alert alert--info">
-          {t("common.loading")} {Math.round(uploadProgress * 100)}%
+          <div className="spinner" />
+          <span>
+            {t("common.loading")} {Math.round(uploadProgress * 100)}%
+          </span>
         </div>
       ) : null}
 

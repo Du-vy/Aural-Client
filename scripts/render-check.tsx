@@ -37,6 +37,7 @@ const { insertAtCaret } = await import("@/components/MessageComposer");
 const { ServerSettingsDialog } = await import("@/components/dialogs/ServerSettingsDialog");
 const { UserSettingsDialog } = await import("@/components/dialogs/UserSettingsDialog");
 const { ExternalLinkDialog } = await import("@/components/dialogs/ExternalLinkDialog");
+const { ImageCropDialog } = await import("@/components/dialogs/ImageCropDialog");
 const { MessageContent } = await import("@/components/MessageContent");
 const { MessageAttachments } = await import("@/components/attachments/MessageAttachments");
 const { AttachmentTray } = await import("@/components/AttachmentTray");
@@ -2112,6 +2113,75 @@ console.log("\nreal-time channel and category deletion");
     "deleting a channel with cascaded omitted removes it safely",
     !afterDeleteUndefined.channels.has(4),
   );
+}
+
+console.log("\nimage cropping dialog & animated gif support");
+{
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const root = createRoot(host);
+
+  // Minimal 1x1 GIF file bytes
+  const gifFile = new File(
+    [new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 1, 0, 1, 0, 0x80, 0, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0x21, 0xf9, 0x04, 0, 0, 0, 0, 0, 0x2c, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2, 2, 0x44, 1, 0, 0x3b])],
+    "banner.gif",
+    { type: "image/gif" },
+  );
+
+  await act(async () => {
+    root.render(
+      <ImageCropDialog
+        file={gifFile}
+        type="banner"
+        onConfirm={() => {}}
+        onClose={() => {}}
+      />,
+    );
+  });
+
+  const modal = host.querySelector(".modal--wide");
+  checkThat("ImageCropDialog uses modal--wide for spacious layout", !!modal);
+
+  const bannerOverlay = host.querySelector(".image-crop-overlay--banner");
+  checkThat("renders banner crop overlay with 3:1 aspect ratio", !!bannerOverlay);
+
+  const gifNotice = host.querySelector(".alert--info");
+  checkThat("renders animated GIF preservation notice", !!gifNotice);
+
+  const buttons = Array.from(host.querySelectorAll(".image-crop-footer button"));
+  checkThat("renders cancel, upload original, and apply crop buttons", buttons.length === 3);
+
+  const uploadOriginalBtn = buttons.find(
+    (b) => b.textContent?.toLowerCase().includes("original"),
+  );
+  checkThat("renders upload original button for GIFs", !!uploadOriginalBtn);
+
+  const applyCropBtn = buttons.find((b) => b.classList.contains("btn--primary"));
+  checkThat("renders primary apply crop button", !!applyCropBtn);
+
+  // Check avatar mode with static image
+  const pngFile = new File([new Uint8Array(10)], "avatar.png", { type: "image/png" });
+  await act(async () => {
+    root.render(
+      <ImageCropDialog
+        file={pngFile}
+        type="avatar"
+        onConfirm={() => {}}
+        onClose={() => {}}
+      />,
+    );
+  });
+
+  const avatarOverlay = host.querySelector(".image-crop-overlay--avatar");
+  checkThat("renders avatar circular crop overlay", !!avatarOverlay);
+
+  const pngButtons = Array.from(host.querySelectorAll(".image-crop-footer button"));
+  checkThat("renders cancel and apply crop buttons for static image", pngButtons.length === 2);
+
+  await act(async () => {
+    root.unmount();
+  });
+  host.remove();
 }
 
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);

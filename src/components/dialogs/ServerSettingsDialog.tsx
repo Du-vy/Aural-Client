@@ -271,7 +271,7 @@ function ServerOverviewPage() {
       </header>
 
       {error ? <div className="alert alert--danger">{error}</div> : null}
-      {saved ? <div className="alert alert--info">{t("common.save")}</div> : null}
+      {saved ? <div className="alert alert--info">{t("common.saved")}</div> : null}
       {!allowed ? (
         <div className="alert alert--warning">{t("errors.forbidden")}</div>
       ) : null}
@@ -596,7 +596,7 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {error ? <div className="alert alert--danger">{error}</div> : null}
-      {saved ? <div className="alert alert--info">{t("common.save")}</div> : null}
+      {saved ? <div className="alert alert--info">{t("common.saved")}</div> : null}
       {!editable ? <div className="alert alert--warning">{t("errors.forbidden")}</div> : null}
 
       <div className="settings-card">

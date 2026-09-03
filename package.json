@@ -22,6 +22,8 @@
   "dependencies": {
     "@sapphi-red/web-noise-suppressor": "0.4.0",
     "@tauri-apps/api": "^2.11.1",
+    "gifenc": "^1.0.3",
+    "omggif": "^1.0.10",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zustand": "^5.0.8"
@@ -30,6 +32,7 @@
     "@happy-dom/global-registrator": "^20.12.0",
     "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^26.4.0",
+    "@types/omggif": "^1.0.5",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.1",
     "@vitejs/plugin-react": "^6.1.1",

@@ -253,6 +253,10 @@
   margin-bottom: 20px;
 }
 
+.settings-section > .alert {
+  margin-bottom: 20px;
+}
+
 .settings-section__title {
   font-size: 20px;
   font-weight: 700;
