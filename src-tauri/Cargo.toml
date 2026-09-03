@@ -15,8 +15,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# image-png is what lets the taskbar overlay icon be handed to the window as
+# PNG bytes: without it Tauri has no decoder and the badge silently does not
+# appear.
+tauri = { version = "2", features = ["image-png"] }
 rfd = "0.15"
+tauri-plugin-notification = "2"
 
 # Answering the webview's own microphone prompt needs the handle underneath it.
 # Both are already in the tree by way of tauri and wry, and both are pinned to

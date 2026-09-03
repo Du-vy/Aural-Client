@@ -6,7 +6,6 @@ export function StartupPage() {
   const [startup, setStartup] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [closeToTray, setCloseToTray] = useState(true);
-  const [notifications, setNotifications] = useState(true);
   const [hwAccel, setHwAccel] = useState(true);
 
   return (
@@ -81,25 +80,6 @@ export function StartupPage() {
 
       <div className="settings-card" style={{ marginTop: 16 }}>
         <div className="settings-row">
-          <div className="settings-row__info">
-            <h3 className="settings-card__title">
-              {t("dialogs.userSettings.startup.notifications")}
-            </h3>
-            <p className="settings-card__subtitle">
-              {t("dialogs.userSettings.startup.notificationsDesc")}
-            </p>
-          </div>
-          <label className="settings-switch">
-            <input
-              type="checkbox"
-              checked={notifications}
-              onChange={(e) => setNotifications(e.target.checked)}
-            />
-            <span className="settings-switch__slider" />
-          </label>
-        </div>
-
-        <div className="settings-row" style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
           <div className="settings-row__info">
             <h3 className="settings-card__title">
               {t("dialogs.userSettings.startup.hardwareAcceleration")}

@@ -374,6 +374,7 @@ const testConnection = createConnection({
     dropVoice: () => undefined,
     savedChanged: () => undefined,
     ended: () => undefined,
+    reveal: () => undefined,
   },
 });
 
@@ -456,6 +457,7 @@ render("user settings, privacy", <UserSettingsDialog initialTab="privacy" onClos
 render("user settings, voice", <UserSettingsDialog initialTab="voice" onClose={noop} />, ["Mic Test"]);
 render("user settings, appearance", <UserSettingsDialog initialTab="appearance" onClose={noop} />, ["Interface Themes", "Message Density"]);
 render("user settings, language", <UserSettingsDialog initialTab="language" onClose={noop} />, ["Interface Language", "Español"]);
+render("user settings, notifications", <UserSettingsDialog initialTab="notifications" onClose={noop} />, ["Notification Sound", "Only mentions", "Chime"]);
 render("user settings, startup", <UserSettingsDialog initialTab="startup" onClose={noop} />, ["Launch Aural on System Startup"]);
 render(
   "delete message dialog",
@@ -1542,6 +1544,7 @@ console.log("\ndedicated direct messages section");
       dropVoice: () => undefined,
       savedChanged: () => undefined,
       ended: () => undefined,
+      reveal: () => undefined,
     },
   });
 
@@ -2182,6 +2185,125 @@ console.log("\nimage cropping dialog & animated gif support");
     root.unmount();
   });
   host.remove();
+}
+
+console.log("\nunread notifications and the taskbar count");
+{
+  const { shouldNotify } = await import("@/lib/notifications");
+  const { startUnreadBadgeSync, totalUnread } = await import("@/lib/unreadBadge");
+  const { DEFAULT_NOTIFICATIONS } = await import("@/lib/storage");
+
+  const settings = (patch: Partial<typeof DEFAULT_NOTIFICATIONS>) => ({
+    ...DEFAULT_NOTIFICATIONS,
+    ...patch,
+  });
+
+  const plain = { mention: false, direct: false };
+  const named = { mention: true, direct: false };
+  const privately = { mention: false, direct: true };
+
+  checkThat(
+    "every message notifies when the scope is all",
+    shouldNotify(plain, settings({ scope: "all" })),
+  );
+  checkThat(
+    "an unnamed message is silent when the scope is mentions",
+    !shouldNotify(plain, settings({ scope: "mentions" })),
+  );
+  checkThat(
+    "a mention still notifies when the scope is mentions",
+    shouldNotify(named, settings({ scope: "mentions" })),
+  );
+  checkThat(
+    "nothing notifies when the scope is none",
+    !shouldNotify(named, settings({ scope: "none" })),
+  );
+  checkThat(
+    "a direct message notifies past a scope of mentions",
+    shouldNotify(privately, settings({ scope: "mentions" })),
+  );
+  checkThat(
+    "a direct message notifies past a scope of none",
+    shouldNotify(privately, settings({ scope: "none" })),
+  );
+  checkThat(
+    "direct messages can be turned off on their own",
+    !shouldNotify(privately, settings({ directMessages: false })),
+  );
+
+  // A message in a channel nobody has open, on the connection in front. The
+  // rest of the client counts it; this is about what the taskbar then says.
+  // No conversations: the seed carries a direct message with a badge on it,
+  // and this is about what one arriving channel message does to the total.
+  seed({ activeChannelId: 2, conversations: new Map() });
+  const stop = startUnreadBadgeSync();
+  const session = useSession.getState();
+
+  session.handleEvent(Ev.MessageCreated, {
+    message: {
+      id: 9001,
+      channelId: 4,
+      userId: guest.id,
+      author: guest.nickname,
+      content: "anybody there",
+      createdAt: Math.floor(Date.now() / 1000),
+      editedAt: null,
+    },
+  });
+
+  checkThat("a message in another channel counts as unread", totalUnread().count === 1);
+  checkThat("an ordinary message is not counted as a mention", totalUnread().mentions === 0);
+
+  session.handleEvent(Ev.MessageCreated, {
+    message: {
+      id: 9002,
+      channelId: 4,
+      userId: guest.id,
+      author: guest.nickname,
+      content: `hey <@${admin.id}> look at this`,
+      createdAt: Math.floor(Date.now() / 1000),
+      editedAt: null,
+    },
+  });
+
+  checkThat("a second message adds to the count", totalUnread().count === 2);
+  checkThat("a message naming you counts as a mention", totalUnread().mentions === 1);
+
+  // The sync coalesces into a microtask, so the title is written after one.
+  await Promise.resolve();
+  await Promise.resolve();
+  checkThat("the window title carries the count", document.title === "(2) Aural");
+
+  session.setActiveChannel(4);
+  await Promise.resolve();
+  await Promise.resolve();
+  checkThat("reading the channel clears the count", totalUnread().count === 0);
+  checkThat("and takes the count back out of the title", document.title === "Aural");
+
+  stop();
+}
+
+console.log("\nthe generated notification sounds");
+{
+  const { readFileSync } = await import("node:fs");
+  const { NOTIFICATION_SOUNDS } = await import("@/lib/notificationSounds");
+
+  for (const sound of NOTIFICATION_SOUNDS) {
+    if (!sound.file) continue;
+    // Decoding is the engine's job; what is checked here is that the committed
+    // file is a RIFF wave with audio in it, because the bug that produced the
+    // first five was an envelope that silenced every one of them.
+    const wav = readFileSync(`public/sounds/${sound.file}`);
+    const samples = wav.readUInt32LE(40) / 2;
+    let peak = 0;
+    for (let i = 0; i < samples; i += 1) {
+      peak = Math.max(peak, Math.abs(wav.readInt16LE(44 + i * 2) / 32768));
+    }
+    checkThat(
+      `${sound.file} is a wave file that is not silent`,
+      wav.toString("ascii", 0, 4) === "RIFF" && samples > 1000 && peak > 0.5,
+    );
+  }
 }
 
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);

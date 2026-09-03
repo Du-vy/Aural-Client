@@ -7,6 +7,7 @@ import {
 } from "../SettingsModal";
 import { Avatar } from "../Avatar";
 import {
+  BellIcon,
   GlobeIcon,
   KeyIcon,
   LogOutIcon,
@@ -22,6 +23,7 @@ import { AccountPage } from "./user-settings/AccountPage";
 import { PrivacyPage } from "./user-settings/PrivacyPage";
 import { VoiceAudioPage } from "./user-settings/VoiceAudioPage";
 import { AppearancePage } from "./user-settings/AppearancePage";
+import { NotificationsPage } from "./user-settings/NotificationsPage";
 import { AccessibilityPage } from "./user-settings/AccessibilityPage";
 import { LanguagePage } from "./user-settings/LanguagePage";
 import { StartupPage } from "./user-settings/StartupPage";
@@ -32,6 +34,7 @@ type TabId =
   | "privacy"
   | "voice"
   | "appearance"
+  | "notifications"
   | "accessibility"
   | "language"
   | "startup";
@@ -85,6 +88,11 @@ export function UserSettingsDialog({
           id: "appearance",
           label: t("dialogs.userSettings.tabAppearance"),
           icon: <PaletteIcon size={16} />,
+        },
+        {
+          id: "notifications",
+          label: t("dialogs.userSettings.tabNotifications"),
+          icon: <BellIcon size={16} />,
         },
         {
           id: "accessibility",
@@ -154,6 +162,7 @@ export function UserSettingsDialog({
       {activeTab === "privacy" ? <PrivacyPage /> : null}
       {activeTab === "voice" ? <VoiceAudioPage /> : null}
       {activeTab === "appearance" ? <AppearancePage /> : null}
+      {activeTab === "notifications" ? <NotificationsPage /> : null}
       {activeTab === "accessibility" ? <AccessibilityPage /> : null}
       {activeTab === "language" ? <LanguagePage /> : null}
       {activeTab === "startup" ? <StartupPage /> : null}

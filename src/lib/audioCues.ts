@@ -1,20 +1,5 @@
+import { getAudioContext } from "./audioContext";
 import { readAccessibility } from "./storage";
-
-let audioCtx: AudioContext | null = null;
-
-function getAudioContext(): AudioContext | null {
-  if (typeof window === "undefined") return null;
-  if (!audioCtx) {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (AudioCtx) {
-      audioCtx = new AudioCtx();
-    }
-  }
-  if (audioCtx && audioCtx.state === "suspended") {
-    void audioCtx.resume();
-  }
-  return audioCtx;
-}
 
 /**
  * Synthesizes a soft, pleasant audio chime for mute / unmute states.

@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 
 import { CloseIcon } from "@/components/Icons";
+import { preloadNotificationSound } from "@/lib/notificationSounds";
+import { readNotifications } from "@/lib/storage";
+import { startUnreadBadgeSync } from "@/lib/unreadBadge";
 import { ConnectView } from "@/views/ConnectView";
 import { ServerView } from "@/views/ServerView";
 import { useServerRegistry } from "@/store/servers";
@@ -11,6 +14,11 @@ export function App() {
   const activeSection = useServerRegistry((state) => state.activeSection);
   const status = useSession((state) => state.status);
   const [showConnect, setShowConnect] = useState(false);
+
+  // The taskbar count follows every connection, not the one on screen, so it
+  // is started here rather than anywhere inside the server view: that tree is
+  // replaced whenever the foreground server changes.
+  useEffect(() => startUnreadBadgeSync(), []);
 
   // Connecting from the overlay puts you on the new server, so the overlay has
   // done its job and should get out of the way. It is the change of server
@@ -23,6 +31,14 @@ export function App() {
   // A connection that is up, coming back, or signing somebody else in is still
   // the server being looked at. Only having none of them is the connect screen.
   const connected = foregroundId !== null && status !== "idle";
+
+  // Fetched and decoded once there is a server to be notified by, rather than
+  // on the first notification: a sound that arrives after the message it is
+  // announcing is worse than no sound. Connecting is a click, so the audio
+  // engine is unlocked by the time this runs.
+  useEffect(() => {
+    if (connected) preloadNotificationSound(readNotifications().sound);
+  }, [connected]);
 
   return (
     <>

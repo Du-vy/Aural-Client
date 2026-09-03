@@ -10,6 +10,11 @@
  */
 
 import { parseAddress } from "./address";
+import {
+  DEFAULT_NOTIFICATION_SOUND,
+  isNotificationSoundId,
+  type NotificationSoundId,
+} from "./notificationSounds";
 
 const STORAGE_KEY = "aural.servers.v1";
 
@@ -323,3 +328,122 @@ export function initAccessibility(): AccessibilitySettings {
 
 
 
+
+/* --- Notification settings (client-side) ------------------------------------ */
+
+const NOTIFICATIONS_KEY = "aural.notifications.v1";
+
+/**
+ * How much has to happen before a message is worth interrupting somebody.
+ *
+ * The badge is unaffected by this: an unread channel is unread whatever the
+ * setting says. This decides only what leaves the window — a system toast, a
+ * sound, a taskbar that flashes.
+ */
+export type NotificationScope = "all" | "mentions" | "none";
+
+export interface NotificationSettings {
+  /** Whether the operating system is asked to show anything at all. */
+  desktop: boolean;
+  /** Which messages in a server channel are worth a notification. */
+  scope: NotificationScope;
+  /**
+   * Whether a direct message notifies even when `scope` is "mentions".
+   *
+   * On by default and separate from `scope`, because a message addressed to
+   * one person is a mention in every way that matters.
+   */
+  directMessages: boolean;
+  /** Whether the message text is shown in the toast, or only who sent it. */
+  preview: boolean;
+  sound: NotificationSoundId;
+  /** 0 to 1. */
+  soundVolume: number;
+  /** Whether the unread count is drawn on the taskbar or dock icon. */
+  taskbarBadge: boolean;
+  /** Whether a mention makes the taskbar entry ask for attention. */
+  flashOnMention: boolean;
+}
+
+export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
+  desktop: true,
+  scope: "all",
+  directMessages: true,
+  preview: true,
+  sound: DEFAULT_NOTIFICATION_SOUND,
+  soundVolume: 0.6,
+  taskbarBadge: true,
+  flashOnMention: true,
+};
+
+function isScope(value: unknown): value is NotificationScope {
+  return value === "all" || value === "mentions" || value === "none";
+}
+
+/**
+ * Held in memory because every arriving message asks for it, twice, and the
+ * answer only changes when this file changes it. Everything else here is read
+ * when a dialog opens, which is not often enough to be worth caching.
+ */
+let notificationCache: NotificationSettings | null = null;
+
+export function readNotifications(): NotificationSettings {
+  if (notificationCache) return notificationCache;
+  notificationCache = parseNotifications();
+  return notificationCache;
+}
+
+function parseNotifications(): NotificationSettings {
+  try {
+    const raw = localStorage.getItem(NOTIFICATIONS_KEY);
+    if (!raw) return { ...DEFAULT_NOTIFICATIONS };
+    const parsed = JSON.parse(raw) as Partial<NotificationSettings>;
+    // Read back field by field rather than spread: a stored file written by an
+    // older build, or edited by hand, must not be able to hand the rest of the
+    // client a sound id that does not exist or a volume outside the fader.
+    return {
+      ...DEFAULT_NOTIFICATIONS,
+      ...parsed,
+      scope: isScope(parsed.scope) ? parsed.scope : DEFAULT_NOTIFICATIONS.scope,
+      sound: isNotificationSoundId(parsed.sound) ? parsed.sound : DEFAULT_NOTIFICATIONS.sound,
+      soundVolume:
+        typeof parsed.soundVolume === "number" && Number.isFinite(parsed.soundVolume)
+          ? Math.min(1, Math.max(0, parsed.soundVolume))
+          : DEFAULT_NOTIFICATIONS.soundVolume,
+    };
+  } catch {
+    return { ...DEFAULT_NOTIFICATIONS };
+  }
+}
+
+const notificationListeners = new Set<(settings: NotificationSettings) => void>();
+
+/**
+ * Watches the notification settings.
+ *
+ * The settings dialog is not the only reader: the badge sync has to be told
+ * when the taskbar count is switched off so it can clear what it drew, and it
+ * is not mounted next to the dialog.
+ */
+export function onNotificationsChanged(
+  listener: (settings: NotificationSettings) => void,
+): () => void {
+  notificationListeners.add(listener);
+  return () => {
+    notificationListeners.delete(listener);
+  };
+}
+
+export function writeNotifications(
+  settings: Partial<NotificationSettings>,
+): NotificationSettings {
+  const updated: NotificationSettings = { ...readNotifications(), ...settings };
+  notificationCache = updated;
+  try {
+    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(updated));
+  } catch {
+    // Storage is unavailable. The change still applies to this session.
+  }
+  for (const listener of notificationListeners) listener(updated);
+  return updated;
+}

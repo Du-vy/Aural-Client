@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the Aural window is allowed to do. The client is a plain web application talking to a server over WebSocket, so it needs nothing beyond the Tauri core defaults.",
+  "description": "What the Aural window is allowed to do. The client is a plain web application talking to a server over WebSocket, so beyond the Tauri core defaults it needs only what an unread count and a message toast cannot be done without: a notification, an overlay or dock badge, and a taskbar entry that can ask for attention.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-overlay-icon",
+    "core:window:allow-set-badge-count",
+    "core:window:allow-request-user-attention",
+    "notification:default"
+  ]
 }

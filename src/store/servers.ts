@@ -93,6 +93,7 @@ const inertHost: ConnectionHost = {
   dropVoice: () => {},
   savedChanged: () => {},
   ended: () => {},
+  reveal: () => {},
 };
 
 export const blankConnection: ConnectionStore = createConnection({
@@ -122,6 +123,11 @@ function hostFor(id: string): ConnectionHost {
     },
     savedChanged: (saved) => useServers.setState({ saved }),
     ended: (message) => useServers.getState().dropped(id, message),
+    reveal: (section) => {
+      const registry = useServers.getState();
+      registry.setActiveSection(section);
+      registry.focus(id);
+    },
   };
 }
 

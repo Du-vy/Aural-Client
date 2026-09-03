@@ -20,6 +20,7 @@ import { parseAddress, type ServerAddress } from "@/lib/address";
 import { Gateway, closeMessage, type CloseInfo } from "@/lib/gateway";
 import { t } from "@/lib/i18n";
 import { mentionsSelf } from "@/lib/mentions";
+import { announce, shouldNotify } from "@/lib/notifications";
 import {
   AuralError,
   Ev,
@@ -287,6 +288,13 @@ export interface ConnectionHost {
   savedChanged(saved: SavedServer[]): void;
   /** This connection ended and holds nothing. */
   ended(message: string, wasConnected: boolean): void;
+  /**
+   * Brings this connection to the front, on the given side of the client.
+   *
+   * Only ever called from a notification somebody clicked, which is the one
+   * place a message can move the whole client to where it was sent.
+   */
+  reveal(section: "server" | "dms"): void;
 }
 
 export interface ConnectionState {
@@ -944,15 +952,60 @@ export function createConnection({
         host.foreground() && state.activeChannelId === message.channelId && !windowHidden();
       if (watching) return;
 
+      // Roles are passed as well as the user, so a message that names a group
+      // this member is in counts as naming them.
+      const mention = mentionsSelf(message.content, state.self, state.roles);
       const current = state.unread.get(message.channelId) ?? { count: 0, mention: false };
       const unread = new Map(state.unread);
       unread.set(message.channelId, {
         count: current.count + 1,
-        // Roles are passed as well as the user, so a message that names a
-        // group this member is in counts as naming them.
-        mention: current.mention || mentionsSelf(message.content, state.self, state.roles),
+        mention: current.mention || mention,
       });
       set({ unread });
+
+      announceMessage({
+        author: message.author,
+        content: message.content,
+        // The channel rather than the server: with the client already open,
+        // "who said it and where" is what identifies a message, and a toast
+        // has one line to say it in.
+        channel: state.channels.get(message.channelId)?.name ?? "",
+        mention,
+        direct: false,
+        tag: `channel:${message.channelId}`,
+        open: () => {
+          host.reveal("server");
+          void get().openChannel(message.channelId);
+        },
+      });
+    }
+
+    /**
+     * Hands one counted message to the notification layer.
+     *
+     * The badge is decided above and none of this is conditional on it the
+     * other way round: a channel with something in it is unread whether or not
+     * the settings let a sound or a toast leave the window.
+     */
+    function announceMessage(message: {
+      author: string;
+      content: string;
+      /** The channel it landed in, or empty for a private conversation. */
+      channel: string;
+      mention: boolean;
+      direct: boolean;
+      /** Unique within this connection; the server id is added here. */
+      tag: string;
+      open(): void;
+    }): void {
+      if (!shouldNotify({ mention: message.mention, direct: message.direct })) return;
+      announce({
+        title: message.channel ? `${message.author} — #${message.channel}` : message.author,
+        body: message.content,
+        mention: message.mention,
+        tag: `${id}:${message.tag}`,
+        activate: message.open,
+      });
     }
 
     function applyEvent(op: string, payload: unknown): void {
@@ -1182,6 +1235,24 @@ export function createConnection({
             patchDirect(conversation.userId, clampWindow([...current.messages, message], "newest"));
           }
           if (watching) markConversationRead(conversation.userId, message.id);
+          else if (message.userId !== state.self?.id) {
+            // The event reaches both sides of the conversation, and the side
+            // that sent it does not need to be told what it just said.
+            announceMessage({
+              author: message.author,
+              content: message.content,
+              channel: "",
+              // A line addressed to one person is a mention of them whether or
+              // not it spells their name, so it flashes the taskbar like one.
+              mention: true,
+              direct: true,
+              tag: `dm:${conversation.userId}`,
+              open: () => {
+                host.reveal("dms");
+                void get().openConversation(conversation.userId);
+              },
+            });
+          }
           return;
         }
 

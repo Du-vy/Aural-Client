@@ -2,9 +2,10 @@
 //!
 //! There is deliberately almost nothing here. Everything Aural does lives in
 //! the web application; the shell exists to package it, and to be the place
-//! native capabilities land later: a global push-to-talk hotkey, a tray icon,
+//! native capabilities land: message toasts are wired up here, because a
+//! webview cannot raise one itself. A global push-to-talk hotkey, a tray icon
 //! and pinning self-signed certificates so a server reached by address can
-//! still be served over TLS.
+//! still be served over TLS are still to come.
 
 mod media;
 
@@ -67,6 +68,10 @@ async fn save_file(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Toasts for messages that arrive while the window is not being read.
+        // The web build uses the browser Notification API for the same thing;
+        // this is the half a webview cannot do for itself.
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![open_url, save_file])
         .setup(|_app| {
             // Desktop only. Android grants the WebView its microphone through

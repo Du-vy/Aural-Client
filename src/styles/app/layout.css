@@ -113,6 +113,15 @@
   color: var(--text);
 }
 
+/* A server with something waiting takes a short version of the mark hovering
+   draws, so the rail can be read down its edge without counting badges. The
+   hover and active rules outrank this one, which is what makes the mark grow
+   as you move towards it. */
+.rail__item--unread:not(.rail__item--active)::before {
+  height: 8px;
+  opacity: 1;
+}
+
 .rail__separator {
   width: 32px;
   height: 2px;
@@ -1142,7 +1151,8 @@
 }
 
 /* A channel with something in it, on the server being looked at. The weight
-   carries it; the badge is only for the part that named you. */
+   and the mark at the edge carry it; the badge is only for the part that
+   named you, which is why it is the only one of the three that is red. */
 .channel--unread {
   color: var(--text);
 }
@@ -1153,6 +1163,21 @@
 
 .channel--unread .channel__icon {
   color: var(--text);
+}
+
+/* Sits in the padding of the list rather than in the row, so it lines up down
+   the left edge and reads as one column of marks rather than as decoration on
+   each channel. */
+.channel--unread::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  width: 4px;
+  height: 9px;
+  transform: translateY(-50%);
+  border-radius: 0 3px 3px 0;
+  background: var(--text);
 }
 
 .channel__badge {
