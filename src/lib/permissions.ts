@@ -20,6 +20,12 @@ export const Perm = {
   ChangeNickname: 1n << 4n,
   Register: 1n << 5n,
   AttachFiles: 1n << 6n,
+  /**
+   * Private conversations. They are between two people rather than in any
+   * channel, so no overwrite reaches them and this bit is only ever read from
+   * the server-wide mask.
+   */
+  SendDirectMessages: 1n << 7n,
 
   ManageChannels: 1n << 8n,
   ManageRoles: 1n << 9n,
@@ -50,6 +56,7 @@ export const PERMISSION_ORDER: PermissionName[] = [
   "ChangeNickname",
   "Register",
   "AttachFiles",
+  "SendDirectMessages",
   "ManageChannels",
   "ManageRoles",
   "ManageServer",
@@ -73,6 +80,7 @@ export const PERMISSION_HELP: Record<PermissionName, string> = {
   ChangeNickname: "Change their own nickname",
   Register: "Claim their identity as an account",
   AttachFiles: "Post files alongside a message",
+  SendDirectMessages: "Write to another member privately",
   ManageChannels: "Create, edit and delete channels",
   ManageRoles: "Manage roles and channel permissions",
   ManageServer: "Rename the server",

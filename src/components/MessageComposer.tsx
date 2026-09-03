@@ -63,8 +63,16 @@ export function insertAtCaret(
 }
 
 interface MessageComposerProps {
-  channelId: number;
+  /**
+   * What this box is writing into. It is only ever compared: changing it is
+   * what abandons the draft and cancels the uploads, because a draft belongs
+   * to the conversation it was written for.
+   */
+  draftKey: number | string;
+  /** The name a drop overlay says files are going to. */
   channelName: string;
+  /** What the empty box says. Defaults to the channel wording. */
+  placeholder?: string;
   /** Why posting is unavailable, or null when it is allowed. */
   disabledReason: string | null;
   /** Whether this user may attach files in this channel. */
@@ -89,8 +97,9 @@ export interface MessageComposerHandle {
 export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposerProps>(
   function MessageComposer(
     {
-      channelId,
+      draftKey,
       channelName,
+      placeholder,
       disabledReason,
       canAttach,
       limits,
@@ -141,9 +150,9 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     node.style.height = `${Math.min(node.scrollHeight, 320)}px`;
   }, [draft]);
 
-  // Moving to another channel abandons the draft rather than carrying it into
-  // a conversation it was not written for. Files go with it: an upload is bound
-  // to the channel it was made for, so it could not be posted here anyway.
+  // Moving to another conversation abandons the draft rather than carrying it
+  // into one it was not written for. Files go with it: an upload is bound to
+  // the channel it was made for, so it could not be posted here anyway.
   useEffect(() => {
     setDraft("");
     setError(null);
@@ -153,7 +162,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     setMention(null);
     for (const cancel of running.current.values()) cancel();
     running.current.clear();
-  }, [channelId]);
+  }, [draftKey]);
 
   // An upload still in flight when the client closes has nothing to attach to.
   useEffect(() => {
@@ -485,8 +494,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           value={draft}
           rows={1}
           maxLength={MAX_MESSAGE_LENGTH}
-          placeholder={t("chat.messagePlaceholder", { channel: channelName })}
-          aria-label={t("chat.messagePlaceholder", { channel: channelName })}
+          placeholder={placeholder ?? t("chat.messagePlaceholder", { channel: channelName })}
+          aria-label={placeholder ?? t("chat.messagePlaceholder", { channel: channelName })}
           disabled={sending}
           onChange={(event) => {
             setDraft(event.target.value);

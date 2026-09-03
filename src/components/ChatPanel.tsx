@@ -155,7 +155,7 @@ export function ChatPanel({
 
       <MessageComposer
         ref={composerRef}
-        channelId={channel.id}
+        draftKey={channel.id}
         channelName={channel.name}
         disabledReason={canSend ? null : t("chat.messageDisabledPlaceholder")}
         canAttach={canAttach}

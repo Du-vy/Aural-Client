@@ -41,6 +41,8 @@ export type ErrorCode =
   | "too_large"
   | "storage_full"
   | "uploads_disabled"
+  | "dm_disabled"
+  | "dm_blocked"
   | "voice_disabled"
   | "voice_failed";
 
@@ -73,6 +75,13 @@ export const Op = {
   MessageEdit: "message.edit",
   MessageDelete: "message.delete",
 
+  DMList: "dm.list",
+  DMHistory: "dm.history",
+  DMSend: "dm.send",
+  DMEdit: "dm.edit",
+  DMDelete: "dm.delete",
+  DMRead: "dm.read",
+
   RoleCreate: "role.create",
   RoleUpdate: "role.update",
   RoleDelete: "role.delete",
@@ -104,6 +113,10 @@ export const Ev = {
   MessageCreated: "message.created",
   MessageUpdated: "message.updated",
   MessageDeleted: "message.deleted",
+
+  DMCreated: "dm.created",
+  DMUpdated: "dm.updated",
+  DMDeleted: "dm.deleted",
 
   RoleCreated: "role.created",
   RoleUpdated: "role.updated",
@@ -143,6 +156,12 @@ export interface ServerInfo {
    * unauthenticated, so anything in it is public.
    */
   klipyEnabled?: boolean;
+  /**
+   * Whether this server carries private conversations. Absent from a server
+   * older than they are, which is the same answer as `false`: a client that
+   * offers them there has every send refused.
+   */
+  directMessages?: boolean;
 }
 
 /**
@@ -263,7 +282,17 @@ export interface User {
   customStatus?: string;
   avatar?: string | null;
   banner?: string | null;
+  /**
+   * Who may write to this identity privately. It is only ever populated on
+   * your own entry: what somebody accepts is theirs to read and nobody else's
+   * to see, and finding out that a message will not be delivered is what
+   * sending one is for.
+   */
+  dmPrivacy?: DMPrivacy;
 }
+
+/** Who may open a private conversation with somebody. */
+export type DMPrivacy = "everyone" | "registered" | "none";
 
 /** Permission masks travel as decimal strings so 64 bits survive JavaScript. */
 export interface Overwrite {
@@ -296,16 +325,19 @@ export interface Role {
 }
 
 /**
- * One post in a text channel.
+ * Everything a rendered message has, wherever it was written.
  *
  * `author` travels with every message because this client only knows the users
  * who are connected right now: presence is not persisted, so the author of an
  * older message is very often somebody it has never seen. The server resolves
  * it live, so a rename shows up throughout the history.
+ *
+ * It is a type of its own so that the message list can draw a channel and a
+ * private conversation with one component: what differs between the two is
+ * what the message hangs off, which is the one field nothing on screen reads.
  */
-export interface Message {
+export interface MessageBase {
   id: number;
-  channelId: number;
   /** null once the author's account is gone. */
   userId: number | null;
   author: string;
@@ -315,6 +347,44 @@ export interface Message {
   editedAt: number | null;
   /** Files posted with the message. They are deleted along with it. */
   attachments?: Attachment[];
+}
+
+/** One post in a text channel. */
+export interface Message extends MessageBase {
+  channelId: number;
+}
+
+/**
+ * One line of a private conversation.
+ *
+ * It carries no attachments: an upload is bound to the channel it was made
+ * for, and a private conversation has no channel to bind one to.
+ */
+export interface DirectMessage extends MessageBase {
+  conversationId: number;
+}
+
+/**
+ * One private thread, as it looks to one of the two people in it.
+ *
+ * `userId` is therefore *the other one*. The same thread reaches the two sides
+ * under two different names, which is what lets this client key conversations
+ * by person and render the first frame that arrives without holding a map of
+ * ids to people.
+ */
+export interface Conversation {
+  id: number;
+  userId: number;
+  /** Unix seconds. A thread nobody has written in carries when it was opened. */
+  lastMessageAt: number;
+  /** What a list shows under the name. Absent until something is said. */
+  lastMessage?: DirectMessage;
+  /**
+   * How much has arrived since this side last read it. The server keeps the
+   * marker, so the badge survives a restart rather than being whatever this
+   * client happened to see live.
+   */
+  unread: number;
 }
 
 /**
@@ -367,6 +437,12 @@ export interface Ready {
    * a server older than the audio plane.
    */
   voiceStates?: VoiceState[];
+  /**
+   * Every private conversation this identity is in, newest first. It is in the
+   * snapshot because a badge is the whole reason to know a thread exists
+   * before opening it. Absent from a server that carries none.
+   */
+  conversations?: Conversation[];
 }
 
 // --- request payloads --------------------------------------------------------
@@ -437,6 +513,8 @@ export interface UserUpdateRequest {
   customStatus?: string;
   avatar?: string | null;
   banner?: string | null;
+  /** Your own setting, and never anybody else's whatever you hold. */
+  dmPrivacy?: DMPrivacy;
 }
 
 export interface UserMoveRequest {
@@ -573,6 +651,62 @@ export interface MessageDeleteRequest {
   messageId: number;
 }
 
+// --- private conversations ---------------------------------------------------
+
+/** Reads every conversation the caller is in. It takes nothing. */
+export type DMListRequest = Record<string, never>;
+
+export interface DMListResult {
+  conversations: Conversation[];
+}
+
+/**
+ * One page of the conversation with somebody.
+ *
+ * It names the person rather than the thread, because a name in the member
+ * list is all this client has to start from: the thread may not exist yet, and
+ * asking for its history is a perfectly good way to find that out.
+ */
+export interface DMHistoryRequest {
+  userId: number;
+  before?: number;
+  after?: number;
+  around?: number;
+  limit?: number;
+}
+
+/**
+ * Ordered oldest first. A conversation nobody has opened yet comes back with a
+ * zero `conversationId` and no messages rather than as an error.
+ */
+export interface DMHistoryResult {
+  userId: number;
+  conversationId: number;
+  messages: DirectMessage[];
+  hasMore: boolean;
+  hasMoreAfter: boolean;
+}
+
+export interface DMSendRequest {
+  userId: number;
+  content: string;
+}
+
+export interface DMEditRequest {
+  messageId: number;
+  content: string;
+}
+
+export interface DMDeleteRequest {
+  messageId: number;
+}
+
+/** Moves your own read marker up. It never moves backwards. */
+export interface DMReadRequest {
+  userId: number;
+  messageId: number;
+}
+
 export interface RoleCreateRequest {
   name: string;
   color?: string;
@@ -631,6 +765,28 @@ export interface MessageEvent {
 export interface MessageDeletedEvent {
   messageId: number;
   channelId: number;
+}
+
+/**
+ * One private line, delivered to the two people in it. The conversation
+ * travels with it because the receiving side may never have heard of it: the
+ * first thing somebody says to you is also how you learn the thread exists.
+ */
+export interface DMCreatedEvent {
+  conversation: Conversation;
+  message: DirectMessage;
+}
+
+export interface DMUpdatedEvent {
+  /** The other participant, as everywhere. */
+  userId: number;
+  message: DirectMessage;
+}
+
+export interface DMDeletedEvent {
+  userId: number;
+  conversationId: number;
+  messageId: number;
 }
 
 export interface RoleEvent {
@@ -802,6 +958,10 @@ export function describeError(error: unknown): string {
       return t("errors.storage_full");
     case "uploads_disabled":
       return t("errors.uploads_disabled");
+    case "dm_disabled":
+      return t("errors.dm_disabled");
+    case "dm_blocked":
+      return t("errors.dm_blocked");
     case "voice_disabled":
       return t("errors.voice_disabled");
     case "voice_failed":

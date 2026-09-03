@@ -206,6 +206,146 @@
   min-height: 0;
 }
 
+/* --- Direct Messages List in Sidebar --- */
+
+.dm-list {
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.dm-list__label {
+  display: flex;
+  align-items: center;
+  padding: 4px 4px 6px 2px;
+  font-size: var(--font-size-caption, 11px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.dm-list__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  margin-top: 1px;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--speed) ease, color var(--speed) ease;
+  user-select: none;
+}
+
+.dm-list__item:hover {
+  background: var(--hover);
+  color: var(--text-muted);
+}
+
+.dm-list__item--active {
+  background: var(--selected);
+  color: var(--text);
+}
+
+.dm-list__item--unread {
+  color: var(--text);
+}
+
+.dm-list__item--unread .dm-list__name {
+  font-weight: 700;
+}
+
+.dm-list__ghost {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  flex-shrink: 0;
+}
+
+.dm-list__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.dm-list__name {
+  font-size: var(--font-size-body, 14px);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+.dm-list__preview {
+  font-size: 11px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.dm-list__item--active .dm-list__preview {
+  color: var(--text-muted);
+}
+
+.dm-list__badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.dm-list__close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color var(--speed) ease, background var(--speed) ease;
+}
+
+.dm-list__close:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.dm-list__item:hover .dm-list__close {
+  display: flex;
+}
+
+.dm-list__item--unread:not(:hover) .dm-list__close {
+  display: none;
+}
+
+.dm-list__item--unread:hover .dm-list__badge {
+  display: none;
+}
+
 .category {
   margin-top: 14px;
   position: relative;

@@ -454,6 +454,17 @@
   cursor: pointer;
 }
 
+/* A choice that is off the table until the switch above it is on. */
+.settings-radio-card:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings-radio-card:has(input:disabled):hover {
+  background: var(--bg-input);
+  border-color: var(--border);
+}
+
 .settings-radio-card__body {
   display: flex;
   flex-direction: column;

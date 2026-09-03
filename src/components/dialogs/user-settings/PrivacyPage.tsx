@@ -1,12 +1,42 @@
 import { useState } from "react";
 import { useTranslation } from "@/lib/i18n";
+import { describeError, type DMPrivacy } from "@/lib/protocol";
+import { useSession } from "@/store/session";
 
 export function PrivacyPage() {
   const { t } = useTranslation();
-  const [allowDMs, setAllowDMs] = useState(true);
+  const self = useSession((state) => state.self);
+  const server = useSession((state) => state.server);
+  const setDMPrivacy = useSession((state) => state.setDMPrivacy);
+
+  const privacy: DMPrivacy = self?.dmPrivacy ?? "everyone";
+  const allowed = privacy !== "none";
+  // Which door to reopen when the switch goes back on. Somebody who narrowed
+  // it to registered members and then turned it off meant the narrowing, not
+  // "everyone from now on".
+  const [lastScope, setLastScope] = useState<Exclude<DMPrivacy, "none">>(
+    privacy === "registered" ? "registered" : "everyone",
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // A server can carry no private conversations at all. The setting still
+  // means something the moment somebody connects to one that does, so it is
+  // shown and disabled rather than hidden.
+  const supported = server?.directMessages ?? false;
+
   const [telemetry, setTelemetry] = useState(false);
   const [embeds, setEmbeds] = useState(true);
-  const [friendScope, setFriendScope] = useState<"everyone" | "mutual">("everyone");
+
+  function choose(next: DMPrivacy) {
+    if (next === privacy) return;
+    if (next !== "none") setLastScope(next);
+    setBusy(true);
+    setError(null);
+    void setDMPrivacy(next)
+      .catch((caught) => setError(describeError(caught)))
+      .finally(() => setBusy(false));
+  }
 
   return (
     <div className="settings-section">
@@ -19,6 +49,8 @@ export function PrivacyPage() {
         </p>
       </header>
 
+      {error ? <div className="alert alert--danger">{error}</div> : null}
+
       <div className="settings-card">
         <div className="settings-row">
           <div className="settings-row__info">
@@ -26,14 +58,17 @@ export function PrivacyPage() {
               {t("dialogs.userSettings.privacy.dmTitle")}
             </h3>
             <p className="settings-card__subtitle">
-              {t("dialogs.userSettings.privacy.dmDesc")}
+              {supported
+                ? t("dialogs.userSettings.privacy.dmDesc")
+                : t("dialogs.userSettings.privacy.dmUnsupported")}
             </p>
           </div>
           <label className="settings-switch">
             <input
               type="checkbox"
-              checked={allowDMs}
-              onChange={(e) => setAllowDMs(e.target.checked)}
+              checked={allowed}
+              disabled={busy || !self}
+              onChange={(e) => choose(e.target.checked ? lastScope : "none")}
             />
             <span className="settings-switch__slider" />
           </label>
@@ -42,36 +77,43 @@ export function PrivacyPage() {
 
       <div className="settings-card" style={{ marginTop: 16 }}>
         <h3 className="settings-card__title">
-          {t("dialogs.userSettings.privacy.friendRequestsTitle")}
+          {t("dialogs.userSettings.privacy.dmScopeTitle")}
         </h3>
+        <p className="settings-card__subtitle">
+          {t("dialogs.userSettings.privacy.dmScopeDesc")}
+        </p>
         <div className="settings-radio-group" style={{ marginTop: 12 }}>
-          <label className={`settings-radio-card ${friendScope === "everyone" ? "settings-radio-card--active" : ""}`}>
-            <input
-              type="radio"
-              name="friend-scope"
-              checked={friendScope === "everyone"}
-              onChange={() => setFriendScope("everyone")}
-            />
-            <span className="settings-radio-card__body">
-              <span className="settings-radio-card__title">
-                {t("dialogs.userSettings.privacy.friendEveryone")}
+          {(
+            [
+              ["everyone", "dmEveryone", "dmEveryoneDesc"],
+              ["registered", "dmRegistered", "dmRegisteredDesc"],
+            ] as const
+          ).map(([scope, label, hint]) => (
+            <label
+              key={scope}
+              className={
+                privacy === scope
+                  ? "settings-radio-card settings-radio-card--active"
+                  : "settings-radio-card"
+              }
+            >
+              <input
+                type="radio"
+                name="dm-scope"
+                checked={privacy === scope}
+                disabled={busy || !allowed || !self}
+                onChange={() => choose(scope)}
+              />
+              <span className="settings-radio-card__body">
+                <span className="settings-radio-card__title">
+                  {t(`dialogs.userSettings.privacy.${label}`)}
+                </span>
+                <span className="settings-card__subtitle">
+                  {t(`dialogs.userSettings.privacy.${hint}`)}
+                </span>
               </span>
-            </span>
-          </label>
-
-          <label className={`settings-radio-card ${friendScope === "mutual" ? "settings-radio-card--active" : ""}`}>
-            <input
-              type="radio"
-              name="friend-scope"
-              checked={friendScope === "mutual"}
-              onChange={() => setFriendScope("mutual")}
-            />
-            <span className="settings-radio-card__body">
-              <span className="settings-radio-card__title">
-                {t("dialogs.userSettings.privacy.friendMutual")}
-              </span>
-            </span>
-          </label>
+            </label>
+          ))}
         </div>
       </div>
 

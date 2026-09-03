@@ -14,10 +14,21 @@ interface MemberDialogProps {
   userId: number;
   anchorRect?: DOMRect;
   onClose(): void;
+  /**
+   * Show the conversation with this member. The card writes the first line
+   * itself and then hands the reader over to the panel, which is where the
+   * reply will arrive.
+   */
+  onOpenConversation?(userId: number): void;
 }
 
 /** A Discord-style member profile card popout. */
-export function MemberDialog({ userId, anchorRect, onClose }: MemberDialogProps) {
+export function MemberDialog({
+  userId,
+  anchorRect,
+  onClose,
+  onOpenConversation,
+}: MemberDialogProps) {
   const { t } = useTranslation();
   const user = useSession(
     (state) => state.users.get(userId) ?? (state.self?.id === userId ? state.self : undefined),
@@ -30,6 +41,7 @@ export function MemberDialog({ userId, anchorRect, onClose }: MemberDialogProps)
   const setRoleMembership = useSession((state) => state.setRoleMembership);
   const moveUser = useSession((state) => state.moveUser);
   const kickUser = useSession((state) => state.kickUser);
+  const sendDirectMessage = useSession((state) => state.sendDirectMessage);
   const permissions = useMyPermissions();
 
   const voiceState = useSession((state) => state.voiceStates.get(userId));
@@ -44,6 +56,9 @@ export function MemberDialog({ userId, anchorRect, onClose }: MemberDialogProps)
   const [confirmKick, setConfirmKick] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [showRoleManager, setShowRoleManager] = useState(false);
+  /** The first line of a conversation, written from the card that starts it. */
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
 
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -116,6 +131,15 @@ export function MemberDialog({ userId, anchorRect, onClose }: MemberDialogProps)
 
   const bannerSrc = resolveAvatarUrl(user.banner, address);
   const isSelf = user.id === self.id;
+  // Three separate reasons the box may be closed, and they read differently:
+  // the server carries none, this member may not send any, or they turned
+  // their own off — which stops their writing as well as everybody else's.
+  const dmAvailable = !isSelf && (server?.directMessages ?? false);
+  const dmDisabledReason = !has(permissions, Perm.SendDirectMessages)
+    ? t("dm.noPermission")
+    : self.dmPrivacy === "none"
+      ? t("dm.selfDisabled")
+      : null;
   const canModerate = outranks(self, user, roles);
   // Moving somebody between voice channels and kicking them both act on a
   // connection, so neither is offered for a member who is away. Renaming and
@@ -378,6 +402,50 @@ export function MemberDialog({ userId, anchorRect, onClose }: MemberDialogProps)
                   ))}
                 </select>
               </div>
+            </>
+          ) : null}
+
+          {/* Write to them, which is what most of these cards are opened for */}
+          {dmAvailable ? (
+            <>
+              <div className="profile-card__divider" />
+              <form
+                className="profile-card__dm"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const content = draft.trim();
+                  if (content === "" || sending || dmDisabledReason) return;
+                  setSending(true);
+                  setError(null);
+                  void sendDirectMessage(user.id, content)
+                    .then(() => {
+                      setDraft("");
+                      // The reply lands in the conversation, not here, so the
+                      // card gets out of the way once the line is away.
+                      onOpenConversation?.(user.id);
+                      onClose();
+                    })
+                    .catch((caught) => setError(describeError(caught)))
+                    .finally(() => setSending(false));
+                }}
+              >
+                <input
+                  className="input profile-card__dm-input"
+                  value={draft}
+                  disabled={sending || dmDisabledReason !== null}
+                  placeholder={dmDisabledReason ?? t("dm.placeholder", { name: user.nickname })}
+                  aria-label={t("dm.messageNamed", { name: user.nickname })}
+                  maxLength={2000}
+                  onChange={(event) => setDraft(event.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="btn btn--primary btn--sm"
+                  disabled={sending || draft.trim() === "" || dmDisabledReason !== null}
+                >
+                  {t("dm.message")}
+                </button>
+              </form>
             </>
           ) : null}
 

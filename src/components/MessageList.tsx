@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useTranslation } from "@/lib/i18n";
 import { extractUrls, getDomain } from "@/lib/links";
@@ -6,7 +6,7 @@ import { EMPTY_MENTIONS, mentionsSelf, type MentionDirectory } from "@/lib/menti
 import { openExternalUrl } from "@/lib/open";
 import { isDomainTrusted } from "@/lib/storage";
 import { GROUPING_WINDOW_SECONDS, formatDay, formatFull, formatTime, sameDay } from "@/lib/time";
-import type { Message, Role, User } from "@/lib/protocol";
+import type { MessageBase, Role, User } from "@/lib/protocol";
 import type { JumpTarget } from "@/store/session";
 import { colorRoleOf } from "@/store/selectors";
 import { Avatar } from "./Avatar";
@@ -22,7 +22,7 @@ import { MessageAttachments } from "./attachments/MessageAttachments";
  * timestamp, or continues one, showing neither.
  */
 interface Row {
-  message: Message;
+  message: MessageBase;
   /** The day separator to draw above this message, if any. */
   daySeparator: string | null;
   /** Whether this message starts a new block rather than continuing one. */
@@ -34,7 +34,7 @@ interface Row {
  * messages from one author, close together in time and on the same day, share
  * a single header.
  */
-export function buildRows(messages: readonly Message[], now: Date = new Date()): Row[] {
+export function buildRows(messages: readonly MessageBase[], now: Date = new Date()): Row[] {
   const rows: Row[] = [];
 
   for (const [index, message] of messages.entries()) {
@@ -60,7 +60,7 @@ export function buildRows(messages: readonly Message[], now: Date = new Date()):
 
 interface MessageListProps {
   channelName: string;
-  messages: readonly Message[];
+  messages: readonly MessageBase[];
   users: ReadonlyMap<number, User>;
   roles: ReadonlyMap<number, Role>;
   /** The reader: whose messages may be edited, and which of these name them. */
@@ -78,6 +78,14 @@ interface MessageListProps {
   canManageMessages: boolean;
   /** Where a search result asked the view to go, when it is in this channel. */
   jump: JumpTarget | null;
+  /**
+   * What stands above the first message ever written here. A channel says so
+   * in the words a channel uses; a private conversation has its own, which is
+   * the only thing about drawing one that differs.
+   */
+  startIcon?: ReactNode;
+  startTitle?: string;
+  startBody?: string;
   onJumpDone(nonce: number): void;
   onLoadOlder(): void;
   onLoadNewer(): void;
@@ -101,6 +109,9 @@ export function MessageList({
   error,
   canManageMessages,
   jump,
+  startIcon,
+  startTitle,
+  startBody,
   onJumpDone,
   onLoadOlder,
   onLoadNewer,
@@ -124,12 +135,12 @@ export function MessageList({
   const [landed, setLanded] = useState<number | null>(null);
 
   const [editing, setEditing] = useState<number | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<Message | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<MessageBase | null>(null);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    message: Message;
+    message: MessageBase;
   } | null>(null);
 
   const rows = useMemo(() => buildRows(messages), [messages]);
@@ -146,7 +157,7 @@ export function MessageList({
     return marked;
   }, [messages, self, roles]);
 
-  function requestDelete(message: Message, shiftKey = false) {
+  function requestDelete(message: MessageBase, shiftKey = false) {
     if (shiftKey) {
       onDelete(message.id);
     } else {
@@ -347,11 +358,13 @@ export function MessageList({
         </div>
       ) : (
         <div className="chat__start">
-          <span className="chat__start-icon">
-            <HashIcon size={26} />
-          </span>
-          <h2 className="chat__start-title">{t("chat.welcomeTitle", { channel: channelName })}</h2>
-          <p className="chat__start-body">{t("chat.welcomeSubtitle", { channel: channelName })}</p>
+          <span className="chat__start-icon">{startIcon ?? <HashIcon size={26} />}</span>
+          <h2 className="chat__start-title">
+            {startTitle ?? t("chat.welcomeTitle", { channel: channelName })}
+          </h2>
+          <p className="chat__start-body">
+            {startBody ?? t("chat.welcomeSubtitle", { channel: channelName })}
+          </p>
         </div>
       )}
 
@@ -443,7 +456,7 @@ export function MessageList({
 }
 
 interface MessageRowProps {
-  message: Message;
+  message: MessageBase;
   startsBlock: boolean;
   /** The live user record, when the author happens to be connected. */
   author: User | undefined;

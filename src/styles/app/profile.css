@@ -552,6 +552,25 @@
   margin: 2px 0;
 }
 
+/* Quick DM from Profile Card */
+.profile-card__dm {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.profile-card__dm-input {
+  flex: 1;
+  height: 32px;
+  font-size: 13px;
+}
+
+.profile-card__dm .btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* Discord Role Pills */
 .discord-role-pill {
   display: inline-flex;

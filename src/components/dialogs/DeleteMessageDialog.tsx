@@ -1,13 +1,13 @@
 import { isEmojiOnly } from "@/lib/emoji";
 import { useTranslation } from "@/lib/i18n";
 import { formatFull, formatTime } from "@/lib/time";
-import type { Message, Role, User } from "@/lib/protocol";
+import type { MessageBase, Role, User } from "@/lib/protocol";
 import { colorRoleOf } from "@/store/selectors";
 import { Avatar } from "../Avatar";
 import { Modal } from "../Modal";
 
 interface DeleteMessageDialogProps {
-  message: Message;
+  message: MessageBase;
   author?: User;
   roles: ReadonlyMap<number, Role>;
   onConfirm(): void;

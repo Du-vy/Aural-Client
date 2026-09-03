@@ -59,6 +59,7 @@ useSession.subscribe = (listener) => foregroundStore().subscribe(listener);
 
 export {
   CHANNEL_WINDOW,
+  EMPTY_DIRECT_HISTORY,
   EMPTY_HISTORY,
   EMPTY_SEARCH,
   IDLE_CHANNEL_WINDOW,
@@ -72,6 +73,7 @@ export type {
   ConnectOptions,
   ConnectionState,
   ConnectionStatus,
+  DirectHistory,
   JumpTarget,
   SearchState,
   Unread,
@@ -79,6 +81,8 @@ export type {
 export type {
   Attachment,
   Channel,
+  Conversation,
+  DirectMessage,
   Message,
   MessageSearchHit,
   Role,

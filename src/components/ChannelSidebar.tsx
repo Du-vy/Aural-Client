@@ -11,6 +11,7 @@ import {
   type ChannelNode,
 } from "@/store/selectors";
 import { Avatar } from "./Avatar";
+import { DirectMessageList } from "./DirectMessageList";
 import {
   BroadcastIcon,
   ChevronIcon,
@@ -26,6 +27,9 @@ import {
 interface ChannelSidebarProps {
   selectedChannelId: number | null;
   onSelectChannel(channelId: number): void;
+  activeConversationId?: number | null;
+  onSelectConversation?(userId: number): void;
+  onCloseConversation?(userId: number): void;
   /**
    * Entering a voice channel. It goes back up rather than straight to the
    * store because there is one microphone across every server open, so a call
@@ -67,6 +71,9 @@ function sameTarget(a: DropTarget | null, b: DropTarget | null): boolean {
 export function ChannelSidebar({
   selectedChannelId,
   onSelectChannel,
+  activeConversationId,
+  onSelectConversation,
+  onCloseConversation,
   onJoinVoice,
   onCreateChannel,
   onOpenMember,
@@ -454,6 +461,13 @@ export function ChannelSidebar({
       }}
       onDragEnd={clearDrag}
     >
+      <DirectMessageList
+        activeUserId={activeConversationId ?? null}
+        onSelect={(userId) => onSelectConversation?.(userId)}
+        onCloseConversation={onCloseConversation}
+        onContextMenuMember={onContextMenuMember}
+      />
+
       {tree.length === 0 ? (
         <p className="connect__empty">{t("server.channels")}</p>
       ) : (

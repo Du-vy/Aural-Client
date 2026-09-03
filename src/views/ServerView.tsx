@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ChannelSidebar } from "@/components/ChannelSidebar";
 import { ChatPanel } from "@/components/ChatPanel";
+import { DirectMessagePanel } from "@/components/DirectMessagePanel";
 import { ContextMenu, type MenuEntry } from "@/components/ContextMenu";
 import {
   AuralMark,
@@ -17,6 +18,7 @@ import {
   MicOffIcon,
   HashIcon,
   MenuIcon,
+  MessageSquareIcon,
   PencilIcon,
   PlusIcon,
   ShieldIcon,
@@ -108,6 +110,10 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   const address = useSession((state) => state.address);
   const joinChannel = useSession((state) => state.joinChannel);
   const setActiveChannel = useSession((state) => state.setActiveChannel);
+  const activeConversationId = useSession((state) => state.activeConversationId);
+  const setActiveConversation = useSession((state) => state.setActiveConversation);
+  const openConversation = useSession((state) => state.openConversation);
+  const closeConversation = useSession((state) => state.closeConversation);
   // The rail is about every server this client knows, not the one on screen,
   // so it reads the registry: bookmarks for the entries, and each connection
   // for what its entry has to say.
@@ -137,14 +143,17 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   const [resizingSidebar, setResizingSidebar] = useState(false);
 
   const selected = selectedChannelId === null ? null : (channels.get(selectedChannelId) ?? null);
+  const activePeer = activeConversationId !== null ? users.get(activeConversationId) : null;
+  const activePeerName = activePeer?.nickname ?? t("common.member");
 
   useEffect(() => {
+    if (activeConversationId !== null) return;
     if (selectedChannelId !== null && channels.has(selectedChannelId)) return;
     const firstText = [...channels.values()]
       .filter((channel) => channel.type === "text")
       .sort((a, b) => a.position - b.position)[0];
     setSelectedChannelId(firstText?.id ?? null);
-  }, [channels, selectedChannelId]);
+  }, [channels, selectedChannelId, activeConversationId]);
 
   // What is being read decides three things at once: where an arriving message
   // does not count as unread, which channel keeps its full window, and what the
@@ -191,10 +200,11 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   // list does the rest once that channel is on screen.
   useEffect(() => {
     if (jump && channels.has(jump.channelId)) {
+      setActiveConversation(null);
       setSelectedChannelId(jump.channelId);
       setDrawerOpen(false);
     }
-  }, [jump, channels]);
+  }, [jump, channels, setActiveConversation]);
 
   // Ctrl+F, the shortcut everything with a search box answers to.
   useEffect(() => {
@@ -429,6 +439,20 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         },
       ];
 
+      if (!isSelf && (server?.directMessages ?? false)) {
+        entries.push({
+          id: "message",
+          label: t("contextMenu.message"),
+          icon: <MessageSquareIcon size={16} />,
+          onClick: () => {
+            setSelectedChannelId(null);
+            void openConversation(u.id).then(() => {
+              setActiveConversation(u.id);
+            });
+          },
+        });
+      }
+
       if (canChangeNick) {
         entries.push({
           id: "change-nick",
@@ -627,8 +651,18 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         <ChannelSidebar
           selectedChannelId={selectedChannelId}
           onSelectChannel={(id) => {
+            setActiveConversation(null);
             setSelectedChannelId(id);
             setDrawerOpen(false);
+          }}
+          activeConversationId={activeConversationId}
+          onSelectConversation={(userId) => {
+            setSelectedChannelId(null);
+            setActiveConversation(userId);
+            setDrawerOpen(false);
+          }}
+          onCloseConversation={(userId) => {
+            closeConversation(userId);
           }}
           onJoinVoice={joinVoice}
           onCreateChannel={(parentId) => setDialog({ kind: "channel", parentId })}
@@ -673,7 +707,12 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           </button>
 
           <span className="topbar__title">
-            {selected ? (
+            {activeConversationId !== null ? (
+              <>
+                <MessageSquareIcon size={17} />
+                <span>{activePeerName}</span>
+              </>
+            ) : selected ? (
               <>
                 {selected.type === "voice" ? <VoiceIcon size={17} /> : <HashIcon size={17} />}
                 <span>{selected.name}</span>
@@ -682,9 +721,24 @@ export function ServerView({ onAddServer }: ServerViewProps) {
               <span>{server.name}</span>
             )}
           </span>
-          {selected?.topic ? <span className="topbar__topic">{selected.topic}</span> : null}
+          {activeConversationId !== null && activePeer?.customStatus ? (
+            <span className="topbar__topic">{activePeer.customStatus}</span>
+          ) : selected?.topic ? (
+            <span className="topbar__topic">{selected.topic}</span>
+          ) : null}
 
           <span className="topbar__spacer" />
+
+          {activeConversationId !== null ? (
+            <button
+              className="iconbtn"
+              onClick={() => setActiveConversation(null)}
+              title={t("dm.close")}
+              aria-label={t("dm.close")}
+            >
+              <CloseIcon size={18} />
+            </button>
+          ) : null}
 
           <SearchBar />
 
@@ -712,7 +766,16 @@ export function ServerView({ onAddServer }: ServerViewProps) {
           </div>
         ) : null}
 
-        {selected?.type === "text" ? (
+        {activeConversationId !== null ? (
+          <DirectMessagePanel
+            key={activeConversationId}
+            userId={activeConversationId}
+            onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
+            onContextMenuMember={(e, user) => {
+              setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
+            }}
+          />
+        ) : selected?.type === "text" ? (
           <ChatPanel
             key={selected.id}
             channel={selected}
@@ -796,9 +859,15 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       ) : null}
       {dialog.kind === "member" ? (
         <MemberDialog
+          key={dialog.userId}
           userId={dialog.userId}
           anchorRect={dialog.anchorRect}
           onClose={() => setDialog({ kind: "none" })}
+          onOpenConversation={(userId) => {
+            setSelectedChannelId(null);
+            setActiveConversation(userId);
+            setDrawerOpen(false);
+          }}
         />
       ) : null}
       {dialog.kind === "nickname" ? (
@@ -879,11 +948,24 @@ function RailServer({
   const { t } = useTranslation();
   const status = useConnection(entry.id, (state) => state.status);
   const unread = useConnection(entry.id, (state) => state.unread);
+  const conversations = useConnection(entry.id, (state) => state.conversations);
   const name = useConnection(entry.id, (state) => state.server?.name) ?? entry.name;
   const inCall = useServerRegistry((state) => state.voiceId === entry.id);
   const dialing = useServerRegistry((state) => state.dialing.includes(entry.id));
 
-  const waiting = useMemo(() => unreadTotals(unread), [unread]);
+  const waiting = useMemo(() => {
+    const totals = unreadTotals(unread);
+    let dmCount = 0;
+    if (conversations) {
+      for (const conv of conversations.values()) {
+        dmCount += conv.unread;
+      }
+    }
+    return {
+      count: totals.count + dmCount,
+      mentions: totals.mentions + dmCount,
+    };
+  }, [unread, conversations]);
 
   const classes = ["rail__item"];
   if (active) classes.push("rail__item--active");

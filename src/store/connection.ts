@@ -32,6 +32,14 @@ import {
   type ChannelEvent,
   type ChannelType,
   type ChannelUpdateRequest,
+  type Conversation,
+  type DirectMessage,
+  type DMCreatedEvent,
+  type DMDeletedEvent,
+  type DMHistoryResult,
+  type DMListResult,
+  type DMPrivacy,
+  type DMUpdatedEvent,
   type ICEServer,
   type Message,
   type MessageDeletedEvent,
@@ -101,6 +109,29 @@ export interface ChannelHistory {
 }
 
 export const EMPTY_HISTORY: ChannelHistory = {
+  messages: [],
+  hasMore: false,
+  hasMoreAfter: false,
+  loading: false,
+  error: null,
+};
+
+/**
+ * What this client holds for one private conversation.
+ *
+ * It is the channel shape with the channel taken out, and it is held under the
+ * other person's id rather than the thread's: a name in the member list is
+ * what somebody starts a conversation from, and the thread may not exist yet.
+ */
+export interface DirectHistory {
+  messages: DirectMessage[];
+  hasMore: boolean;
+  hasMoreAfter: boolean;
+  loading: boolean;
+  error: string | null;
+}
+
+export const EMPTY_DIRECT_HISTORY: DirectHistory = {
   messages: [],
   hasMore: false,
   hasMoreAfter: false,
@@ -292,6 +323,23 @@ export interface ConnectionState {
   activeChannelId: number | null;
 
   /**
+   * Every private conversation on this server, keyed by the other person.
+   *
+   * Held whether or not the messages in it are: this is what a badge is drawn
+   * from, and it is the whole of what a connection in the background keeps
+   * about its private threads. An entry with a zero `id` is one this client
+   * opened and nobody has written in yet, which the server has never heard of.
+   */
+  conversations: Map<number, Conversation>;
+  /**
+   * The lines of each conversation, keyed the same way. Absent until first
+   * opened, and empty throughout for a connection in the background.
+   */
+  directHistory: Map<number, DirectHistory>;
+  /** The conversation being read on this connection, or null. */
+  activeConversationId: number | null;
+
+  /**
    * Everybody's voice state on this server, across every channel this client
    * can see. It is per connection rather than in the voice store because user
    * ids are per server: one map for all of them would draw the mute icon of
@@ -324,8 +372,11 @@ export interface ConnectionState {
     customStatus?: string;
     avatar?: string | null;
     banner?: string | null;
+    dmPrivacy?: DMPrivacy;
     userId?: number;
   }): Promise<void>;
+  /** Sets who may write to you privately. Your own setting, never anybody's else. */
+  setDMPrivacy(privacy: DMPrivacy): Promise<void>;
   uploadAvatar(file: File, onProgress?: (fraction: number) => void): Promise<{ url: string }>;
   uploadBanner(file: File, onProgress?: (fraction: number) => void): Promise<{ url: string }>;
   kickUser(userId: number, reason?: string): Promise<void>;
@@ -397,6 +448,26 @@ export interface ConnectionState {
   editMessage(messageId: number, content: string): Promise<void>;
   deleteMessage(messageId: number): Promise<void>;
 
+  /**
+   * Opens the conversation with somebody: loads its newest page, and puts it
+   * in the list even when nothing has been said in it yet.
+   */
+  openConversation(userId: number): Promise<void>;
+  /** Loads the page before the oldest line held. */
+  loadOlderDirect(userId: number): Promise<void>;
+  sendDirectMessage(userId: number, content: string): Promise<void>;
+  editDirectMessage(messageId: number, content: string): Promise<void>;
+  deleteDirectMessage(messageId: number): Promise<void>;
+  /**
+   * Names the conversation being read, which is what decides where an arriving
+   * private message does not count as unread.
+   */
+  setActiveConversation(userId: number | null): void;
+  /** Re-reads the whole list, which a client only needs after a long gap. */
+  refreshConversations(): Promise<void>;
+  /** Drops one conversation from the held list. */
+  closeConversation(userId: number): void;
+
   createRole(input: { name: string; color?: string; permissions?: string; hoist?: boolean }): Promise<void>;
   updateRole(input: {
     roleId: number;
@@ -466,8 +537,8 @@ function asOffline(user: User): User {
  * while a request is in flight, and ids are monotonic, so sorting by id both
  * orders the result and makes the overlap easy to drop.
  */
-function mergeMessages(...runs: Message[][]): Message[] {
-  const byId = new Map<number, Message>();
+function mergeMessages<T extends { id: number }>(...runs: T[][]): T[] {
+  const byId = new Map<number, T>();
   for (const run of runs) {
     for (const message of run) byId.set(message.id, message);
   }
@@ -485,11 +556,11 @@ function mergeMessages(...runs: Message[][]): Message[] {
  * makes a trim override the page's own account of where the channel ends,
  * which after a cut is no longer the client's.
  */
-export function clampWindow(
-  messages: Message[],
+export function clampWindow<T extends { id: number }>(
+  messages: T[],
   keep: "newest" | "oldest",
   limit: number = CHANNEL_WINDOW,
-): Partial<ChannelHistory> & { messages: Message[] } {
+): { messages: T[]; hasMore?: boolean; hasMoreAfter?: boolean } {
   if (messages.length <= limit) return { messages };
   return keep === "newest"
     ? { messages: messages.slice(-limit), hasMore: true }
@@ -685,6 +756,10 @@ export function createConnection({
       const voiceStates = new Map((ready.voiceStates ?? []).map((state) => [state.userId, state]));
       const speaking = new Set([...get().speaking].filter((userId) => voiceStates.has(userId)));
 
+      // Private threads survive a resync whole. They hang off a pair of
+      // identities rather than off the channel tree, so nothing a permission
+      // change does can take one away, and the snapshot's own list is the
+      // authority on what is waiting in each.
       set({
         server: ready.server,
         self: ready.user,
@@ -693,6 +768,9 @@ export function createConnection({
         roles: indexById(ready.roles),
         history,
         unread,
+        conversations: new Map(
+          (ready.conversations ?? []).map((conversation) => [conversation.userId, conversation]),
+        ),
         voiceStates,
         speaking,
       });
@@ -724,6 +802,57 @@ export function createConnection({
       const history = new Map(get().history);
       history.set(channelId, { ...(history.get(channelId) ?? EMPTY_HISTORY), ...patch });
       set({ history });
+    }
+
+    /**
+     * Applies a patch to one conversation's held lines, creating the entry if
+     * needed. A connection in the background holds none, for the same reason it
+     * holds no channel: the badge is what is worth keeping, and the lines
+     * behind it are one request away.
+     */
+    function patchDirect(userId: number, patch: Partial<DirectHistory>): void {
+      if (!host.foreground()) return;
+      const directHistory = new Map(get().directHistory);
+      directHistory.set(userId, {
+        ...(directHistory.get(userId) ?? EMPTY_DIRECT_HISTORY),
+        ...patch,
+      });
+      set({ directHistory });
+    }
+
+    /** Puts one conversation in the list, or replaces what was there. */
+    function upsertConversation(conversation: Conversation): void {
+      const conversations = new Map(get().conversations);
+      conversations.set(conversation.userId, conversation);
+      set({ conversations });
+    }
+
+    /** Whether somebody is actually looking at this conversation right now. */
+    function watchingConversation(userId: number): boolean {
+      return (
+        host.foreground() && get().activeConversationId === userId && !windowHidden()
+      );
+    }
+
+    /**
+     * Clears a conversation's badge and tells the server how far this side has
+     * read, so the badge stays cleared across a restart.
+     *
+     * The marker is the server's and only ever moves forwards, so a failed
+     * request costs nothing: the next read sends a newer id.
+     */
+    function markConversationRead(userId: number, messageId: number): void {
+      const conversation = get().conversations.get(userId);
+      if (conversation && conversation.unread > 0) {
+        upsertConversation({ ...conversation, unread: 0 });
+      }
+      if (messageId <= 0) return;
+      const gateway = get().gateway;
+      if (!gateway?.isOpen) return;
+      void gateway.request(Op.DMRead, { userId, messageId }).catch(() => {
+        // The badge is already clear here, and the marker catches up on the
+        // next line read in this conversation.
+      });
     }
 
     /** Records that a channel was read just now, which is what the cut sorts on. */
@@ -1000,6 +1129,54 @@ export function createConnection({
           return;
         }
 
+        case Ev.DMCreated: {
+          const { conversation, message } = payload as DMCreatedEvent;
+          // The badge the server counted stands, unless the reader is looking
+          // at this very conversation — in which case the line is read the
+          // moment it arrives, and saying so is what keeps the marker with it.
+          const watching = watchingConversation(conversation.userId);
+          upsertConversation(watching ? { ...conversation, unread: 0 } : conversation);
+
+          const current = state.directHistory.get(conversation.userId);
+          if (current && !current.hasMoreAfter && !current.messages.some((h) => h.id === message.id)) {
+            patchDirect(conversation.userId, clampWindow([...current.messages, message], "newest"));
+          }
+          if (watching) markConversationRead(conversation.userId, message.id);
+          return;
+        }
+
+        case Ev.DMUpdated: {
+          const { userId, message } = payload as DMUpdatedEvent;
+          const conversation = state.conversations.get(userId);
+          if (conversation?.lastMessage?.id === message.id) {
+            upsertConversation({ ...conversation, lastMessage: message });
+          }
+          const current = state.directHistory.get(userId);
+          if (!current) return;
+          patchDirect(userId, {
+            messages: current.messages.map((held) => (held.id === message.id ? message : held)),
+          });
+          return;
+        }
+
+        case Ev.DMDeleted: {
+          const { userId, messageId } = payload as DMDeletedEvent;
+          const current = state.directHistory.get(userId);
+          const remaining = current
+            ? current.messages.filter((held) => held.id !== messageId)
+            : [];
+          if (current) patchDirect(userId, { messages: remaining });
+
+          // The preview under a name is the last thing that was said, so a
+          // deleted last line falls back to whatever is still held. With
+          // nothing held there is nothing to show until the list is re-read.
+          const conversation = state.conversations.get(userId);
+          if (conversation?.lastMessage?.id === messageId) {
+            upsertConversation({ ...conversation, lastMessage: remaining.at(-1) });
+          }
+          return;
+        }
+
         case Ev.RoleCreated:
         case Ev.RoleUpdated: {
           const { role } = payload as RoleEvent;
@@ -1069,6 +1246,9 @@ export function createConnection({
         history: new Map(),
         unread: new Map(),
         activeChannelId: null,
+        conversations: new Map(),
+        directHistory: new Map(),
+        activeConversationId: null,
         voiceStates: new Map(),
         speaking: new Set(),
         search: EMPTY_SEARCH,
@@ -1192,6 +1372,9 @@ export function createConnection({
       history: new Map(),
       unread: new Map(),
       activeChannelId: null,
+      conversations: new Map(),
+      directHistory: new Map(),
+      activeConversationId: null,
       voiceStates: new Map(),
       speaking: new Set(),
       search: EMPTY_SEARCH,
@@ -1359,6 +1542,9 @@ export function createConnection({
           history: new Map(),
           unread: new Map(),
           activeChannelId: null,
+          conversations: new Map(),
+          directHistory: new Map(),
+          activeConversationId: null,
           voiceStates: new Map(),
           speaking: new Set(),
           search: EMPTY_SEARCH,
@@ -1378,6 +1564,11 @@ export function createConnection({
         // opening, and that one request is what coming back to a server costs.
         const active = get().activeChannelId;
         if (active !== null) get().markRead(active);
+        const conversation = get().activeConversationId;
+        if (conversation !== null) {
+          const newest = get().directHistory.get(conversation)?.messages.at(-1);
+          markConversationRead(conversation, newest?.id ?? 0);
+        }
       },
 
       enterBackground() {
@@ -1389,6 +1580,8 @@ export function createConnection({
         set({
           history: new Map(),
           activeChannelId: null,
+          directHistory: new Map(),
+          activeConversationId: null,
           search: EMPTY_SEARCH,
           jump: null,
         });
@@ -1735,6 +1928,115 @@ export function createConnection({
         return uploadFile({ address, token, channelId, file, onProgress });
       },
 
+      async setDMPrivacy(privacy) {
+        await requireGateway().request(Op.UserUpdate, { dmPrivacy: privacy });
+      },
+
+      async openConversation(userId) {
+        // A thread the server has never heard of still belongs in the list the
+        // moment somebody opens it: that is what an empty conversation is, and
+        // the first message sent replaces this entry with the real one.
+        if (!get().conversations.has(userId)) {
+          upsertConversation({
+            id: 0,
+            userId,
+            lastMessageAt: Math.floor(Date.now() / 1000),
+            unread: 0,
+          });
+        }
+
+        // Already held, or already on its way: opening a conversation twice is
+        // the normal case, because every render of the view asks.
+        const existing = get().directHistory.get(userId);
+        if (existing && (existing.loading || existing.error === null)) return;
+
+        patchDirect(userId, { loading: true, error: null });
+        try {
+          const page = await requireGateway().request<DMHistoryResult>(Op.DMHistory, { userId });
+          const held = get().directHistory.get(userId)?.messages ?? [];
+          patchDirect(userId, {
+            hasMore: page.hasMore,
+            hasMoreAfter: false,
+            loading: false,
+            error: null,
+            ...clampWindow(mergeMessages(page.messages, held), "newest"),
+          });
+          const newest = get().directHistory.get(userId)?.messages.at(-1);
+          if (newest && watchingConversation(userId)) markConversationRead(userId, newest.id);
+        } catch (error) {
+          patchDirect(userId, { loading: false, error: describeError(error) });
+        }
+      },
+
+      async loadOlderDirect(userId) {
+        const current = get().directHistory.get(userId);
+        if (!current || current.loading || !current.hasMore) return;
+        const oldest = current.messages[0];
+        if (!oldest) return;
+
+        patchDirect(userId, { loading: true, error: null });
+        try {
+          const page = await requireGateway().request<DMHistoryResult>(Op.DMHistory, {
+            userId,
+            before: oldest.id,
+          });
+          const held = get().directHistory.get(userId)?.messages ?? [];
+          patchDirect(userId, {
+            hasMore: page.hasMore,
+            loading: false,
+            error: null,
+            ...clampWindow(mergeMessages(page.messages, held), "oldest"),
+          });
+        } catch (error) {
+          patchDirect(userId, { loading: false, error: describeError(error) });
+        }
+      },
+
+      async sendDirectMessage(userId, content) {
+        await requireGateway().request(Op.DMSend, { userId, content });
+      },
+
+      async editDirectMessage(messageId, content) {
+        await requireGateway().request(Op.DMEdit, { messageId, content });
+      },
+
+      async deleteDirectMessage(messageId) {
+        await requireGateway().request(Op.DMDelete, { messageId });
+      },
+
+      setActiveConversation(userId) {
+        set({ activeConversationId: userId });
+        if (userId === null) return;
+        const newest = get().directHistory.get(userId)?.messages.at(-1);
+        markConversationRead(userId, newest?.id ?? 0);
+      },
+
+      async refreshConversations() {
+        const result = await requireGateway().request<DMListResult>(Op.DMList, {});
+        const conversations = new Map(
+          result.conversations.map((conversation) => [conversation.userId, conversation]),
+        );
+        // A thread this client opened and nobody has written in yet is not one
+        // the server knows about, so it would be dropped by a list that only
+        // held what came back.
+        for (const [userId, held] of get().conversations) {
+          if (held.id === 0 && !conversations.has(userId)) conversations.set(userId, held);
+        }
+        set({ conversations });
+      },
+
+      closeConversation(userId) {
+        const conversations = new Map(get().conversations);
+        conversations.delete(userId);
+        const directHistory = new Map(get().directHistory);
+        directHistory.delete(userId);
+        const patch: Partial<ConnectionState> = { conversations, directHistory };
+        if (get().activeConversationId === userId) {
+          patch.activeConversationId = null;
+        }
+        set(patch);
+      },
+
       async editMessage(messageId, content) {
         await requireGateway().request(Op.MessageEdit, { messageId, content });
       },
@@ -1765,4 +2067,14 @@ export function createConnection({
   });
 }
 
-export type { Attachment, Channel, Message, MessageSearchHit, Role, ServerInfo, User };
+export type {
+  Attachment,
+  Channel,
+  Conversation,
+  DirectMessage,
+  Message,
+  MessageSearchHit,
+  Role,
+  ServerInfo,
+  User,
+};

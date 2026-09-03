@@ -447,7 +447,7 @@ render("server settings dialog", <ServerSettingsDialog onClose={noop} />);
 // is invisible until somebody clicks its tab. Each is asked for by name.
 render("user settings, profile", <UserSettingsDialog onClose={noop} />, ["User Profile", "Profile Identity"]);
 render("user settings, account", <UserSettingsDialog initialTab="account" onClose={noop} />, ["My Account", "Claim Account with Password"]);
-render("user settings, privacy", <UserSettingsDialog initialTab="privacy" onClose={noop} />, ["Friend Requests"]);
+render("user settings, privacy", <UserSettingsDialog initialTab="privacy" onClose={noop} />, ["Who Can Message You"]);
 render("user settings, voice", <UserSettingsDialog initialTab="voice" onClose={noop} />, ["Mic Test"]);
 render("user settings, appearance", <UserSettingsDialog initialTab="appearance" onClose={noop} />, ["Interface Themes", "Message Density"]);
 render("user settings, language", <UserSettingsDialog initialTab="language" onClose={noop} />, ["Interface Language", "Español"]);
@@ -562,7 +562,6 @@ render(
     messages={[
       {
         id: 9,
-        channelId: 2,
         userId: guest.id,
         author: "Bob",
         content: "@Pablo could you look at this",
