@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 
 import { useTranslation } from "@/lib/i18n";
-import { Perm, has, resolveChannelPermissions, resolve } from "@/lib/permissions";
+import { Perm, has, resolveChannelPermissions } from "@/lib/permissions";
 import type { Channel, Role, User, ChannelType } from "@/lib/protocol";
 import { readAccessibility } from "@/lib/storage";
 import { useSession, type Unread } from "@/store/session";
@@ -9,6 +9,7 @@ import { useServers } from "@/store/servers";
 import {
   buildChannelTree,
   everyoneRoleId,
+  permissionsOf,
   usersInChannel,
   type ChannelNode,
 } from "@/store/selectors";
@@ -102,19 +103,13 @@ export function ChannelSidebar({
   const tree = useMemo(() => buildChannelTree(channels), [channels]);
   const everyoneId = useMemo(() => everyoneRoleId(roles), [roles]);
 
-  const canManageServer = useMemo(() => {
-    const held: Role[] = (self?.roles ?? [])
-      .map((id) => roles.get(id))
-      .filter((role): role is Role => role !== undefined);
-    const base = resolve(held);
-    return has(base, Perm.ManageChannels);
-  }, [self, roles]);
+  const canManageServer = useMemo(
+    () => has(permissionsOf(self, roles), Perm.ManageChannels),
+    [self, roles],
+  );
 
   const permissionsIn = useMemo(() => {
-    const held: Role[] = (self?.roles ?? [])
-      .map((id) => roles.get(id))
-      .filter((role): role is Role => role !== undefined);
-    const base = resolve(held);
+    const base = permissionsOf(self, roles);
     return (channelId: number) =>
       resolveChannelPermissions(base, everyoneId, self?.roles ?? [], channelId, channels);
   }, [self, roles, channels, everyoneId]);

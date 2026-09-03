@@ -5,6 +5,7 @@
  */
 
 import {
+  ALL,
   NONE,
   Perm,
   has,
@@ -72,19 +73,44 @@ function rolesOf(user: User | null, roles: ReadonlyMap<number, Role>): Role[] {
   return user.roles.map((id) => roles.get(id)).filter((role): role is Role => role !== undefined);
 }
 
+/**
+ * The rank of whoever owns the server. It sits above every role position, which
+ * is what puts the owner out of everybody's reach: no role can be moved high
+ * enough to match it, so nobody may act on the owner and no role is above the
+ * owner's reach — the managed `admin` role included.
+ */
+export const OWNER_RANK = Number.POSITIVE_INFINITY;
+
+/**
+ * What one member may do, which is everything when they own the server.
+ *
+ * Ownership is a property of the identity rather than a role it holds, exactly
+ * as in Discord: it grants every permission, and stripping the owner of every
+ * role changes none of it.
+ */
+export function permissionsOf(user: User | null, roles: ReadonlyMap<number, Role>): bigint {
+  if (!user) return NONE;
+  if (user.owner) return ALL;
+  return resolve(rolesOf(user, roles));
+}
+
+/** A member's rank, which is what decides who they may act on. */
+export function rankOf(user: User | null, roles: ReadonlyMap<number, Role>): number {
+  if (!user) return 0;
+  if (user.owner) return OWNER_RANK;
+  return rolesOf(user, roles).reduce((highest, role) => Math.max(highest, role.position), 0);
+}
+
 /** The caller's resolved server-wide mask. */
 export function useMyPermissions(): bigint {
-  return useSession((state) => {
-    if (!state.self) return NONE;
-    return resolve(rolesOf(state.self, state.roles));
-  });
+  return useSession((state) => permissionsOf(state.self, state.roles));
 }
 
 /** The caller's mask inside one channel, overwrites and inheritance included. */
 export function useChannelPermissions(channelId: number | null): bigint {
   return useSession((state) => {
     if (!state.self) return NONE;
-    const base = resolve(rolesOf(state.self, state.roles));
+    const base = permissionsOf(state.self, state.roles);
     if (channelId === null) return base;
     return resolveChannelPermissions(
       base,
@@ -223,9 +249,7 @@ export function groupMembers(
 
 /** The caller's rank, which decides who they may act on. */
 export function useMyRank(): number {
-  return useSession((state) =>
-    rolesOf(state.self, state.roles).reduce((highest, role) => Math.max(highest, role.position), 0),
-  );
+  return useSession((state) => rankOf(state.self, state.roles));
 }
 
 /** Whether the caller outranks a member, and so may moderate them. */
@@ -235,20 +259,23 @@ export function outranks(
   roles: ReadonlyMap<number, Role>,
 ): boolean {
   if (!self || self.id === target.id) return false;
-  const rank = (user: User) =>
-    rolesOf(user, roles).reduce((highest, role) => Math.max(highest, role.position), 0);
-  return rank(self) > rank(target);
+  return rankOf(self, roles) > rankOf(target, roles);
 }
 
-/** Roles the caller may hand out: unmanaged, and ranked below their own. */
+/**
+ * Roles the caller may hand out: granted by hand, and ranked below their own.
+ *
+ * The managed `admin` role is at the top of the stack, so it is on this list
+ * for the owner and for nobody else — an administrator does not outrank the
+ * role that made them one.
+ */
 export function assignableRoles(
   self: User | null,
   roles: ReadonlyMap<number, Role>,
 ): Role[] {
   if (!self) return [];
-  const myRank = rolesOf(self, roles).reduce((highest, role) => Math.max(highest, role.position), 0);
-  const mask = resolve(rolesOf(self, roles));
-  if (!has(mask, Perm.ManageRoles)) return [];
+  if (!has(permissionsOf(self, roles), Perm.ManageRoles)) return [];
+  const myRank = rankOf(self, roles);
 
   return [...roles.values()]
     .filter((role) => role.managed !== "everyone" && role.managed !== "registered")

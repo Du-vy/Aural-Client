@@ -464,6 +464,12 @@
   user-select: none;
 }
 
+/* The owner's pill carries the crown's colour, so the badge row reads as one
+   standing rather than as two kinds of the same thing. */
+.profile-card__badge-pill--owner {
+  color: var(--warning);
+}
+
 .profile-card__copy-id {
   background: transparent;
   border: none;

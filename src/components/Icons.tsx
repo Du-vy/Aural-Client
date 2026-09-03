@@ -115,6 +115,14 @@ export const CloseIcon = icon(
 
 export const ShieldIcon = icon(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />);
 
+/** The mark of whoever owns the server, which no role carries. */
+export const CrownIcon = icon(
+  <>
+    <path d="M3 7l4.5 3.5L12 4l4.5 6.5L21 7l-1.8 11H4.8L3 7z" />
+    <line x1="4.8" y1="18" x2="19.2" y2="18" />
+  </>,
+);
+
 export const KeyIcon = icon(
   <>
     <path d="M21 2l-2 2m-7.6 7.6a5 5 0 1 1-7-7 5 5 0 0 1 7 7zm0 0L15 8m0 0l3 3 3-3-3-3" />

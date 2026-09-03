@@ -932,15 +932,15 @@ function ServerIntegrationsPage() {
         </div>
 
         <form onSubmit={handleSave} style={{ marginTop: 16 }}>
-          <div className="settings-field">
-            <label className="settings-field__label" htmlFor="klipy-api-key" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase" }}>
+          <div className="field">
+            <label className="field__label" htmlFor="klipy-api-key">
               {t("dialogs.serverSettings.integrations.klipyKeyLabel")}
             </label>
             <input
               id="klipy-api-key"
               type="text"
-              className="text-input"
-              style={{ width: "100%", fontFamily: "monospace", fontSize: 13 }}
+              className="input"
+              style={{ fontFamily: "var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" }}
               value={klipyKey}
               onChange={(e) => setKlipyKey(e.target.value)}
               placeholder={
@@ -952,7 +952,7 @@ function ServerIntegrationsPage() {
               autoComplete="off"
               spellCheck={false}
             />
-            <p style={{ margin: "8px 0 0", fontSize: 12 }}>
+            <p style={{ margin: "2px 0 0", fontSize: 12 }}>
               <a
                 href="https://klipy.com"
                 target="_blank"

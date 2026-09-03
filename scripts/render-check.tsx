@@ -506,6 +506,22 @@ render("server view", <App />);
 render("account dialog", <AccountDialog onClose={noop} />);
 render("member dialog for another guest", <MemberDialog userId={guest.id} onClose={noop} />);
 
+console.log("\nconnected as the owner");
+// Ownership is not a role: the owner holds the everyone role and nothing else,
+// and every authority all the same. The crown is the only thing that says so,
+// which is why both places it appears are rendered.
+const owner: User = { ...admin, roles: [1], owner: true };
+seed({
+  self: owner,
+  users: new Map([
+    [owner.id, owner],
+    [guest.id, guest],
+    [absent.id, absent],
+  ]),
+});
+render("server view marks the owner", <App />, ["member__crown"]);
+render("member dialog for the owner", <MemberDialog userId={owner.id} onClose={noop} />, ["Owner"]);
+
 console.log("\ntext channels");
 seed();
 render("chat with history", <App />, [

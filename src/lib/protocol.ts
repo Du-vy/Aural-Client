@@ -271,6 +271,13 @@ export type UserStatus = "online" | "idle" | "dnd" | "offline" | "invisible";
 
 export interface User {
   id: number;
+  /**
+   * Whether this identity owns the server. Ownership is not a role and no role
+   * produces it: the owner holds every permission and outranks every role for
+   * as long as they own the server, whatever roles they are given or stripped
+   * of. Absent on everybody else.
+   */
+  owner?: boolean;
   nickname: string;
   /** null while the user is still a guest. */
   username: string | null;

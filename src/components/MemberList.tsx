@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { CrownIcon } from "@/components/Icons";
 import { useTranslation } from "@/lib/i18n";
 import { useSession } from "@/store/session";
 import { colorRoleOf, groupMembers, isOnline } from "@/store/selectors";
@@ -57,8 +58,15 @@ export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProp
                   >
                     <Avatar user={user} size="md" status={user.status} showStatus />
                     <span className="member__body">
-                      <span className="member__name" style={{ color: color || undefined }}>
-                        {user.nickname}
+                      <span className="member__title">
+                        <span className="member__name" style={{ color: color || undefined }}>
+                          {user.nickname}
+                        </span>
+                        {/* The owner is marked in the list itself: it is the
+                            one standing nobody can read off a role colour. */}
+                        {user.owner ? (
+                          <CrownIcon size={12} className="member__crown" />
+                        ) : null}
                       </span>
                       {(() => {
                         const meta = channel

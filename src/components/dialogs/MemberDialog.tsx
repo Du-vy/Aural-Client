@@ -7,7 +7,7 @@ import { useSession } from "@/store/session";
 import { assignableRoles, isOnline, outranks, useMyPermissions } from "@/store/selectors";
 import { useVoice } from "@/store/voice";
 import { Avatar, avatarColor, resolveAvatarUrl } from "../Avatar";
-import { CheckIcon, CloseIcon, CopyIcon, PlusIcon } from "../Icons";
+import { CheckIcon, CloseIcon, CopyIcon, CrownIcon, PlusIcon } from "../Icons";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 interface MemberDialogProps {
@@ -210,6 +210,17 @@ export function MemberDialog({
           </div>
 
           <div className="profile-card__badges">
+            {/* Ownership is not a role, so the role list below says nothing
+                about it. This is the only place it is legible. */}
+            {user.owner ? (
+              <span
+                className="profile-card__badge-pill profile-card__badge-pill--owner"
+                title={t("dialogs.member.ownerUser")}
+              >
+                <CrownIcon size={13} />
+                <span>{t("common.owner")}</span>
+              </span>
+            ) : null}
             <span
               className="profile-card__badge-pill"
               title={user.registered ? t("dialogs.member.registeredUser") : t("dialogs.member.guestUser")}

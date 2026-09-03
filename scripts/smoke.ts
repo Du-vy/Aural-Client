@@ -35,7 +35,9 @@ import {
   type MessageSearchResult,
   type Ready,
   type Role,
+  type RoleEvent,
   type ServerInfo,
+  type UserEvent,
   type UserMovedEvent,
   type VoiceConnectResult,
   type VoiceStateEvent,
@@ -638,9 +640,10 @@ async function main() {
   // it spent. That is the server behaving correctly, not a failure worth
   // aborting the run for.
   let admin = false;
+  let owner: UserEvent["user"] | null = null;
   if (ownerToken) {
     try {
-      await other.gateway.request(Op.ServerClaimAdmin, { token: ownerToken });
+      owner = (await other.gateway.request<UserEvent>(Op.ServerClaimAdmin, { token: ownerToken })).user;
       admin = true;
     } catch (error) {
       const code = (error as { code?: string }).code;
@@ -653,6 +656,22 @@ async function main() {
   if (admin) {
     console.log("\nownership and administration");
     check(true, "the owner token is redeemed");
+    check(owner?.owner === true, "redeeming it marks the claimer as the owner");
+    // Ownership is not a role: the claimer is left holding exactly the roles
+    // they signed in with, and every authority all the same.
+    check(owner?.roles.length === signedIn.user.roles.length, "and grants no role to carry it");
+    const adminRole = ready.roles.find((role) => role.managed === "admin");
+    check(
+      adminRole !== undefined && !(owner?.roles ?? []).includes(adminRole.id),
+      "least of all the admin role, which is the one role only the owner may edit",
+    );
+    if (adminRole) {
+      const renamed = await other.gateway.request<RoleEvent>(Op.RoleUpdate, {
+        roleId: adminRole.id,
+        name: adminRole.name,
+      });
+      check(renamed.role.id === adminRole.id, "and the owner can edit it");
+    }
 
     const created = await other.gateway.request<ChannelEvent>(Op.ChannelCreate, {
       name: "Smoke Test",
