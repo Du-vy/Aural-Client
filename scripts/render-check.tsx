@@ -72,6 +72,7 @@ const { useServers } = await import("@/store/servers");
 const { createConnection } = await import("@/store/connection");
 const { unreadTotals, manageableWebhookChannels } = await import("@/store/selectors");
 const { setLanguage, getLanguage, t, SUPPORTED_LANGUAGES } = await import("@/lib/i18n");
+const { Ev } = await import("@/lib/protocol");
 
 type Attachment = import("@/lib/protocol").Attachment;
 type Channel = import("@/lib/protocol").Channel;
@@ -2072,6 +2073,46 @@ console.log("\nwebhooks");
   }
 }
 
+console.log("\nreal-time channel and category deletion");
+{
+  seed();
+  const session = useSession.getState();
+  checkThat("channel 2 initially exists", session.channels.has(2));
+  checkThat("category 1 initially exists", session.channels.has(1));
+  checkThat("activeChannelId is initially 2", session.activeChannelId === 2);
+
+  // 1. Test deleting channel 2 when cascaded is null (the exact bug case where Go serialized null)
+  session.handleEvent(Ev.ChannelDeleted, { channelId: 2, cascaded: null });
+  const afterDeleteChannel = useSession.getState();
+  checkThat(
+    "deleting a channel with cascaded: null removes it without throwing",
+    !afterDeleteChannel.channels.has(2),
+  );
+  checkThat(
+    "deleting the active channel resets activeChannelId to null",
+    afterDeleteChannel.activeChannelId === null,
+  );
+
+  // 2. Test deleting a category with cascaded children IDs
+  session.handleEvent(Ev.ChannelDeleted, { channelId: 1, cascaded: [3] });
+  const afterDeleteCategory = useSession.getState();
+  checkThat(
+    "deleting a category removes the category itself",
+    !afterDeleteCategory.channels.has(1),
+  );
+  checkThat(
+    "deleting a category removes its cascaded descendant channels",
+    !afterDeleteCategory.channels.has(3),
+  );
+
+  // 3. Test deleting when cascaded is undefined
+  session.handleEvent(Ev.ChannelDeleted, { channelId: 4 });
+  const afterDeleteUndefined = useSession.getState();
+  checkThat(
+    "deleting a channel with cascaded omitted removes it safely",
+    !afterDeleteUndefined.channels.has(4),
+  );
+}
 
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);
 

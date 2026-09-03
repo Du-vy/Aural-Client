@@ -864,7 +864,7 @@ export interface ChannelEvent {
 
 export interface ChannelDeletedEvent {
   channelId: number;
-  cascaded: number[];
+  cascaded?: number[] | null;
 }
 
 export interface MessageEvent {

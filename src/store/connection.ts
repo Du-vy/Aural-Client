@@ -499,6 +499,7 @@ export interface ConnectionState {
   }): Promise<void>;
   deleteRole(roleId: number): Promise<void>;
   setRoleMembership(userId: number, roleId: number, granted: boolean): Promise<void>;
+  handleEvent(op: string, payload: unknown): void;
 }
 
 export type ConnectionStore = StoreApi<ConnectionState>;
@@ -1092,14 +1093,23 @@ export function createConnection({
           const channels = new Map(state.channels);
           const history = new Map(state.history);
           const unread = new Map(state.unread);
-          const forgotten = [event.channelId, ...event.cascaded];
+          const cascaded = Array.isArray(event.cascaded) ? event.cascaded : [];
+          const forgotten = [event.channelId, ...cascaded];
           for (const channelId of forgotten) {
             channels.delete(channelId);
             history.delete(channelId);
             unread.delete(channelId);
             readAt.delete(channelId);
           }
-          set({ channels, history, unread });
+          set({
+            channels,
+            history,
+            unread,
+            activeChannelId:
+              state.activeChannelId !== null && forgotten.includes(state.activeChannelId)
+                ? null
+                : state.activeChannelId,
+          });
 
           const open = host.ownsVoice() ? useVoice.getState().channelId : null;
           if (open !== null && forgotten.includes(open)) exitVoice();
@@ -2113,6 +2123,10 @@ export function createConnection({
           userId,
           roleId,
         });
+      },
+
+      handleEvent(op, payload) {
+        applyEvent(op, payload);
       },
     };
   });
