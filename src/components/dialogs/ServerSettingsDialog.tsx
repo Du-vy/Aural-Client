@@ -206,7 +206,7 @@ export function ServerSettingsDialog({
         </span>
       </button>
       <div className="settings-sidebar__version-wrap">
-        <span className="settings-sidebar__version">Aural Client v0.8.0</span>
+        <span className="settings-sidebar__version">Aural Client v0.8.1</span>
       </div>
     </div>
   );
