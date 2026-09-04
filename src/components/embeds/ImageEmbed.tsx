@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { ImageLightbox, getFilenameFromUrl } from "../attachments/ImageLightbox";
 import { ImageIcon } from "../Icons";
+import { AnimatedImage } from "../AnimatedImage";
 
 interface ImageEmbedProps {
   url: string;
@@ -29,7 +30,7 @@ export function ImageEmbed({ url, onOpenLink }: ImageEmbedProps) {
               <ImageIcon size={24} className="msg-embed__skeleton-icon" />
             </div>
           )}
-          <img
+          <AnimatedImage
             src={url}
             alt={t("embeds.imageAttachment")}
             title={t("attachments.openImage", { name: filename })}

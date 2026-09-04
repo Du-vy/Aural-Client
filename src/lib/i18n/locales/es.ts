@@ -659,6 +659,8 @@ export const es: TranslationSchema = {
         alwaysUnderlineLinksDesc: "Mantiene los hipervínculos permanentemente subrayados en el chat para distinguirlos con claridad.",
         reduceTransparencyTitle: "Reducir Transparencias",
         reduceTransparencyDesc: "Desactiva los desenfoques de fondo y paneles translúcidos, reemplazándolos por superficies sólidas de alto contraste.",
+        pauseAnimatedOnBlurTitle: "Pausar imágenes animadas en segundo plano",
+        pauseAnimatedOnBlurDesc: "Detiene la reproducción de GIFs y elementos animados cuando la aplicación no está en primer plano para reducir el uso de GPU y CPU.",
       },
     },
     channel: {

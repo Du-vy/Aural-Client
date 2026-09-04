@@ -663,6 +663,8 @@ export const en = {
         alwaysUnderlineLinksDesc: "Keep hyperlinks permanently underlined in chat for enhanced visual distinction.",
         reduceTransparencyTitle: "Reduce Transparency",
         reduceTransparencyDesc: "Disable background blurs and translucent panels, replacing them with solid high-contrast surfaces.",
+        pauseAnimatedOnBlurTitle: "Pause Animated Images in Background",
+        pauseAnimatedOnBlurDesc: "Stops playing GIFs and animated media when Aural is not in the foreground to reduce GPU and CPU usage.",
       },
     },
     channel: {

@@ -623,6 +623,8 @@ export const pt: DeepPartial<TranslationSchema> = {
         alwaysUnderlineLinksDesc: "Mantém os links sempre sublinhados no chat para melhor distinção visual.",
         reduceTransparencyTitle: "Reduzir transparência",
         reduceTransparencyDesc: "Desativa efeitos de desfoque e transparência em favor de fundos sólidos de alto contraste.",
+        pauseAnimatedOnBlurTitle: "Pausar imagens animadas em segundo plano",
+        pauseAnimatedOnBlurDesc: "Pausa a reprodução de GIFs e itens animados quando o Aural não estiver em primeiro plano para poupar GPU e CPU.",
       },
     },
     channel: {

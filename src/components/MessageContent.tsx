@@ -21,6 +21,7 @@ import { formatFull } from "@/lib/time";
 import { MessageAttachments } from "./attachments/MessageAttachments";
 import { MessageEmbeds } from "./embeds/MessageEmbeds";
 import { RichEmbeds } from "./embeds/RichEmbed";
+import { AnimatedImage } from "./AnimatedImage";
 
 /** One run of the message: words, a link, or somebody being named. */
 type Piece =
@@ -211,7 +212,7 @@ export function MessageContent({
 
           if (piece.kind === "emoji") {
             return (
-              <img
+              <AnimatedImage
                 key={index}
                 className="emoji--custom"
                 src={expressionUrl(address, piece.emoji)}
@@ -219,6 +220,7 @@ export function MessageContent({
                 title={piece.value}
                 draggable={false}
                 loading="lazy"
+                animated={piece.emoji.animated ?? undefined}
               />
             );
           }

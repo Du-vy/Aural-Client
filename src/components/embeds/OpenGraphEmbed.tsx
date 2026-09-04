@@ -3,6 +3,7 @@ import { formatMetricCount, getLinkMetadata, type OgData } from "@/lib/opengraph
 import { formatSmartDateTime } from "@/lib/time";
 import { ImageLightbox } from "../attachments/ImageLightbox";
 import { EyeIcon, HeartIcon, MessageSquareIcon, RepeatIcon } from "../Icons";
+import { AnimatedImage } from "../AnimatedImage";
 
 interface OpenGraphEmbedProps {
   url: string;
@@ -47,7 +48,7 @@ export function OpenGraphEmbed({ url, onOpenLink }: OpenGraphEmbedProps) {
             {(data.author || data.siteName) && (
               <div className="msg-embed__og-provider">
                 {(data.authorIcon || data.favicon) && (
-                  <img
+                  <AnimatedImage
                     src={data.authorIcon || data.favicon}
                     alt=""
                     className={data.authorIcon ? "msg-embed__og-author-avatar" : "msg-embed__og-favicon"}
@@ -138,7 +139,7 @@ export function OpenGraphEmbed({ url, onOpenLink }: OpenGraphEmbedProps) {
             </div>
           ) : data.image ? (
             <div className="msg-embed__og-image-wrap">
-              <img
+              <AnimatedImage
                 src={data.image}
                 alt={data.title || "Preview"}
                 className="msg-embed__og-image"

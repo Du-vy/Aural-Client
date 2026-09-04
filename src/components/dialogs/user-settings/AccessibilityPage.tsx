@@ -246,6 +246,27 @@ export function AccessibilityPage() {
             </label>
           </div>
         </div>
+
+        <div className="settings-group__item">
+          <div className="settings-row">
+            <div className="settings-row__info">
+              <h3 className="settings-card__title">
+                {t("dialogs.userSettings.accessibility.pauseAnimatedOnBlurTitle")}
+              </h3>
+              <p className="settings-card__subtitle">
+                {t("dialogs.userSettings.accessibility.pauseAnimatedOnBlurDesc")}
+              </p>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.pauseAnimatedImagesOnBlur}
+                onChange={(e) => updateSetting("pauseAnimatedImagesOnBlur", e.target.checked)}
+              />
+              <span className="settings-switch__slider" />
+            </label>
+          </div>
+        </div>
       </div>
     </div>
   );

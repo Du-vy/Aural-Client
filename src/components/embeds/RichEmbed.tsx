@@ -5,6 +5,7 @@ import type { Embed, EmbedMedia } from "@/lib/protocol";
 import { formatSmartDateTime } from "@/lib/time";
 import { Markdown } from "../attachments/Markdown";
 import { ImageLightbox, getFilenameFromUrl } from "../attachments/ImageLightbox";
+import { AnimatedImage } from "../AnimatedImage";
 
 /**
  * A rich card carried by a message.
@@ -60,7 +61,7 @@ function RichEmbed({ embed, onOpenLink }: { embed: Embed; onOpenLink(url: string
             {embed.author?.name ? (
               <div className="rich-embed__author">
                 {embed.author.icon_url ? (
-                  <img
+                  <AnimatedImage
                     src={embed.author.icon_url}
                     alt=""
                     className="rich-embed__author-icon"
@@ -142,7 +143,7 @@ function RichEmbed({ embed, onOpenLink }: { embed: Embed; onOpenLink(url: string
             {embed.footer?.text || embed.timestamp ? (
               <div className="rich-embed__footer">
                 {embed.footer?.icon_url ? (
-                  <img
+                  <AnimatedImage
                     src={embed.footer.icon_url}
                     alt=""
                     className="rich-embed__footer-icon"
@@ -219,7 +220,7 @@ function EmbedPicture({
       title={t("attachments.openImage", { name })}
       aria-label={t("attachments.openImage", { name })}
     >
-      <img
+      <AnimatedImage
         src={media.url}
         alt=""
         className={className}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { User, UserStatus } from "@/lib/protocol";
 import { useSession } from "@/store/session";
+import { AnimatedImage } from "./AnimatedImage";
 
 const PALETTE = [
   "#12b8a0",
@@ -93,7 +94,7 @@ export function Avatar({
       aria-hidden="true"
     >
       {avatarSrc ? (
-        <img
+        <AnimatedImage
           src={avatarSrc}
           alt={user.nickname}
           className="avatar__img"

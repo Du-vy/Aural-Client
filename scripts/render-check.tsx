@@ -2644,6 +2644,38 @@ console.log("\nthe generated voice sounds");
   }
 }
 
+console.log("\nanimated media background pause and accessibility");
+{
+  const { isPotentiallyAnimated, AnimatedImage } = await import("@/components/AnimatedImage");
+  const { readAccessibility, writeAccessibility } = await import("@/lib/storage");
+  const { AccessibilityPage } = await import("@/components/dialogs/user-settings/AccessibilityPage");
+  const { AppearancePage } = await import("@/components/dialogs/user-settings/AppearancePage");
+
+  checkThat("detects .gif as animated", isPotentiallyAnimated("https://example.com/cat.gif"));
+  checkThat("detects .webp as animated", isPotentiallyAnimated("https://example.com/sticker.webp"));
+  checkThat("detects .apng as animated", isPotentiallyAnimated("https://example.com/anim.apng"));
+  checkThat("detects klipy gif as animated", isPotentiallyAnimated("https://cdn.klipy.com/gifs/123"));
+  checkThat("identifies static png as not animated", !isPotentiallyAnimated("https://example.com/photo.png"));
+  checkThat("identifies static jpg as not animated", !isPotentiallyAnimated("https://example.com/photo.jpg"));
+
+  const initialAcc = readAccessibility();
+  checkThat("pauseAnimatedImagesOnBlur is enabled by default", initialAcc.pauseAnimatedImagesOnBlur === true);
+
+  writeAccessibility({ pauseAnimatedImagesOnBlur: false });
+  checkThat("can disable pauseAnimatedImagesOnBlur", readAccessibility().pauseAnimatedImagesOnBlur === false);
+  checkThat("updates document attribute data-pause-animated-blur", document.documentElement.getAttribute("data-pause-animated-blur") === "false");
+
+  writeAccessibility({ pauseAnimatedImagesOnBlur: true });
+  checkThat("can re-enable pauseAnimatedImagesOnBlur", readAccessibility().pauseAnimatedImagesOnBlur === true);
+  checkThat("restores document attribute data-pause-animated-blur", document.documentElement.getAttribute("data-pause-animated-blur") === "true");
+
+  const expectedTitle = t("dialogs.userSettings.accessibility.pauseAnimatedOnBlurTitle");
+  render("AccessibilityPage renders with pause animated toggle", <AccessibilityPage />, [expectedTitle]);
+  render("AppearancePage renders with pause animated toggle", <AppearancePage />, [expectedTitle]);
+  render("AnimatedImage renders a static image", <AnimatedImage src="https://example.com/photo.jpg" alt="test" />);
+  render("AnimatedImage renders an animated gif", <AnimatedImage src="https://example.com/cat.gif" alt="test gif" />);
+}
+
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);
 
 await GlobalRegistrator.unregister();

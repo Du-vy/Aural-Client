@@ -623,6 +623,8 @@ export const zh: DeepPartial<TranslationSchema> = {
         alwaysUnderlineLinksDesc: "在聊天中始终显示超链接下划线，提升辨识度。",
         reduceTransparencyTitle: "降低透明度",
         reduceTransparencyDesc: "禁用背景模糊与半透明面板，使用高对比度的纯色背景。",
+        pauseAnimatedOnBlurTitle: "在后台暂停动图播放",
+        pauseAnimatedOnBlurDesc: "当 Aural 处于后台或非活动状态时暂停播放 GIF 和动图，以降低 GPU 和 CPU 占用。",
       },
     },
     channel: {

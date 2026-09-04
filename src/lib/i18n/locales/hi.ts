@@ -623,6 +623,8 @@ export const hi: DeepPartial<TranslationSchema> = {
         alwaysUnderlineLinksDesc: "चैट में लिंक को हमेशा रेखांकित रखें ताकि वे आसानी से दिखें।",
         reduceTransparencyTitle: "पारदर्शिता कम करें",
         reduceTransparencyDesc: "धुंधलापन बंद करें और उच्च-कंट्रास्ट ठोस पृष्ठभूमि का उपयोग करें।",
+        pauseAnimatedOnBlurTitle: "पृष्ठभूमि में एनिमेटेड छवियों को रोकें",
+        pauseAnimatedOnBlurDesc: "GPU और CPU की खपत कम करने के लिए Aural फ़ोकस में न होने पर GIF को रोकें।",
       },
     },
     channel: {

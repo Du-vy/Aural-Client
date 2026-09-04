@@ -9,6 +9,7 @@
  * once the token is gone.
  */
 
+import { useState, useEffect } from "react";
 import { parseAddress } from "./address";
 import {
   DEFAULT_NOTIFICATION_SOUND,
@@ -295,6 +296,8 @@ export interface AccessibilitySettings {
   sendWithCtrlEnter: boolean;
   alwaysUnderlineLinks: boolean;
   reduceTransparency: boolean;
+  /** Pauses GIFs and animated images when the app is in the background to save GPU/CPU. */
+  pauseAnimatedImagesOnBlur: boolean;
   micAudioCues: boolean;
   voiceAudioCues: boolean;
   voiceParticipantCues: boolean;
@@ -306,6 +309,7 @@ export const DEFAULT_ACCESSIBILITY: AccessibilitySettings = {
   sendWithCtrlEnter: false,
   alwaysUnderlineLinks: false,
   reduceTransparency: false,
+  pauseAnimatedImagesOnBlur: true,
   micAudioCues: false,
   voiceAudioCues: true,
   voiceParticipantCues: true,
@@ -325,12 +329,24 @@ export function readAccessibility(): AccessibilitySettings {
   }
 }
 
+const accessibilityListeners = new Set<(settings: AccessibilitySettings) => void>();
+
+export function onAccessibilityChanged(listener: (settings: AccessibilitySettings) => void): () => void {
+  accessibilityListeners.add(listener);
+  return () => {
+    accessibilityListeners.delete(listener);
+  };
+}
+
 export function writeAccessibility(settings: Partial<AccessibilitySettings>): AccessibilitySettings {
   try {
     const current = readAccessibility();
     const updated: AccessibilitySettings = { ...current, ...settings };
     localStorage.setItem(ACCESSIBILITY_KEY, JSON.stringify(updated));
     applyAccessibilityAttributes(updated);
+    for (const listener of accessibilityListeners) {
+      listener(updated);
+    }
     return updated;
   } catch {
     return { ...DEFAULT_ACCESSIBILITY, ...settings };
@@ -347,12 +363,29 @@ function applyAccessibilityAttributes(settings: AccessibilitySettings): void {
     "data-reduce-transparency",
     settings.reduceTransparency ? "true" : "false"
   );
+  document.documentElement.setAttribute(
+    "data-pause-animated-blur",
+    settings.pauseAnimatedImagesOnBlur ? "true" : "false"
+  );
 }
 
 export function initAccessibility(): AccessibilitySettings {
   const settings = readAccessibility();
   applyAccessibilityAttributes(settings);
   return settings;
+}
+
+/** Hook returning whether animated images should pause when out of focus. */
+export function usePauseAnimatedOnBlur(): boolean {
+  const [enabled, setEnabled] = useState<boolean>(() => readAccessibility().pauseAnimatedImagesOnBlur);
+
+  useEffect(() => {
+    return onAccessibilityChanged((next) => {
+      setEnabled(next.pauseAnimatedImagesOnBlur);
+    });
+  }, []);
+
+  return enabled;
 }
 
 

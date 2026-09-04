@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import type { Attachment } from "@/lib/protocol";
 import { ImageIcon } from "../Icons";
+import { AnimatedImage } from "../AnimatedImage";
 
 interface ImageAttachmentProps {
   attachment: Attachment;
@@ -61,7 +62,7 @@ export function ImageAttachment({ attachment, url, onOpen }: ImageAttachmentProp
           <ImageIcon size={22} />
         </span>
       ) : null}
-      <img
+      <AnimatedImage
         src={url}
         alt={attachment.filename}
         className={loaded ? "attachment__img attachment__img--loaded" : "attachment__img"}

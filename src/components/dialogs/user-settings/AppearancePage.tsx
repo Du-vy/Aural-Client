@@ -13,6 +13,8 @@ import {
   writeDensity,
   readAnimations,
   writeAnimations,
+  readAccessibility,
+  writeAccessibility,
   type MessageDensity,
 } from "@/lib/storage";
 import {
@@ -49,6 +51,7 @@ export function AppearancePage() {
 
   const [density, setDensityState] = useState<MessageDensity>(readDensity);
   const [animations, setAnimationsState] = useState<boolean>(readAnimations);
+  const [pauseAnimated, setPauseAnimatedState] = useState<boolean>(() => readAccessibility().pauseAnimatedImagesOnBlur);
   const [feedback, setFeedback] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const setDensity = (d: MessageDensity) => {
@@ -59,6 +62,11 @@ export function AppearancePage() {
   const setAnimations = (enabled: boolean) => {
     setAnimationsState(enabled);
     writeAnimations(enabled);
+  };
+
+  const setPauseAnimated = (enabled: boolean) => {
+    setPauseAnimatedState(enabled);
+    writeAccessibility({ pauseAnimatedImagesOnBlur: enabled });
   };
 
   // Modals / prompts state
@@ -630,6 +638,28 @@ export function AppearancePage() {
               type="checkbox"
               checked={animations}
               onChange={(e) => setAnimations(e.target.checked)}
+            />
+            <span className="settings-switch__slider" />
+          </label>
+        </div>
+      </div>
+
+      {/* Pause Animated Images in Background Toggle */}
+      <div className="settings-card" style={{ marginTop: 16 }}>
+        <div className="settings-row">
+          <div className="settings-row__info">
+            <h3 className="settings-card__title">
+              {t("dialogs.userSettings.accessibility.pauseAnimatedOnBlurTitle")}
+            </h3>
+            <p className="settings-card__subtitle">
+              {t("dialogs.userSettings.accessibility.pauseAnimatedOnBlurDesc")}
+            </p>
+          </div>
+          <label className="settings-switch">
+            <input
+              type="checkbox"
+              checked={pauseAnimated}
+              onChange={(e) => setPauseAnimated(e.target.checked)}
             />
             <span className="settings-switch__slider" />
           </label>

@@ -28,6 +28,7 @@ import {
   type KlipyMediaItem,
 } from "@/lib/klipy";
 import { expressionUrl } from "@/lib/customEmoji";
+import { AnimatedImage } from "./AnimatedImage";
 import { useSession } from "@/store/session";
 import { useMyPermissions } from "@/store/selectors";
 import { Perm, has } from "@/lib/permissions";
@@ -557,7 +558,7 @@ export function EmojiPicker({
                       onClick={() => handleSendMediaItem(item)}
                       title={item.title}
                     >
-                      <img src={preview} alt={item.title} loading="lazy" />
+                      <AnimatedImage src={preview} alt={item.title} loading="lazy" />
                     </button>
                   );
                 })}
@@ -589,7 +590,7 @@ export function EmojiPicker({
                       onMouseLeave={() => setHoveredInfo(null)}
                       title={item.name}
                     >
-                      <img src={expressionUrl(address, item)} alt={item.name} loading="lazy" />
+                      <AnimatedImage src={expressionUrl(address, item)} alt={item.name} loading="lazy" />
                     </button>
                   ))}
                 </div>
@@ -642,7 +643,7 @@ export function EmojiPicker({
                       onMouseLeave={() => setHoveredInfo(null)}
                       title={item.title}
                     >
-                      <img src={preview} alt={item.title} loading="lazy" />
+                      <AnimatedImage src={preview} alt={item.title} loading="lazy" />
                     </button>
                   );
                 })}
@@ -721,7 +722,7 @@ export function EmojiPicker({
                         }
                         onMouseLeave={() => setHoveredInfo(null)}
                       >
-                        <img
+                        <AnimatedImage
                           src={expressionUrl(address, item)}
                           alt={item.name}
                           className="picker__twemoji"
@@ -729,6 +730,7 @@ export function EmojiPicker({
                           height={22}
                           loading="lazy"
                           draggable={false}
+                          animated={item.animated ?? undefined}
                         />
                       </button>
                     ))}
