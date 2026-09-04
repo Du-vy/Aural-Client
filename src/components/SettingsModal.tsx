@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { CloseIcon } from "./Icons";
 import { useTranslation } from "@/lib/i18n";
+import { useMouseBack } from "@/store/navigation";
 
 export interface SettingsNavItem {
   id: string;
@@ -58,6 +59,9 @@ export function SettingsModal({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
+
+  // The mouse's Back button closes it too, the way Escape does.
+  useMouseBack(true, onClose);
 
   // When switching tabs, scroll the content panel back to top
   useEffect(() => {

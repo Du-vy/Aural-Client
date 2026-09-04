@@ -4,6 +4,7 @@ import { useTranslation } from "@/lib/i18n";
 import { openExternalUrl, saveUrl } from "@/lib/open";
 import type { Attachment } from "@/lib/protocol";
 import { formatBytes, parseBytes } from "@/lib/uploads";
+import { useMouseBack } from "@/store/navigation";
 import { CloseIcon, DownloadIcon, ExternalLinkIcon, ImageIcon } from "../Icons";
 
 export interface ImageLightboxProps {
@@ -58,6 +59,9 @@ export function ImageLightbox({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
+
+  // The mouse's Back button closes it too, the way Escape does.
+  useMouseBack(true, onClose);
 
   const displayName = filename || attachment?.filename || getFilenameFromUrl(url);
 

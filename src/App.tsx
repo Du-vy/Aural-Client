@@ -10,6 +10,7 @@ import { readNotifications } from "@/lib/storage";
 import { setTrayLabels } from "@/lib/systemSettings";
 import { startUnreadBadgeSync } from "@/lib/unreadBadge";
 import { startUpdateWatch } from "@/lib/updater";
+import { startNavigationListener } from "@/store/navigation";
 import { ConnectView } from "@/views/ConnectView";
 import { ServerView } from "@/views/ServerView";
 import { useServerRegistry } from "@/store/servers";
@@ -21,6 +22,9 @@ export function App() {
   const status = useSession((state) => state.status);
   const [showConnect, setShowConnect] = useState(false);
   const { t, language } = useTranslation();
+
+  // Global mouse (Mouse 4/5) and keyboard (Alt+Left/Right) navigation history
+  useEffect(() => startNavigationListener(), []);
 
   // The taskbar count follows every connection, not the one on screen, so it
   // is started here rather than anywhere inside the server view: that tree is

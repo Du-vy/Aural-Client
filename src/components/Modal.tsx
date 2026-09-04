@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
+import { useMouseBack } from "@/store/navigation";
 import { CloseIcon } from "./Icons";
 
 interface ModalProps {
@@ -29,6 +30,9 @@ export function Modal({ title, subtitle, onClose, children, footer, tabs, wide }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
+
+  // The mouse's Back button closes it too, the way Escape does.
+  useMouseBack(true, onClose);
 
   useEffect(() => {
     const focusable = panel.current?.querySelector<HTMLElement>(

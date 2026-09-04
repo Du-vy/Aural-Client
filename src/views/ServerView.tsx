@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { ChannelSidebar } from "@/components/ChannelSidebar";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -86,6 +86,7 @@ import {
 } from "@/store/selectors";
 import { DirectMessagesSidebar } from "@/components/DirectMessagesSidebar";
 import { DirectMessagesHome } from "@/components/DirectMessagesHome";
+import { useMouseBack, useNavigation } from "@/store/navigation";
 
 type Dialog =
   | { kind: "none" }
@@ -180,7 +181,12 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   // The overrides live outside every store this view reads, so the menu is
   // rebuilt from this rather than from a state change it would never see.
   const mutingTick = useSyncExternalStore(onMutingChanged, mutingVersion, mutingVersion);
-  const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
+  const sessionActiveChannelId = useSession((state) => state.activeChannelId);
+  // Seeded from the connection so that coming back to a server — the tree is
+  // replaced when one is brought to the front — opens what was last read there.
+  const [selectedChannelId, setSelectedChannelId] = useState<number | null>(
+    () => useSession.getState().activeChannelId,
+  );
   const [membersOpen, setMembersOpen] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth > 1100 : true,
   );
@@ -192,6 +198,21 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   const activePeer = activeConversationId !== null ? users.get(activeConversationId) : null;
   const activePeerName = activePeer?.nickname ?? t("common.member");
 
+  // History navigation moves the channel by writing to the connection rather
+  // than by calling in here, so the selection has to follow what the connection
+  // says. Only a change that came from outside counts, which is what the
+  // remembered value decides: comparing against the selection instead would
+  // answer the write the effect further down has just made with the channel it
+  // replaced, and the two would trade places until React gave up on the render.
+  const lastActiveChannelId = useRef(sessionActiveChannelId);
+  useEffect(() => {
+    if (sessionActiveChannelId === lastActiveChannelId.current) return;
+    lastActiveChannelId.current = sessionActiveChannelId;
+    if (sessionActiveChannelId !== null && channels.has(sessionActiveChannelId)) {
+      setSelectedChannelId(sessionActiveChannelId);
+    }
+  }, [sessionActiveChannelId, channels]);
+
   useEffect(() => {
     if (activeConversationId !== null) return;
     if (selectedChannelId !== null && channels.has(selectedChannelId)) return;
@@ -200,6 +221,27 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       .sort((a, b) => a.position - b.position)[0];
     setSelectedChannelId(firstReadable?.id ?? null);
   }, [channels, selectedChannelId, activeConversationId]);
+
+  // Where the reader is, reported to the trail Back and Forward walk. The
+  // section is recorded as it stands rather than inferred from the conversation:
+  // a DM read beside the channel list is a different screen from the same DM
+  // read in the DM section, and going back to the wrong one of the two would
+  // rebuild the sidebar the reader did not leave.
+  useEffect(() => {
+    if (!serverId) return;
+    useNavigation.getState().recordLocation({
+      section: activeSection,
+      serverId,
+      channelId: activeConversationId === null ? selectedChannelId : null,
+      userId: activeConversationId,
+    });
+  }, [activeSection, serverId, selectedChannelId, activeConversationId]);
+
+  // Whatever is open over the view is what Back means while it is up, so each
+  // of them answers the button before the history ever sees it.
+  useMouseBack(drawerOpen, () => setDrawerOpen(false));
+  useMouseBack(contextMenu !== null, () => setContextMenu(null));
+  useMouseBack(statusOpen, () => setStatusOpen(false));
 
   // What is being read decides three things at once: where an arriving message
   // does not count as unread, which channel keeps its full window, and what the

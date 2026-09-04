@@ -451,6 +451,40 @@ export function writePresence(patch: Partial<PresenceSettings>): PresenceSetting
   return updated;
 }
 
+/**
+ * The servers whose `idle` this client guessed rather than their owner chose.
+ *
+ * A status is stored by the server, not by the connection, so it outlives the
+ * session that set it. Without a note of which ones were a guess, quitting
+ * while away — or dropping off the network, which is the same thing seen from
+ * here — would sign back in showing away, with nothing left in memory to say
+ * the marker was ever ours to take back. This is that note, and it is why the
+ * guess survives exactly as long as it needs to and no longer.
+ */
+const AUTO_AWAY_KEY = "aural.auto_away.v1";
+
+export function readAutoAway(): string[] {
+  try {
+    const raw = localStorage.getItem(AUTO_AWAY_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === "string");
+  } catch {
+    return [];
+  }
+}
+
+export function writeAutoAway(serverIds: readonly string[]): void {
+  try {
+    if (serverIds.length === 0) localStorage.removeItem(AUTO_AWAY_KEY);
+    else localStorage.setItem(AUTO_AWAY_KEY, JSON.stringify([...serverIds]));
+  } catch {
+    // Storage is unavailable. The markers still hold for this session, which
+    // is every case but the one this file exists for.
+  }
+}
+
 /* --- Notification settings (client-side) ------------------------------------ */
 
 const NOTIFICATIONS_KEY = "aural.notifications.v1";

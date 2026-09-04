@@ -2759,6 +2759,302 @@ console.log("\nupdating in place");
   container.remove();
 }
 
+console.log("\nnavigation history and mouse/keyboard navigation");
+{
+  const { useNavigation, startNavigationListener } = await import("@/store/navigation");
+
+  useNavigation.getState().clear();
+  checkThat("initially stack is empty", useNavigation.getState().stack.length === 0);
+  checkThat("cannot go back when empty", !useNavigation.getState().canGoBack());
+  checkThat("cannot go forward when empty", !useNavigation.getState().canGoForward());
+
+  // Record first location
+  useNavigation.getState().recordLocation({
+    section: "server",
+    serverId: "srv1",
+    channelId: 10,
+    userId: null,
+  });
+  checkThat("first location pushed", useNavigation.getState().stack.length === 1);
+  checkThat("index is 0", useNavigation.getState().index === 0);
+  checkThat("cannot go back with 1 entry", !useNavigation.getState().canGoBack());
+
+  // Duplicate record is ignored
+  useNavigation.getState().recordLocation({
+    section: "server",
+    serverId: "srv1",
+    channelId: 10,
+    userId: null,
+  });
+  checkThat("duplicate location ignored", useNavigation.getState().stack.length === 1);
+
+  // Record second location
+  useNavigation.getState().recordLocation({
+    section: "server",
+    serverId: "srv1",
+    channelId: 20,
+    userId: null,
+  });
+  checkThat("second location pushed", useNavigation.getState().stack.length === 2);
+  checkThat("index is 1", useNavigation.getState().index === 1);
+
+  // Record third location (DM)
+  useNavigation.getState().recordLocation({
+    section: "dms",
+    serverId: "srv1",
+    channelId: null,
+    userId: 55,
+  });
+  checkThat("third location pushed", useNavigation.getState().stack.length === 3);
+  checkThat("index is 2", useNavigation.getState().index === 2);
+
+  // Truncation on divergence test:
+  // Set index to 1 (as if user went back to second entry)
+  useNavigation.setState({ index: 1 });
+  checkThat("index moved to 1", useNavigation.getState().index === 1);
+  // Now navigate to a new channel
+  useNavigation.getState().recordLocation({
+    section: "server",
+    serverId: "srv1",
+    channelId: 30,
+    userId: null,
+  });
+  checkThat("forward history truncated", useNavigation.getState().stack.length === 3);
+  checkThat("stack contains new destination", useNavigation.getState().stack[2]?.channelId === 30);
+  checkThat("index points to new destination", useNavigation.getState().index === 2);
+
+  // Test startNavigationListener
+  const stopNav = startNavigationListener();
+  checkThat("navigation listener returns unregister function", typeof stopNav === "function");
+  stopNav();
+
+  useNavigation.getState().clear();
+}
+
+console.log("\nopening a channel, and going back to the one before it");
+{
+  const { useNavigation } = await import("@/store/navigation");
+
+  useNavigation.getState().clear();
+  seed();
+
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(<App />);
+  });
+
+  checkThat("the seeded channel is the one open", useSession.getState().activeChannelId === 2);
+
+  const row = container.querySelector<HTMLElement>('[title="announcements"]');
+  checkThat("the other text channel has a row to click", row !== null);
+
+  // The channel used to be held twice, here and on the connection, with an
+  // effect on each side answering the other's write. One click set the two
+  // trading it back and forth until React tore the tree down, which is what a
+  // window gone blank on a click looks like from the outside.
+  let clickError: string | null = null;
+  try {
+    act(() => {
+      row?.click();
+    });
+  } catch (error) {
+    clickError = error instanceof Error ? error.message : String(error);
+  }
+  checkThat(`clicking a channel does not loop the render${clickError ? `: ${clickError}` : ""}`, clickError === null);
+  checkThat("the channel clicked is the one open", useSession.getState().activeChannelId === 5);
+  checkThat("the view is still on screen", container.innerHTML.length > 0);
+  checkThat("both channels are in the history", useNavigation.getState().stack.length === 2);
+
+  // Back is the mouse's side button, and it moves the channel by writing to the
+  // connection: what the view has selected has to follow that write.
+  let backError: string | null = null;
+  try {
+    await act(async () => {
+      await useNavigation.getState().goBack();
+    });
+  } catch (error) {
+    backError = error instanceof Error ? error.message : String(error);
+  }
+  checkThat(`going back does not loop the render${backError ? `: ${backError}` : ""}`, backError === null);
+  checkThat("going back reopens the channel before it", useSession.getState().activeChannelId === 2);
+  checkThat("going back is not recorded as a new place", useNavigation.getState().stack.length === 2);
+
+  act(() => {
+    root.unmount();
+  });
+  container.remove();
+  useNavigation.getState().clear();
+}
+
+console.log("\na conversation read beside the channel list, and a trail that refuses to move");
+{
+  const { useNavigation } = await import("@/store/navigation");
+
+  useNavigation.getState().clear();
+  seed();
+
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(<App />);
+  });
+
+  act(() => {
+    useSession.getState().setActiveConversation(guest.id);
+  });
+
+  // A conversation read without leaving the server is still the server's
+  // screen. Recorded as the DM section it would come back with the wrong
+  // sidebar, on a remount the reader never asked for.
+  const recorded = useNavigation.getState().stack.at(-1);
+  checkThat("a conversation read in a server keeps the server section", recorded?.section === "server");
+  checkThat(
+    "the conversation is what was recorded",
+    recorded?.userId === guest.id && recorded?.channelId === null,
+  );
+  checkThat("nothing is left held once the view reports where it landed", !useNavigation.getState().isNavigating);
+
+  act(() => {
+    root.unmount();
+  });
+  container.remove();
+
+  // A channel list that has not arrived is not somewhere to land: the trail
+  // stays put rather than stepping onto an entry nothing was drawn for.
+  const before = useNavigation.getState().index;
+  useSession.setState({ channels: new Map(), activeChannelId: null });
+  let moved = true;
+  await act(async () => {
+    moved = await useNavigation.getState().goBack();
+  });
+  checkThat("going back to a server with no channels is refused", !moved);
+  checkThat("a refused move leaves the trail where it was", useNavigation.getState().index === before);
+  checkThat("a refused move does not leave the trail held", !useNavigation.getState().isNavigating);
+
+  useNavigation.getState().clear();
+  seed();
+}
+
+console.log("\nwhat the mouse's Back button reaches");
+{
+  const { useMouseBack } = await import("@/store/navigation");
+
+  const answered: string[] = [];
+  function Overlays({ over }: { over: boolean }) {
+    useMouseBack(true, () => answered.push("under"));
+    useMouseBack(over, () => answered.push("over"));
+    return null;
+  }
+
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(<Overlays over />);
+  });
+
+  let reachedTheWindow = 0;
+  function countBubbled() {
+    reachedTheWindow += 1;
+  }
+  window.addEventListener("mouseup", countBubbled);
+
+  function pressBack(): void {
+    document.body.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, button: 3 }));
+  }
+
+  pressBack();
+  checkThat("only the topmost overlay answers Back", answered.length === 1 && answered[0] === "over");
+  checkThat("Back stops at the overlay rather than reaching the history", reachedTheWindow === 0);
+
+  act(() => {
+    root.render(<Overlays over={false} />);
+  });
+  pressBack();
+  checkThat("the one underneath answers once the top one is gone", answered.length === 2 && answered[1] === "under");
+
+  act(() => {
+    root.unmount();
+  });
+  container.remove();
+  pressBack();
+  checkThat("nothing answers once every overlay is closed", answered.length === 2);
+  checkThat("Back reaches the history again with nothing over the view", reachedTheWindow === 1);
+
+  window.removeEventListener("mouseup", countBubbled);
+}
+
+console.log("\nshowing away by itself, and coming back from it");
+{
+  const { startIdleWatch } = await import("@/lib/idle");
+  const { readAutoAway, writeAutoAway } = await import("@/lib/storage");
+  const { Op } = await import("@/lib/protocol");
+  type UserStatus = import("@/lib/protocol").UserStatus;
+
+  /** Answers a status change the way the server does: the echo, then the reply. */
+  const asked: string[] = [];
+  function connectFakeGateway(status: UserStatus): void {
+    seed();
+    useSession.setState({
+      self: { ...admin, status },
+      gateway: {
+        isOpen: true,
+        request: (op: string, payload: unknown) => {
+          if (op === Op.UserUpdate) {
+            const next = (payload as { status?: UserStatus }).status ?? "online";
+            asked.push(next);
+            useSession.setState({ self: { ...admin, status: next } });
+          }
+          return Promise.resolve({});
+        },
+      } as never,
+    });
+  }
+
+  /** Lets the microtask the watcher schedules, and the request it makes, run. */
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  // The status belongs to the server, not to the connection, so a client that
+  // quit or dropped while away signs back in still away. The note left on disk
+  // is the only thing that knows the away was ever a guess.
+  connectFakeGateway("idle");
+  writeAutoAway([testServerId]);
+  let stopIdle = startIdleWatch();
+  await tick();
+  checkThat("an away left over from a previous session is taken back", asked.includes("online"));
+  checkThat("the connection reads as online again", useSession.getState().self?.status === "online");
+  checkThat("the marker is dropped once it has been taken back", readAutoAway().length === 0);
+  stopIdle();
+
+  // A guess does not overrule a statement. Do-not-disturb was chosen on
+  // purpose, so all that is left to do with the marker is forget it.
+  asked.length = 0;
+  connectFakeGateway("dnd");
+  writeAutoAway([testServerId]);
+  stopIdle = startIdleWatch();
+  await tick();
+  checkThat("a status chosen by hand is not overruled", asked.length === 0);
+  checkThat("but its marker is not kept either", readAutoAway().length === 0);
+  stopIdle();
+
+  // Nothing to take it back on yet. The marker has to outlive the attempt, or
+  // a client that opens before its server answers would forget for good.
+  asked.length = 0;
+  seedDisconnected();
+  writeAutoAway(["203.0.113.9:9871"]);
+  stopIdle = startIdleWatch();
+  await tick();
+  checkThat("a marker for a server that is not connected is kept", readAutoAway().length === 1);
+  checkThat("and nothing is asked of a server that is not there", asked.length === 0);
+  stopIdle();
+
+  writeAutoAway([]);
+  seed();
+}
+
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);
 
 await GlobalRegistrator.unregister();
