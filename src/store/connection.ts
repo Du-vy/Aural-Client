@@ -26,9 +26,9 @@ import {
   AuralError,
   Ev,
   Op,
-  PROTOCOL_VERSION,
   describeError,
   isPostChannel,
+  protocolFit,
   type Attachment,
   type Channel,
   type ChannelDeletedEvent,
@@ -2071,13 +2071,16 @@ export function createConnection({
           throw fail(error instanceof Error ? error.message : String(error), false);
         }
 
-        if (gateway.hello.server.protocolVersion !== PROTOCOL_VERSION) {
+        // Both ends carry a range of protocol revisions, and they talk as long
+        // as the two ranges overlap.
+        const fit = protocolFit(gateway.hello.server);
+        if (fit !== "ok") {
           gateway.close("protocol mismatch");
-          const theirs = gateway.hello.server.protocolVersion;
+          const version = gateway.hello.server.protocolVersion;
           const message =
-            theirs > PROTOCOL_VERSION
-              ? `That server speaks Aural protocol v${theirs}. Update this client.`
-              : `That server speaks Aural protocol v${theirs}, which this client no longer supports.`;
+            fit === "server_too_new"
+              ? t("connect.serverTooNew", { version })
+              : t("connect.serverTooOld", { version });
           // Retrying cannot make two versions agree.
           throw fail(message, true);
         }

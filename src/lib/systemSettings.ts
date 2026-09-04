@@ -1,26 +1,35 @@
 /**
- * The four switches on the "Windows & System" settings page.
+ * The switches on the "Windows & System" settings page.
  *
  * Unlike everything else in the settings dialog, none of this is kept in
- * `localStorage`. Two of the four are read by the shell before the webview
+ * `localStorage`. Two of them are read by the shell before the webview
  * exists — whether to put the window on screen, and whether to hand the
- * renderer a GPU — and a third is held by the operating system itself, in a
+ * renderer a GPU — and another is held by the operating system itself, in a
  * registry key or a plist. So the page asks the shell rather than storage, and
  * the shell answers with what is now actually true rather than with what it
  * was told: a registry write the system refuses has to move the switch back.
  *
  * In a browser there is no shell to ask and nothing any of these would mean,
- * so the page says so instead of drawing four switches that do nothing.
+ * so the page says so instead of drawing switches that do nothing.
  */
 
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
-/** The four switches, as the page draws them. */
+/** The switches, as the page draws them. */
 export interface SystemSettings {
   launchOnStartup: boolean;
   startMinimized: boolean;
   closeToTray: boolean;
   hardwareAcceleration: boolean;
+  /**
+   * Whether the client looks for a new release when it starts.
+   *
+   * Here rather than in `localStorage` with the rest of the page's
+   * preferences because of what clearing storage would mean for it. Every
+   * other setting would come back as a default somebody notices; this one
+   * would come back as a client that had quietly stopped updating itself.
+   */
+  autoUpdate: boolean;
 }
 
 /** The switches plus what the shell can say about whether they apply here. */

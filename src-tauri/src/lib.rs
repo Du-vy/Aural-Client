@@ -121,6 +121,13 @@ pub fn run() {
                 tauri_plugin_autostart::MacosLauncher::LaunchAgent,
                 None,
             ))
+            // Updating in place. Both are registered unconditionally and
+            // driven entirely from the page: whether to look, when to look and
+            // whether to install are decisions with a person attached, and the
+            // page is where the person is. The shell only provides the
+            // mechanism, which is the same division as everything else here.
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(tauri_plugin_process::init())
             .manage(system::State::new(identifier, settings))
             .invoke_handler(tauri::generate_handler![
                 open_url,

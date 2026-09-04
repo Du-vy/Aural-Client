@@ -38,9 +38,17 @@ dirs = "6"
 # matters most for the two settings that hide the window: somebody who cannot
 # see Aural will try the shortcut again, and without this they would get a
 # second copy holding the same session rather than the one already running.
+#
+# Updating in place is desktop only for the same reason. A phone installs
+# through a store or a package manager, which is the thing that updates it;
+# nothing here is allowed to replace an APK behind its back. `process` is here
+# because an update is only finished once the new binary is the one running,
+# and relaunching is what the updater cannot do for itself.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 # Answering the webview's own microphone prompt needs the handle underneath it.
 # Both are already in the tree by way of tauri and wry, and both are pinned to

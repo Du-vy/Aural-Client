@@ -2676,6 +2676,89 @@ console.log("\nanimated media background pause and accessibility");
   render("AnimatedImage renders an animated gif", <AnimatedImage src="https://example.com/cat.gif" alt="test gif" />);
 }
 
+console.log("\nthe protocol range");
+{
+  const { protocolFit, PROTOCOL_VERSION, MIN_PROTOCOL_VERSION } = await import("@/lib/protocol");
+
+  const fit = (protocolVersion: number, minProtocolVersion?: number) =>
+    protocolFit({ protocolVersion, minProtocolVersion });
+
+  checkThat("a server on this exact revision fits", fit(PROTOCOL_VERSION) === "ok");
+  checkThat(
+    "a server older than the range, which sends no minimum, fits when it speaks ours",
+    fit(PROTOCOL_VERSION, undefined) === "ok",
+  );
+
+  // The case the range exists for: a server whose operator has not pulled yet,
+  // reached by a client that already updated itself past it. Under the strict
+  // equality this replaced, this was a client that could not connect to
+  // anything until every server it used had been updated too.
+  checkThat(
+    "a server one revision behind still fits when it accepts ours",
+    fit(PROTOCOL_VERSION, PROTOCOL_VERSION - 1) === "ok" ||
+      // Only reachable once the client's own range is wider than one revision;
+      // until then there is no "behind" for a server to be that we can accept.
+      MIN_PROTOCOL_VERSION === PROTOCOL_VERSION,
+  );
+  checkThat(
+    "a server that also speaks the next revision fits",
+    fit(PROTOCOL_VERSION + 1, PROTOCOL_VERSION) === "ok",
+  );
+
+  checkThat(
+    "a server that speaks only a newer revision is refused",
+    fit(PROTOCOL_VERSION + 1, PROTOCOL_VERSION + 1) === "server_too_new",
+  );
+  checkThat(
+    "a newer server sending no minimum is refused",
+    fit(PROTOCOL_VERSION + 1) === "server_too_new",
+  );
+  checkThat(
+    "a server too old for anything this client speaks is refused",
+    fit(MIN_PROTOCOL_VERSION - 1) === "server_too_old",
+  );
+
+  checkThat("the range is not inverted", MIN_PROTOCOL_VERSION <= PROTOCOL_VERSION);
+}
+
+console.log("\nupdating in place");
+{
+  const { updaterSupported, getUpdateState, startUpdateWatch, checkForUpdate } = await import(
+    "@/lib/updater"
+  );
+  const { UpdateBanner } = await import("@/components/UpdateBanner");
+
+  // Everything below is the browser build, which is what this harness is. The
+  // point of these is that nothing about the updater reaches for a shell that
+  // is not there: the web client has no installer to replace.
+  checkThat("a browser build cannot update itself", !updaterSupported());
+  checkThat("nothing is pending before anything has looked", getUpdateState().phase === "idle");
+
+  const stop = startUpdateWatch();
+  checkThat("the startup watch hands back a way to stop it", typeof stop === "function");
+  stop();
+
+  await checkForUpdate(true);
+  checkThat(
+    "a check in a browser leaves the state alone rather than failing",
+    getUpdateState().phase === "idle",
+  );
+
+  // Idle is the state the banner must be invisible in, because it is the state
+  // the client spends all of its time in.
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(<UpdateBanner />);
+  });
+  checkThat("the banner draws nothing while there is no update", container.innerHTML === "");
+  act(() => {
+    root.unmount();
+  });
+  container.remove();
+}
+
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);
 
 await GlobalRegistrator.unregister();

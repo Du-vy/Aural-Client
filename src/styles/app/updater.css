@@ -1,0 +1,100 @@
+/*
+ * The update banner.
+ *
+ * A card in the bottom-right corner, over everything and out of the way of
+ * all of it. It is fixed rather than in the flow on purpose: it appears
+ * without warning, and a banner that reflowed the client the moment somebody
+ * started typing would be worse than the news it carries.
+ */
+
+.update-banner {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 120;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32);
+}
+
+.update-banner__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  /* Nudged down to sit on the first line of text rather than above it. */
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.update-banner__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.update-banner__text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.update-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.update-banner__bar {
+  position: relative;
+  overflow: hidden;
+  height: 4px;
+  margin-top: 8px;
+  border-radius: var(--radius-full);
+  background: var(--bg-input);
+}
+
+.update-banner__bar-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 120ms linear;
+}
+
+/*
+ * A download whose length nobody sent. The fill is given a width here and
+ * slides, because the honest thing to show is that something is happening
+ * rather than a percentage that was guessed.
+ */
+.update-banner__bar--waiting .update-banner__bar-fill {
+  width: 35%;
+  animation: update-banner-waiting 1.1s ease-in-out infinite;
+}
+
+@keyframes update-banner-waiting {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-banner__bar--waiting .update-banner__bar-fill {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+  .update-banner__bar-fill {
+    transition: none;
+  }
+}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { CloseIcon } from "@/components/Icons";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import { useTranslation } from "@/lib/i18n";
 import { startIdleWatch } from "@/lib/idle";
 import { preloadNotificationSound } from "@/lib/notificationSounds";
@@ -8,6 +9,7 @@ import { preloadVoiceSounds } from "@/lib/voiceSounds";
 import { readNotifications } from "@/lib/storage";
 import { setTrayLabels } from "@/lib/systemSettings";
 import { startUnreadBadgeSync } from "@/lib/unreadBadge";
+import { startUpdateWatch } from "@/lib/updater";
 import { ConnectView } from "@/views/ConnectView";
 import { ServerView } from "@/views/ServerView";
 import { useServerRegistry } from "@/store/servers";
@@ -29,6 +31,12 @@ export function App() {
   // one more: one person is idle or is not, and two watchers deciding that
   // separately would fight over the answer.
   useEffect(() => startIdleWatch(), []);
+
+  // Once, at startup, and only if the setting allows it. Deliberately not tied
+  // to a connection: whether there is a newer Aural has nothing to do with
+  // which server is being looked at, and a client left on the connect screen
+  // is exactly the one most likely to be too old to reach anything.
+  useEffect(() => startUpdateWatch(), []);
 
   // The tray menu is built during startup, before anything that knows which
   // language this is being read in has loaded, so it is written in English and
@@ -68,6 +76,10 @@ export function App() {
   return (
     <>
       <div className="app-custom-bg" aria-hidden="true" />
+      {/* Outside both branches: an update is worth saying whether somebody is
+          on the connect screen or in a channel, and this way it survives the
+          remount that switching servers causes. */}
+      <UpdateBanner />
       {!connected ? (
         <ConnectView />
       ) : (

@@ -23,6 +23,8 @@
     "@sapphi-red/web-noise-suppressor": "0.4.0",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-notification": "^2.4.0",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.11.0",
     "gifenc": "^1.0.3",
     "omggif": "^1.0.10",
     "react": "^19.2.0",

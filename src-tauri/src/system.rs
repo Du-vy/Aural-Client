@@ -45,6 +45,15 @@ pub struct Settings {
     pub start_minimized: bool,
     pub close_to_tray: bool,
     pub hardware_acceleration: bool,
+    /// Whether to look for a new release at startup.
+    ///
+    /// Kept here rather than in `localStorage` with the rest of the page's
+    /// preferences because of what clearing storage would mean for it. Every
+    /// other setting comes back as a default somebody notices; this one would
+    /// come back as a client that has quietly stopped updating itself, which
+    /// is the failure nobody reports. It is also the setting most likely to be
+    /// wanted off by the person who cannot see the window.
+    pub auto_update: bool,
 }
 
 impl Default for Settings {
@@ -53,6 +62,11 @@ impl Default for Settings {
             start_minimized: false,
             close_to_tray: true,
             hardware_acceleration: true,
+            // On, because the alternative is worse than an unwanted prompt.
+            // Servers are self-hosted and move on their operators' schedules,
+            // so a client left behind eventually meets one it cannot speak to;
+            // the protocol range buys time for that, it does not remove it.
+            auto_update: true,
         }
     }
 }
@@ -326,6 +340,7 @@ pub struct Report {
     start_minimized: bool,
     close_to_tray: bool,
     hardware_acceleration: bool,
+    auto_update: bool,
     /// False on macOS, where the switch is shown disabled with a reason.
     hardware_acceleration_supported: bool,
     /// False when there is no tray icon, which is what makes the two settings
@@ -342,6 +357,7 @@ pub struct Patch {
     start_minimized: Option<bool>,
     close_to_tray: Option<bool>,
     hardware_acceleration: Option<bool>,
+    auto_update: Option<bool>,
 }
 
 fn report<R: Runtime>(app: &AppHandle<R>, state: &State) -> Report {
@@ -354,6 +370,7 @@ fn report<R: Runtime>(app: &AppHandle<R>, state: &State) -> Report {
         start_minimized: settings.start_minimized,
         close_to_tray: settings.close_to_tray,
         hardware_acceleration: settings.hardware_acceleration,
+        auto_update: settings.auto_update,
         hardware_acceleration_supported: hardware_acceleration_supported(),
         tray_available: state.tray.load(Ordering::SeqCst),
     }
@@ -397,6 +414,9 @@ pub fn set_system_settings<R: Runtime>(
     }
     if let Some(value) = patch.hardware_acceleration {
         settings.hardware_acceleration = value;
+    }
+    if let Some(value) = patch.auto_update {
+        settings.auto_update = value;
     }
 
     settings.save(&state.identifier)?;
@@ -463,6 +483,7 @@ mod tests {
         assert!(!settings.start_minimized);
         assert!(settings.close_to_tray);
         assert!(settings.hardware_acceleration);
+        assert!(settings.auto_update);
     }
 
     #[test]
@@ -471,6 +492,9 @@ mod tests {
         assert!(!settings.close_to_tray);
         assert!(settings.hardware_acceleration);
         assert!(!settings.start_minimized);
+        // The one that matters most here: a file written by a build older than
+        // this setting must come back updating itself, not silently frozen.
+        assert!(settings.auto_update);
     }
 
     #[test]
@@ -487,12 +511,15 @@ mod tests {
             start_minimized: true,
             close_to_tray: false,
             hardware_acceleration: false,
+            auto_update: false,
         };
         let encoded = serde_json::to_string(&settings).unwrap();
         assert!(encoded.contains("startMinimized"));
+        assert!(encoded.contains("autoUpdate"));
         let decoded: Settings = serde_json::from_str(&encoded).unwrap();
         assert!(decoded.start_minimized);
         assert!(!decoded.close_to_tray);
         assert!(!decoded.hardware_acceleration);
+        assert!(!decoded.auto_update);
     }
 }

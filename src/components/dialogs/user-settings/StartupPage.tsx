@@ -9,6 +9,7 @@ import {
   type SystemSettings,
   type SystemSettingsReport,
 } from "@/lib/systemSettings";
+import { checkForUpdate, useUpdateState } from "@/lib/updater";
 
 /**
  * The system settings page.
@@ -21,6 +22,7 @@ import {
  */
 export function StartupPage() {
   const { t } = useTranslation();
+  const updateState = useUpdateState();
 
   /** Null until the shell has answered, and in a browser for good. */
   const [state, setState] = useState<SystemSettingsReport | null>(null);
@@ -33,6 +35,15 @@ export function StartupPage() {
    * restart, and the page has to say so rather than imply it took effect.
    */
   const [restartNeeded, setRestartNeeded] = useState(false);
+  /**
+   * Set once a check from this page has finished.
+   *
+   * Without it "Aural is up to date" would be sitting there the moment the
+   * page opens, which is not something anything has checked: the state is
+   * `idle` before the first look and after a look that found nothing, and only
+   * the second of those is an answer.
+   */
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -213,6 +224,60 @@ export function StartupPage() {
             </button>
           </div>
         ) : null}
+      </div>
+
+      <div className="settings-card" style={{ marginTop: 16 }}>
+        <div className="settings-row">
+          <div className="settings-row__info">
+            <h3 className="settings-card__title">
+              {t("dialogs.userSettings.startup.autoUpdate")}
+            </h3>
+            <p className="settings-card__subtitle">
+              {t("dialogs.userSettings.startup.autoUpdateDesc")}
+            </p>
+          </div>
+          <label className="settings-switch">
+            <input
+              type="checkbox"
+              checked={state.autoUpdate}
+              onChange={(e) => update({ autoUpdate: e.target.checked })}
+            />
+            <span className="settings-switch__slider" />
+          </label>
+        </div>
+
+        {/* Offered whether the switch is on or off. Somebody who turned the
+            startup check off has not given up on ever updating; they have said
+            they would rather decide when to look. */}
+        <div
+          className="settings-row"
+          style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}
+        >
+          <div className="settings-row__info">
+            {/* Only the two outcomes a person standing at this button is owed.
+                Everything else the check can be doing — found one, downloading
+                it, ready to restart — is the banner's to say, and saying it
+                twice would leave two things to click for one update. */}
+            {checked && updateState.phase === "idle" ? (
+              <p className="settings-card__subtitle">
+                {t("dialogs.userSettings.startup.upToDate")}
+              </p>
+            ) : null}
+            {updateState.phase === "failed" && updateState.where === "check" ? (
+              <p className="field__error">{t("dialogs.userSettings.startup.checkFailed")}</p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="btn"
+            disabled={updateState.phase === "checking"}
+            onClick={() => void checkForUpdate(true).then(() => setChecked(true))}
+          >
+            {updateState.phase === "checking"
+              ? t("dialogs.userSettings.startup.checking")
+              : t("dialogs.userSettings.startup.checkNow")}
+          </button>
+        </div>
       </div>
     </div>
   );

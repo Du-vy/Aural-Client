@@ -45,7 +45,9 @@ run on, so building on 24.04 would silently drop everyone still on 22.04.
 
 3. **Actions → Release → Run workflow.** Two inputs:
 
-   - **release_type** — `draft` (default), `prerelease`, or `published`.
+   - **release_type** — `draft` (default), `prerelease`, or `published`. This
+     is also what decides who auto-updates: only `published` reaches installed
+     clients. See [Auto-update](#auto-update).
    - **dry_run** — build everything, attach the installers to the run, create no
      tag and no release. Use it when the workflow itself is what changed.
 
@@ -69,7 +71,9 @@ checks ──▶ prepare ──▶ build (windows | macos | linux) ──▶ fin
 - **build** — `fail-fast: false`, so a Windows-only failure does not cost the
   macOS and Linux builds.
 - **finalise** — only reached when all three platforms built. A release goes
-  public with a full set of installers or it does not go public at all.
+  public with a full set of installers or it does not go public at all. It also
+  reads `latest.json` back and refuses to publish one that does not cover every
+  platform; see [Auto-update](#auto-update).
 - **cleanup** — deletes the draft if a platform failed, so a half-filled release
   is not left lying around for somebody to publish by accident a week later.
 
@@ -96,6 +100,89 @@ so it needs a `bundle.windows.certificateThumbprint` (or an Azure Trusted
 Signing setup) before it will do anything. Both cost money per year, which is
 why neither is set up while this is going to friends.
 
+## Auto-update
+
+Installed clients check for a new release at startup and offer to install it.
+The manifest they read is `latest.json`, published as an asset on the release
+and reached at:
+
+```
+https://github.com/Du-vy/Aural-Client/releases/latest/download/latest.json
+```
+
+That URL only ever resolves to a release that is **published and marked
+latest**, which is what turns `release_type` into the rollout control:
+
+| `release_type` | Who gets it |
+| --- | --- |
+| `draft` | nobody — the release is not public |
+| `prerelease` | anybody who downloads it by hand; **no client auto-updates** |
+| `published` | every installed client, at its next start |
+
+So the kill switch for a bad release is un-marking it as latest on GitHub. That
+takes effect immediately and needs no new build.
+
+### The signing key
+
+The updater will not install anything that is not signed with the key whose
+public half is in `plugins.updater.pubkey` in
+[`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json). This is **not**
+code signing: it is what proves an update came from this workflow, and it works
+whether or not the installers are signed for Windows or macOS.
+
+One repository secret drives it:
+
+| Secret | What it is |
+| --- | --- |
+| `TAURI_SIGNING_PRIVATE_KEY` | the private key file's contents — one base64 line, from `npm run tauri signer generate` |
+
+**`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is deliberately not a secret**, because
+the key was generated without a password and GitHub will not store an empty
+secret value. The workflow still passes the variable, and `${{ secrets.X }}` for
+a secret that does not exist expands to the empty string — which is what the
+signer wants. The distinction that matters is between *set to empty* and *not
+set at all*: with the variable absent entirely the signer stops and asks for a
+password at the terminal, which in CI is a job that hangs rather than fails.
+The same rule the Apple signing step above turns on, seen from the other side.
+
+So: do not create that secret, and do not "fix" its absence by creating it with
+a placeholder. If a key with a real password is ever wanted, generate it, put
+the new public half in `tauri.conf.json`, and add the secret then — and read the
+warning below first, because replacing the key is not a free action once
+installers are out.
+
+**Keep a backup of the private key somewhere other than GitHub.** The public
+half is compiled into every installer that has already been handed out, and
+nothing can change that after the fact. Losing the private key means no build
+signed with a replacement will be accepted by anything already installed, and
+every existing install has to be replaced by hand. Rotating the key has the
+same effect and is a decision to make deliberately, not a recovery step.
+
+### The manifest covers every platform, or the release does not go out
+
+Each build job publishes its own half of `latest.json` and the action merges
+them. A merge that loses a platform still produces a valid manifest, and the
+platform it lost simply stops seeing updates without saying so. `finalise`
+therefore reads the finished manifest back and fails the run unless all four
+targets — `windows-x86_64`, `darwin-x86_64`, `darwin-aarch64`, `linux-x86_64` —
+are present with a URL and a signature, and unless its version matches the one
+being released.
+
+A failure there leaves the release as a draft rather than deleting it: the
+installers are fine, it is the manifest that is not, and the draft is there to
+fix and publish by hand.
+
+### What cannot update itself
+
+- **`.deb` and `.rpm` installs.** One Linux build produces an AppImage, a `.deb`
+  and an `.rpm` from the same binary, and only the AppImage can be replaced by
+  the process running it — the other two belong to a package manager. The check
+  still runs on those installs and still reports honestly; the install step
+  falls back to opening the releases page.
+- **Android and iOS.** The updater and process plugins are not compiled for
+  mobile at all, which is why they sit in their own capability
+  (`src-tauri/capabilities/desktop.json`) rather than in `default`.
+
 ## Not built here
 
 - **Android and iOS.** `src-tauri/gen/` is generated and not committed, so a
@@ -105,5 +192,5 @@ why neither is set up while this is going to friends.
   by hand at least once, which it has not.
 - **Linux arm64.** Cross-compiling a WebKitGTK application is enough work to
   deserve its own decision rather than being folded in here.
-- **Auto-update.** Tauri's updater needs a signing key and a JSON endpoint. Not
-  configured, so people update by downloading the next release.
+- **Linux arm64 auto-update.** Follows the arm64 build above; there is nothing
+  to update to until there is something to install.

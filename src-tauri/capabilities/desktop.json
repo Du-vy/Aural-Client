@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "Updating in place, which only the desktop builds do. A phone installs through a store or a package manager and that is what updates it, so the two plugins behind this are not compiled for one — and a permission naming a plugin that is not there fails the build. Hence a capability of its own rather than two more lines in `default`.",
+  "platforms": ["windows", "macOS", "linux"],
+  "windows": ["main"],
+  "permissions": [
+    "updater:default",
+    "process:allow-restart"
+  ]
+}

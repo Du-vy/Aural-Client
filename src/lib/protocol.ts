@@ -5,8 +5,46 @@
  * `Aural-Server/docs/PROTOCOL.md`.
  */
 
-/** Protocol revision this client speaks. */
+/** The newest protocol revision this client speaks. */
 export const PROTOCOL_VERSION = 1;
+
+/**
+ * The oldest protocol revision this client still understands.
+ *
+ * The pair is a range rather than a single number because the two ends of an
+ * Aural conversation are updated by different people. A server is self-hosted,
+ * so it moves when its operator pulls a new image; the client updates itself.
+ * Under a rule of strict equality the first breaking change would cut every
+ * client off from every server that had not been pulled yet — and the client,
+ * updating on its own, would be the side that broke first.
+ *
+ * So this only means something once the client genuinely carries both wire
+ * formats. Raise it when carrying the older one stops being worth it, and drop
+ * that format's code in the same change.
+ */
+export const MIN_PROTOCOL_VERSION = 1;
+
+/** Whether a server's range and this client's overlap, and which way if not. */
+export type ProtocolFit = "ok" | "server_too_new" | "server_too_old";
+
+/**
+ * Compares a server's protocol range against this client's.
+ *
+ * A server older than the range sends no minimum, and a missing one is read as
+ * equal to its `protocolVersion`: that is exactly what those servers accept,
+ * so the rule below reduces to strict equality against them and stays right.
+ */
+export function protocolFit(
+  server: Pick<ServerInfo, "protocolVersion" | "minProtocolVersion">,
+): ProtocolFit {
+  const newest = server.protocolVersion;
+  const oldest = server.minProtocolVersion ?? newest;
+  // Nothing this client speaks is old enough for that server.
+  if (oldest > PROTOCOL_VERSION) return "server_too_new";
+  // Nothing that server speaks is new enough for this client.
+  if (newest < MIN_PROTOCOL_VERSION) return "server_too_old";
+  return "ok";
+}
 
 /** The single JSON frame exchanged over the WebSocket. */
 export interface Envelope<T = unknown> {
@@ -228,7 +266,14 @@ export interface ServerInfo {
    * letter of the name is drawn instead.
    */
   icon?: string;
+  /** The newest revision this server speaks. */
   protocolVersion: number;
+  /**
+   * The oldest revision this server still accepts. Absent from a server older
+   * than the range, and read as equal to `protocolVersion` when it is, which
+   * is exactly what those servers accept.
+   */
+  minProtocolVersion?: number;
   softwareVersion: string;
   maxUsers: number;
   onlineUsers: number;

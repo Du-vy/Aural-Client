@@ -29,9 +29,18 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Du-vy/Aural-Client/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE5ODY3NTIyQUVCRkIzNkMKUldSc3M3K3VJbldHcWVCajdybWMrc0hFaCtONVllS3F5NU80T0ZvSm1xMitsN1h3VzBlNmx5TzMK"
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "category": "SocialNetworking",
     "shortDescription": "Voice and chat for self-hosted servers",
     "longDescription": "Aural is an open source voice and chat client. Servers are self-hosted and reached by address, so no account with anyone is needed to use it.",

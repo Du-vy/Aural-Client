@@ -241,6 +241,14 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The updater's own signature, which is a separate thing from code
+          # signing: it is what proves to an installed client that an update
+          # came from this workflow, and the public half is compiled into every
+          # build. Without these the bundles are produced but not signed, and
+          # `finalise` refuses the release rather than publishing installers
+          # that can never be updated from.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # Signing and notarisation. Set the secrets and this is the step that
           # runs, with no edit here.
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -260,6 +268,10 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Unsigned here means unsigned by Apple. The updater signature is not
+          # optional and is passed either way.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ inputs.dry_run && '' || needs.prepare.outputs.release_id }}
           args: ${{ matrix.args }}
@@ -297,6 +309,72 @@ jobs:
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-22.04
     steps:
+      # The three build jobs each publish their own half of `latest.json` and
+      # the action merges them onto the release. Merging is the part with a
+      # race in it, and the way it fails is silent: a manifest naming two
+      # platforms is a perfectly valid manifest, and the third platform simply
+      # never sees the update and never says why. So it is checked here, before
+      # anything goes public, rather than discovered by somebody who stopped
+      # getting updates a month ago.
+      #
+      # Failing leaves the release a draft, which is the safe half of wrong: it
+      # is reviewable and publishable by hand once the manifest is fixed.
+      - name: Check the update manifest covers every platform
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+          VERSION: ${{ needs.checks.outputs.version }}
+        with:
+          script: |
+            const { RELEASE_ID, VERSION } = process.env;
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: Number(RELEASE_ID),
+              per_page: 100,
+            });
+
+            const manifest = assets.find((a) => a.name === "latest.json");
+            if (!manifest) {
+              core.setFailed(
+                "No latest.json on the release. Installed clients cannot see this version. " +
+                  "Check that TAURI_SIGNING_PRIVATE_KEY is set and that " +
+                  "bundle.createUpdaterArtifacts is still true."
+              );
+              return;
+            }
+
+            const body = await github.request(manifest.url, {
+              headers: { accept: "application/octet-stream" },
+            });
+            const json = JSON.parse(Buffer.from(body.data).toString("utf8"));
+
+            // The universal macOS build answers for both architectures, so all
+            // four of these come from three build jobs.
+            const wanted = [
+              "windows-x86_64",
+              "darwin-x86_64",
+              "darwin-aarch64",
+              "linux-x86_64",
+            ];
+            const platforms = json.platforms ?? {};
+            const missing = wanted.filter((p) => !platforms[p]?.url || !platforms[p]?.signature);
+
+            if (json.version !== VERSION) {
+              core.setFailed(`latest.json says ${json.version}, this release is ${VERSION}.`);
+              return;
+            }
+            if (missing.length) {
+              core.setFailed(
+                `latest.json is missing: ${missing.join(", ")}. ` +
+                  `It has: ${Object.keys(platforms).join(", ") || "nothing"}. ` +
+                  "Publishing would leave those platforms unable to update."
+              );
+              return;
+            }
+
+            core.notice(`Update manifest covers ${wanted.join(", ")}.`);
+
       - name: Set the release state
         uses: actions/github-script@v7
         env:
