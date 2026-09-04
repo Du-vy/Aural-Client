@@ -49,19 +49,44 @@ export function coveredUrls(embeds: readonly Embed[]): Set<string> {
   return out;
 }
 
+/** Whether a card says anything in words of its own. */
+function hasWords(embed: Embed): boolean {
+  return Boolean(
+    embed.title ||
+      embed.description ||
+      embed.author?.name ||
+      embed.footer?.text ||
+      (embed.fields?.length ?? 0) > 0,
+  );
+}
+
 /**
  * Whether a card is a picture or a clip and nothing else — what Discord makes
  * of a bare media link, where the address was never the point.
  *
  * Such a card is drawn as the media itself, with none of a card's furniture
- * around it, which is both what Discord does and the only way the picture is
- * large enough to be worth posting.
+ * around it, which is both what Discord does and the only way the picture ends
+ * up larger than the link it replaced.
+ *
+ * What a card calls itself is only the first answer. A card stored before this
+ * server kept Discord's word for it, or relayed by one that does not, says
+ * "rich" for a picture like everything else — so the shape is read too: a
+ * wordless card whose address is its own picture is that picture, whatever it
+ * is labelled.
  */
 export function isBareMedia(embed: Embed): boolean {
-  if (embed.type !== "image" && embed.type !== "gifv") return false;
-  if (embed.title || embed.description || embed.author?.name || embed.footer?.text) return false;
-  if (embed.fields && embed.fields.length > 0) return false;
-  return Boolean(pictureOf(embed) || playbackOf(embed));
+  if (hasWords(embed)) return false;
+
+  const picture = pictureOf(embed);
+  if (!picture?.url && !playbackOf(embed)) return false;
+  if (embed.type === "image" || embed.type === "gifv") return true;
+
+  const link = embed.url;
+  if (!link) return false;
+  if (classifyUrl(link).type === "image") return true;
+
+  const media = picture?.url ?? embed.video?.url;
+  return Boolean(media && normaliseUrl(link) === normaliseUrl(media));
 }
 
 /** The picture a card carries, whichever half it arrived in. */
@@ -84,7 +109,11 @@ export type EmbedPlayback =
   | { kind: "file"; src: string; loop: boolean };
 
 export function playbackOf(embed: Embed): EmbedPlayback | undefined {
-  if (embed.type !== "video" && embed.type !== "gifv") return undefined;
+  // The clip itself is the signal, not the label on the card. Discord fills
+  // `video` in only on a page that plays one or a loop standing in for a GIF,
+  // and nothing an application composes for a webhook carries one at all — so
+  // a card that has one is a card to play, whatever it calls itself.
+  if (!embed.video?.url && embed.type !== "video" && embed.type !== "gifv") return undefined;
 
   for (const candidate of [embed.url, embed.video?.url]) {
     if (!candidate) continue;

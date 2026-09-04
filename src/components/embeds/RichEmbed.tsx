@@ -95,6 +95,16 @@ function RichEmbed({ embed, onOpenLink }: { embed: Embed; onOpenLink(url: string
       <div className="rich-embed" style={accent ? { borderLeftColor: accent } : undefined}>
         <div className="rich-embed__grid">
           <div className="rich-embed__main">
+            {embed.provider?.name ? (
+              <EmbedLink
+                href={embed.provider.url}
+                className="rich-embed__provider"
+                onOpenLink={onOpenLink}
+              >
+                {embed.provider.name}
+              </EmbedLink>
+            ) : null}
+
             {embed.author?.name ? (
               <div className="rich-embed__author">
                 {embed.author.icon_url ? (

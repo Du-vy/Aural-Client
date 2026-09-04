@@ -2383,6 +2383,46 @@ console.log("\nwebhooks");
     checkThat("with the address left out", !html.includes("msg__link"));
   }
 
+  // The same two, as they are stored by a server that does not carry Discord's
+  // word for what a card is — every card it relayed says "rich". The shape is
+  // enough: a card with a clip in it plays, and a wordless card whose address
+  // is its own picture is that picture.
+  {
+    const legacyVideo = htmlOf(
+      <MessageContent
+        content="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        editedAt={null}
+        embeds={[
+          {
+            type: "rich",
+            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            title: "A song",
+            provider: { name: "YouTube", url: "https://www.youtube.com" },
+            description: "words about the song",
+            thumbnail: { url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" },
+            video: { url: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+          },
+        ]}
+        onOpenLink={noop}
+      />,
+    );
+    checkThat("a card stored before the kind was carried still plays", legacyVideo.includes("rich-embed__player"));
+    checkThat("and says who unfurled it", legacyVideo.includes("rich-embed__provider") && legacyVideo.includes("YouTube"));
+    checkThat("and keeps what the page said", legacyVideo.includes("words about the song"));
+
+    const direct = "https://i.imgur.com/CLKmNC5.png";
+    const legacyImage = htmlOf(
+      <MessageContent
+        content={direct}
+        editedAt={null}
+        embeds={[{ type: "rich", url: direct, thumbnail: { url: direct, width: 800, height: 600 } }]}
+        onOpenLink={noop}
+      />,
+    );
+    checkThat("a picture stored the same way is still the picture", legacyImage.includes("rich-embed__media"));
+    checkThat("rather than a picture inside a card", !legacyImage.includes("rich-embed__grid"));
+  }
+
   // An ordinary card is still a card: the kind an application composes says
   // nothing about media, and nothing about it changes.
   checkThat(

@@ -877,3 +877,16 @@
 .rich-embed__player-btn:hover .rich-embed__player-play {
   transform: scale(1.08);
 }
+
+/*
+ * Who unfurled the page, above whoever wrote it: "YouTube", then the channel.
+ * It stays dim even when it is a link, because it is the smallest thing on the
+ * card and naming the site is not an invitation to go there.
+ */
+.rich-embed__provider {
+  font-size: var(--font-size-caption);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
