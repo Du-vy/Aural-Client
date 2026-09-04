@@ -344,20 +344,35 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     // A message needs something in it: words, files, or both.
     if (!content && !hasFiles) return;
 
+    const savedDraft = draft;
+    const savedPending = [...pending];
+    const attachmentIds = ready.map((item) => item.attachment!.id);
+
     setSending(true);
     setError(null);
+    setDraft("");
+    setMention(null);
+    clearPending();
+    input.current?.focus();
+
     try {
-      await onSend(content, ready.map((item) => item.attachment!.id));
-      setDraft("");
-      setMention(null);
-      clearPending();
+      await onSend(content, attachmentIds);
     } catch (failure) {
-      // The draft and its files are deliberately left in place: a rejected
+      // The draft and its files are deliberately restored: a rejected
       // message is one the writer still has, and making them redo it would be
       // the wrong outcome.
+      setDraft((current) => (current ? `${savedDraft} ${current}` : savedDraft));
+      setPending(savedPending);
       setError(failure instanceof Error ? failure.message : t("errors.unknown"));
     } finally {
       setSending(false);
+      if (
+        document.activeElement === null ||
+        document.activeElement === document.body ||
+        document.activeElement === input.current
+      ) {
+        input.current?.focus();
+      }
     }
   }
 
@@ -505,7 +520,6 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           maxLength={MAX_MESSAGE_LENGTH}
           placeholder={placeholder ?? t("chat.messagePlaceholder", { channel: channelName })}
           aria-label={placeholder ?? t("chat.messagePlaceholder", { channel: channelName })}
-          disabled={sending}
           onChange={(event) => {
             setDraft(event.target.value);
             refreshMention(event.target.value, event.target.selectionStart);

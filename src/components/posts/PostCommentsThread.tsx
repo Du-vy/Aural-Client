@@ -72,13 +72,20 @@ export function PostCommentsThread({
     const content = draft.trim();
     if ((!content && pendingFiles.length === 0) || submitting || post.locked) return;
 
+    const savedDraft = draft;
+    const savedFiles = [...pendingFiles];
+
     setSubmitting(true);
+    setDraft("");
+    setPendingFiles([]);
+    composerInputRef.current?.focus();
+
     try {
       let attachmentIds: number[] | undefined;
-      if (pendingFiles.length > 0) {
+      if (savedFiles.length > 0) {
         setUploadingFiles(true);
         const uploaded: Attachment[] = [];
-        for (const file of pendingFiles) {
+        for (const file of savedFiles) {
           const run = uploadAttachment(channelId, file);
           const att = await run.done;
           uploaded.push(att);
@@ -87,13 +94,20 @@ export function PostCommentsThread({
       }
 
       await sendPostComment(channelId, post.id, content, attachmentIds);
-      setDraft("");
-      setPendingFiles([]);
     } catch (err) {
       console.error("Failed to send post comment:", err);
+      setDraft((current) => (current ? `${savedDraft} ${current}` : savedDraft));
+      setPendingFiles(savedFiles);
     } finally {
       setSubmitting(false);
       setUploadingFiles(false);
+      if (
+        document.activeElement === null ||
+        document.activeElement === document.body ||
+        document.activeElement === composerInputRef.current
+      ) {
+        composerInputRef.current?.focus();
+      }
     }
   }
 
@@ -280,7 +294,6 @@ export function PostCommentsThread({
                 handleKeyDown(e);
               }}
               placeholder={t("posts.replyPlaceholder")}
-              disabled={submitting}
             />
 
             <button
