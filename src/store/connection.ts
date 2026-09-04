@@ -65,6 +65,8 @@ import {
   type PostRSVPEvent,
   type PostUpdateRequest,
   type Ready,
+  type RelayDirection,
+  type RelayState,
   type Role,
   type RoleDeletedEvent,
   type RoleEvent,
@@ -404,6 +406,14 @@ export interface ConnectionState {
   audit: { entries: AuditEntry[]; hasMore: boolean; loading: boolean; error: string | null };
   /** The automatic moderation rules, or null until they have been fetched. */
   automod: AutoModConfig | null;
+  /**
+   * The Discord relay, or null until it has been asked for.
+   *
+   * It only ever arrives for somebody who may manage the server — it names
+   * webhook URLs, which are credentials — so on everybody else's client this
+   * stays null for the whole session.
+   */
+  relay: RelayState | null;
 
   voiceStates: Map<number, VoiceState>;
   /** Who is transmitting on this server right now. */
@@ -464,6 +474,33 @@ export interface ConnectionState {
   loadAutoMod(): Promise<void>;
   /** Replaces the whole rule set. */
   updateAutoMod(config: AutoModConfig): Promise<void>;
+
+  /** Fetches the whole relay state into `relay`. */
+  loadRelay(): Promise<void>;
+  /**
+   * Switches the relay on or off, and sets the bot token when one is given.
+   * Omitting the token keeps the one already stored, which is what lets this
+   * screen toggle the relay without ever holding a credential.
+   */
+  configureRelay(enabled: boolean, botToken?: string): Promise<void>;
+  createRelayLink(request: {
+    channelId: number;
+    webhookUrl: string;
+    discordChannelId?: string;
+    direction: RelayDirection;
+    attachments: boolean;
+    edits: boolean;
+  }): Promise<void>;
+  updateRelayLink(request: {
+    id: number;
+    channelId?: number;
+    webhookUrl?: string;
+    direction?: RelayDirection;
+    enabled?: boolean;
+    attachments?: boolean;
+    edits?: boolean;
+  }): Promise<void>;
+  deleteRelayLink(id: number): Promise<void>;
 
   /** Uploads a custom emoji or sticker. */
   uploadExpression(
@@ -1732,6 +1769,14 @@ export function createConnection({
           return;
         }
 
+        case Ev.RelayUpdated: {
+          // Only sessions that may manage the server are sent this at all, so
+          // arriving is the whole of the authorisation check.
+          const { relay } = payload as { relay: RelayState };
+          set({ relay });
+          return;
+        }
+
         case Ev.ExpressionCreated:
         case Ev.ExpressionUpdated: {
           const { expression } = payload as { expression: Expression };
@@ -1967,6 +2012,7 @@ export function createConnection({
       bans: null,
       audit: { entries: [], hasMore: false, loading: false, error: null },
       automod: null,
+      relay: null,
       voiceStates: new Map(),
       speaking: new Set(),
       search: EMPTY_SEARCH,
@@ -2162,6 +2208,7 @@ export function createConnection({
           bans: null,
           audit: { entries: [], hasMore: false, loading: false, error: null },
           automod: null,
+          relay: null,
           voiceStates: new Map(),
           speaking: new Set(),
           search: EMPTY_SEARCH,
@@ -2330,6 +2377,47 @@ export function createConnection({
         // a rule cannot perform — so what comes back is what is now in force,
         // and that is what the screen has to show.
         set({ automod: result.config });
+      },
+
+      async loadRelay() {
+        const result = await requireGateway().request<{ relay: RelayState }>(Op.RelayGet, {});
+        set({ relay: result.relay });
+      },
+
+      async configureRelay(enabled, botToken) {
+        // The token is only sent when there is one to send. A request without
+        // it means "leave what you have", which is what the toggle needs.
+        const payload: { enabled: boolean; botToken?: string } = { enabled };
+        if (botToken !== undefined) payload.botToken = botToken;
+        const result = await requireGateway().request<{ relay: RelayState }>(
+          Op.RelayConfigure,
+          payload,
+        );
+        set({ relay: result.relay });
+      },
+
+      async createRelayLink(request) {
+        const result = await requireGateway().request<{ relay: RelayState }>(
+          Op.RelayCreate,
+          request,
+        );
+        set({ relay: result.relay });
+      },
+
+      async updateRelayLink(request) {
+        const result = await requireGateway().request<{ relay: RelayState }>(
+          Op.RelayUpdate,
+          request,
+        );
+        set({ relay: result.relay });
+      },
+
+      async deleteRelayLink(id) {
+        const result = await requireGateway().request<{ relay: RelayState }>(
+          Op.RelayDelete,
+          { id },
+        );
+        set({ relay: result.relay });
       },
 
       async uploadExpression(kind, name, file, onProgress) {

@@ -332,6 +332,26 @@ channel fetches it and mixes it into its own output. So it sounds the same to
 everybody, works the same whoever is relaying the call, and being deafened
 silences it exactly as it silences everything else.
 
+### The Discord relay
+
+A page under Server Settings, behind `ManageServer`, for bridging a channel here
+to a channel on a Discord server. It is arranged around the order somebody
+actually does this in — connect a bot, confirm it can see the right servers,
+bridge channels one at a time — and the setup steps are on the page rather than
+in documentation, because the two ways this goes wrong both happen inside
+Discord's own interface before anything is typed here.
+
+The bot token is write-only: the server says whether one is stored and never
+what it is, exactly as it handles the Klipy key. What is shown instead is
+whether the bot is connected, which account it connected as, and the reason the
+last attempt failed — an unset Message Content Intent says so in as many words,
+which is the difference between a five-minute fix and an afternoon.
+
+Messages that arrive over a bridge render as the person who wrote them, with
+their Discord name and picture, badged `DISCORD` in Discord's own blurple rather
+than as an app. That distinction is the point: a webhook is an application and a
+relayed message is a person, and one badge for both would misdescribe them.
+
 ## Layout
 
 ```
@@ -507,6 +527,11 @@ services that send them expect.
 that says what each ban will reach, a salted per-server device identifier so
 one survives a new guest identity, the audit log, AutoMod, custom emoji and
 stickers, and a soundboard with a trimmer.
+
+**Unreleased** — the Discord relay: a settings page that walks through
+connecting a bot and bridging channels, live connection status with the reason
+a failed one failed, per-link direction and file switches, and a distinct badge
+for the messages that arrive through one.
 
 **Later** — bots, screen sharing, a global push-to-talk hotkey in the native
 shell, and Aural Hub for finding public servers.

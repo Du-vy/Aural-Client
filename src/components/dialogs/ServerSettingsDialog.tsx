@@ -17,6 +17,7 @@ import { useSession } from "@/store/session";
 import { manageableWebhookChannels, useMyPermissions, useMyRank } from "@/store/selectors";
 import { SettingsModal, type SettingsNavCategory } from "../SettingsModal";
 import {
+  BridgeIcon,
   ChevronIcon,
   ChevronUpIcon,
   FileTextIcon,
@@ -45,6 +46,7 @@ import { ServerAuditPage } from "./server-settings/AuditPage";
 import { ServerAutoModPage } from "./server-settings/AutoModPage";
 import { ServerBansPage } from "./server-settings/BansPage";
 import { ServerExpressionsPage } from "./server-settings/ExpressionsPage";
+import { ServerRelayPage } from "./server-settings/RelayPage";
 import { ServerSoundsPage } from "./server-settings/SoundsPage";
 
 type ServerTabId =
@@ -56,6 +58,7 @@ type ServerTabId =
   | "sounds"
   | "automod"
   | "integrations"
+  | "relay"
   | "audit"
   | "members"
   | "invites"
@@ -124,6 +127,11 @@ export function ServerSettingsDialog({
           id: "integrations",
           label: t("dialogs.serverSettings.tabIntegrations"),
           icon: <LinkIcon size={16} />,
+        },
+        {
+          id: "relay",
+          label: t("dialogs.serverSettings.tabRelay"),
+          icon: <BridgeIcon size={16} />,
         },
         {
           id: "audit",
@@ -221,6 +229,7 @@ export function ServerSettingsDialog({
         {activeTab === "sounds" ? <ServerSoundsPage /> : null}
         {activeTab === "automod" ? <ServerAutoModPage /> : null}
         {activeTab === "integrations" ? <ServerIntegrationsPage /> : null}
+        {activeTab === "relay" ? <ServerRelayPage /> : null}
         {activeTab === "audit" ? <ServerAuditPage /> : null}
         {activeTab === "members" ? <ServerMembersPage /> : null}
         {activeTab === "invites" ? <ServerInvitesPage /> : null}

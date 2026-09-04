@@ -405,3 +405,12 @@
   text-transform: uppercase;
   line-height: 1.5;
 }
+
+/* A relayed message is badged in Discord's own blurple rather than the
+   server's accent. It is not the accent's job to describe somebody else's
+   service, and the colour is the fastest way to read "this person is not
+   here" in a channel where most people are. */
+.msg__app-badge--discord {
+  background: rgba(88, 101, 242, 0.18);
+  color: #7d8bf5;
+}

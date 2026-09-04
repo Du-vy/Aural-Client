@@ -113,6 +113,12 @@ export const Op = {
   WebhookUpdate: "webhook.update",
   WebhookDelete: "webhook.delete",
 
+  RelayGet: "relay.get",
+  RelayConfigure: "relay.configure",
+  RelayCreate: "relay.create",
+  RelayUpdate: "relay.update",
+  RelayDelete: "relay.delete",
+
   RoleCreate: "role.create",
   RoleUpdate: "role.update",
   RoleReorder: "role.reorder",
@@ -177,6 +183,12 @@ export const Ev = {
   RoleDeleted: "role.deleted",
 
   ServerUpdated: "server.updated",
+
+  /**
+   * The whole relay state after any change to it. It only reaches sessions
+   * that may manage the server: it names webhook URLs, which are credentials.
+   */
+  RelayUpdated: "relay.updated",
 
   VoiceState: "voice.state",
   VoiceSpeaking: "voice.speaking",
@@ -466,7 +478,17 @@ export interface MessageWebhook {
   id: number;
   /** An absolute URL, or absent: a webhook is an outside service. */
   avatar?: string | null;
+  /**
+   * Where the message came from, when that is something more specific than an
+   * application posting to a URL. `"discord"` is a message the relay carried
+   * across, and it exists so this client can say so: somebody typing on
+   * Discord is a person, and badging them as an app would misdescribe both.
+   */
+  source?: MessageSource;
 }
+
+/** The values `MessageWebhook.source` takes. */
+export type MessageSource = "discord";
 
 /**
  * A webhook: a URL that posts into one channel with no identity behind it.
@@ -486,6 +508,119 @@ export interface Webhook {
   createdAt: number;
   /** Zero until the first delivery. */
   lastUsedAt: number;
+}
+
+/* -------------------------------------------------------------------------- */
+/* The Discord relay                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A bridge between one channel here and one on a Discord server.
+ *
+ * It is for the shape a migration actually takes: not everybody leaves at
+ * once, and for the weeks in between, a conversation split across two
+ * applications is what decides whether the move sticks. Messages cross in both
+ * directions wearing the name and picture of whoever wrote them, so a bridged
+ * channel reads as the people in it rather than as a bot repeating them.
+ *
+ * The whole state arrives at once — links, plus the Discord servers the bot
+ * can currently see — because the screen that renders it needs all of it to be
+ * useful, and because none of it changes often enough for a finer-grained
+ * protocol to buy anything.
+ */
+
+/** Which way a link carries messages. */
+export type RelayDirection = "both" | "to_aural" | "to_discord";
+
+/** One channel on the Discord side, as the picker lists it. */
+export interface RelayChannel {
+  /** A Discord snowflake: a string, because the values do not fit a number. */
+  id: string;
+  name: string;
+  /** Discord's channel type, which decides the icon and thread/channel. */
+  type: number;
+  /** The category or parent channel, so the picker can group as Discord does. */
+  parentId?: string;
+  /** Set on a channel some link already points at, so it can be greyed out. */
+  linked?: boolean;
+}
+
+/** One Discord server the bot has been added to. */
+export interface RelayGuild {
+  id: string;
+  name: string;
+  /** An absolute URL on Discord's CDN, or absent. */
+  icon?: string;
+  channels: RelayChannel[];
+}
+
+/** One channel pair. */
+export interface RelayLink {
+  id: number;
+  channelId: number;
+  discordGuildId?: string;
+  discordChannelId: string;
+  /**
+   * Resolved live from what the bot can see, and absent while it is offline or
+   * has been removed from that server — which is itself worth showing, so the
+   * screen falls back to the id rather than rendering an empty row.
+   */
+  discordGuildName?: string;
+  discordChannelName?: string;
+  /** A credential: it only ever reaches somebody who may manage the server. */
+  webhookUrl: string;
+  direction: RelayDirection;
+  enabled: boolean;
+  attachments: boolean;
+  edits: boolean;
+  createdAt: number;
+  /** Zero until the first message crosses. */
+  lastRelayedAt: number;
+  /** The last failure this link hit, so a broken bridge explains itself. */
+  lastError?: string;
+}
+
+/** The whole of it. */
+export interface RelayState {
+  enabled: boolean;
+  /**
+   * Whether a bot token has been set. The token itself is never sent back: it
+   * is a password, and a screen that can display one is a screen that leaks it.
+   */
+  configured: boolean;
+  connected: boolean;
+  botName?: string;
+  botId?: string;
+  /** Why the relay is not connected, in the words the failure came in. */
+  error?: string;
+  guilds: RelayGuild[];
+  links: RelayLink[];
+}
+
+/**
+ * Discord's channel types, for the handful this client draws.
+ *
+ * They are numbers on the wire and stay numbers here: naming all of them would
+ * be a second copy of somebody else's enumeration to keep in step with, and
+ * only these few change what is rendered.
+ */
+export const DiscordChannelType = {
+  Text: 0,
+  Voice: 2,
+  Category: 4,
+  Announcement: 5,
+  AnnouncementThread: 10,
+  PublicThread: 11,
+  PrivateThread: 12,
+} as const;
+
+/** Whether a Discord channel is one of the thread kinds. */
+export function isDiscordThread(type: number): boolean {
+  return (
+    type === DiscordChannelType.AnnouncementThread ||
+    type === DiscordChannelType.PublicThread ||
+    type === DiscordChannelType.PrivateThread
+  );
 }
 
 /**

@@ -607,9 +607,23 @@ function MessageRow({
               // A webhook has no account behind it, and a name with no account
               // behind it is exactly what somebody would use to impersonate a
               // member. The badge is what says so.
-              <span className="msg__app-badge" title={t("chat.webhookBadgeTitle")}>
-                {t("chat.webhookBadge")}
-              </span>
+              //
+              // A relayed message is the one case where the name does belong to
+              // a person — somebody typing on the Discord side — so it says
+              // where they are rather than calling them an application, which
+              // would be wrong about both of them.
+              message.webhook.source === "discord" ? (
+                <span
+                  className="msg__app-badge msg__app-badge--discord"
+                  title={t("chat.relayBadgeTitle")}
+                >
+                  {t("chat.relayBadge")}
+                </span>
+              ) : (
+                <span className="msg__app-badge" title={t("chat.webhookBadgeTitle")}>
+                  {t("chat.webhookBadge")}
+                </span>
+              )
             ) : null}
             <time className="msg__time" title={formatFull(message.createdAt)}>
               {formatTime(message.createdAt)}

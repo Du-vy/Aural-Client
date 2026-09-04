@@ -380,3 +380,271 @@
     justify-content: flex-end;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* The Discord relay                                                          */
+/* -------------------------------------------------------------------------- */
+
+.relay-card__service {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.relay-card__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex: none;
+}
+
+.relay-card__heading {
+  margin: 0;
+  font-size: 16px;
+}
+
+.relay-card__desc {
+  margin-top: 8px;
+}
+
+/* A pill saying which of the four states the bridge is in. "Connecting" and
+   "connected" look different on purpose: a relay that never gets past the
+   first one is the failure this screen exists to make visible. */
+.relay-status {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.relay-status--idle {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-dim);
+}
+
+.relay-status--warn {
+  background: rgba(224, 160, 48, 0.15);
+  color: var(--warning);
+}
+
+.relay-status--good {
+  background: rgba(59, 165, 93, 0.15);
+  color: var(--online);
+}
+
+/* Whatever the last connection failed with. It is a whole paragraph rather
+   than a line because the message that matters most — the message content
+   intent being off — is a sentence, not a code. */
+.relay-card__failure {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--danger);
+  border-radius: var(--radius-xs);
+  background: var(--danger-soft);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.relay-steps__toggle {
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.relay-steps__toggle:hover {
+  text-decoration: underline;
+}
+
+.relay-steps {
+  margin: 10px 0 0;
+  padding: 12px 12px 12px 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.relay-steps li + li {
+  margin-top: 8px;
+}
+
+/* The intent step. It is the one that produces a bridge which connects
+   happily and carries nothing, so it does not read like the others. */
+.relay-steps__critical {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.relay-card__form {
+  margin-top: 16px;
+}
+
+.relay-card__token {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.relay-card__actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.relay-links__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.relay-links__add {
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.relay-empty {
+  margin-top: 14px;
+  padding: 24px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  text-align: center;
+}
+
+.relay-empty__text {
+  margin: 0;
+}
+
+/* The arrow between the two channel names carries the direction, so it is
+   given room rather than being squeezed between two words. */
+.relay-link__arrow {
+  color: var(--text-dim);
+  font-weight: 400;
+  padding: 0 2px;
+}
+
+.relay-link__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.relay-link__select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.relay-link__select .input {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.relay-link__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.relay-link__failure {
+  margin: 10px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.relay-guilds {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.relay-guild {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+}
+
+.relay-guild__icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  flex: none;
+}
+
+.relay-guild__icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.relay-guild__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.relay-guild__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Every channel the bot can see, wrapped rather than truncated: the point of
+   the list is to spot the one that is missing. */
+.relay-guild__channels {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .relay-links__header {
+    flex-direction: column;
+  }
+  .relay-link__controls {
+    gap: 10px;
+  }
+}

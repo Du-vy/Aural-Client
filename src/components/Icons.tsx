@@ -260,6 +260,20 @@ export const WebhookIcon = icon(
   </>,
 );
 
+// Two banks and a span between them, with an arrow going each way across it.
+// It is the relay: two places that were separate, and traffic in both
+// directions over the thing that joined them.
+export const BridgeIcon = icon(
+  <>
+    <path d="M3 5v14" />
+    <path d="M21 5v14" />
+    <path d="M7 9h10" />
+    <polyline points="14 6 17 9 14 12" />
+    <path d="M17 15H7" />
+    <polyline points="10 12 7 15 10 18" />
+  </>,
+);
+
 export const PaperclipIcon = icon(
   <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />,
 );
