@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 
 import { useTranslation } from "@/lib/i18n";
+import { muted, useMutedChannels, useServerOverride } from "@/lib/muting";
 import { Perm, has, resolveChannelPermissions } from "@/lib/permissions";
 import type { Channel, Role, User, ChannelType } from "@/lib/protocol";
 import { readAccessibility } from "@/lib/storage";
@@ -16,6 +17,7 @@ import {
 import { Avatar } from "./Avatar";
 import { DirectMessageList } from "./DirectMessageList";
 import {
+  BellOffIcon,
   BroadcastIcon,
   CalendarIcon,
   ChevronIcon,
@@ -95,6 +97,12 @@ export function ChannelSidebar({
   const users = useSession((state) => state.users);
   const self = useSession((state) => state.self);
   const unread = useSession((state) => state.unread);
+  const serverId = useSession((state) => state.serverId);
+  // Which channels have been silenced, and whether the whole server has. Both
+  // are read once for the list rather than once per row: this is a
+  // subscription, and there is one sidebar.
+  const mutedChannels = useMutedChannels(serverId);
+  const silenced = muted(useServerOverride(serverId));
   const deleteChannel = useSession((state) => state.deleteChannel);
   const updateChannel = useSession((state) => state.updateChannel);
 
@@ -548,6 +556,7 @@ export function ChannelSidebar({
                   }
                   selected={selectedChannelId === channel.id}
                   unread={unread.get(channel.id)}
+                  muted={silenced || mutedChannels.has(channel.id)}
                   onSelect={() => onSelectChannel(channel.id)}
                   onJoin={() => onJoinVoice(channel)}
                   onDelete={() => handleDelete(channel)}
@@ -581,6 +590,7 @@ export function ChannelSidebar({
               }
               selected={selectedChannelId === node.channel.id}
               unread={unread.get(node.channel.id)}
+              muted={silenced || mutedChannels.has(node.channel.id)}
               onSelect={() => onSelectChannel(node.channel.id)}
               onJoin={() => onJoinVoice(node.channel)}
               onDelete={() => handleDelete(node.channel)}
@@ -769,6 +779,8 @@ interface ChannelRowProps {
   selected: boolean;
   /** What is waiting in this channel, or nothing. */
   unread?: Unread;
+  /** Whether this channel has been silenced, by itself or by its server. */
+  muted?: boolean;
   onSelect(): void;
   onJoin(): void;
   onDelete(): void;
@@ -810,6 +822,7 @@ function ChannelRow({
   canManage,
   selected,
   unread,
+  muted,
   onSelect,
   onJoin,
   onDelete,
@@ -831,11 +844,14 @@ function ChannelRow({
   const full = channel.userLimit > 0 && occupants.length >= channel.userLimit && !joined;
   const disabled = isVoice && (!canConnect || full);
 
-  const waiting = !isVoice && !selected && unread !== undefined && unread.count > 0;
+  // A silenced channel is still unread; it just stops saying so. The bold name
+  // and the count are the asking, and muting is the answer to being asked.
+  const waiting = !isVoice && !selected && !muted && unread !== undefined && unread.count > 0;
 
   const classes = ["channel"];
   if (selected) classes.push("channel--active");
   if (waiting) classes.push("channel--unread");
+  if (muted) classes.push("channel--muted");
   if (joined) classes.push("channel--joined");
   if (isDragging) classes.push("channel--dragging");
   if (disabled) classes.push("channel--disabled");
@@ -920,6 +936,11 @@ function ChannelRow({
         <span className="channel__name">
           {channel.name}
         </span>
+        {muted ? (
+          <span className="channel__muted" title={t("contextMenu.muteChannel")}>
+            <BellOffIcon size={13} />
+          </span>
+        ) : null}
         {waiting && unread.mention ? (
           <span
             className="channel__badge"

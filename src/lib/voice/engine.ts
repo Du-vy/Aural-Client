@@ -314,6 +314,31 @@ export class VoiceEngine {
     await this.openSession();
   }
 
+  /**
+   * Takes a fresh audio configuration from the server.
+   *
+   * An operator can change what this server carries while people are sitting
+   * in it, and switching who relays is the change that matters here: the whole
+   * topology differs between the two modes, so a client still holding the old
+   * one offers where it should wait and is refused. The session is torn down
+   * and rebuilt under the new mode rather than patched, because there is no
+   * part of it the two modes share.
+   */
+  reconfigure(config: VoiceConfig): void {
+    const wasMode = this.config?.mode;
+    this.config = config;
+    this.mode = config.mode;
+    if (this.channelId === null || config.mode === wasMode) {
+      this.applyBitrate();
+      return;
+    }
+    // The same path a host handover takes, and for the same reason: the
+    // session cannot be edited into the other mode, only replaced. A server
+    // that changes this sends everybody a reset of its own a moment later, and
+    // arriving at the same place twice is what makes both orderings safe.
+    this.handleReset();
+  }
+
   /** Closes the media session and lets the server know. */
   async leave(): Promise<void> {
     this.cancelReconnect();
@@ -387,11 +412,19 @@ export class VoiceEngine {
    * Somebody who has just allowed the microphone in their system settings has
    * nothing left to change in the client, so there has to be a way to ask
    * again that is neither "change a setting" nor "leave and rejoin".
+   *
+   * It is also the way back from RNNoise having failed to load. The setting
+   * already says `rnnoise`, so changing it is not a thing that can be done
+   * twice, and the microphone has to be reopened for a second attempt to reach
+   * the graph at all.
    */
   async retryMicrophone(): Promise<void> {
     if (this.disposed || this.channelId === null) return;
     if (this.mic) {
       this.handlers.onMicrophone(null);
+      if (this.settings.capture.noiseSuppression === "rnnoise" && !this.mic.denoising) {
+        await this.reopenMicrophone();
+      }
       return;
     }
     await this.openMicrophoneLate();

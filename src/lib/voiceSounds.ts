@@ -8,6 +8,7 @@
 
 import { getAudioContext } from "./audioContext";
 import { readAccessibility } from "./storage";
+import { readPreferences } from "./voice/settings";
 
 export type VoiceSoundType = "join" | "leave" | "user-join" | "user-leave";
 
@@ -119,7 +120,7 @@ function playProceduralFallback(type: VoiceSoundType, ctx: AudioContext, volume:
 export interface PlayVoiceSoundOptions {
   /** Override preference checks (used by test buttons in settings). */
   force?: boolean;
-  /** Volume between 0 and 1. Defaults to 0.6. */
+  /** Volume between 0 and 1. Defaults to the listener's cue volume. */
   volume?: number;
 }
 
@@ -133,7 +134,8 @@ export async function playVoiceSound(
   type: VoiceSoundType,
   options: PlayVoiceSoundOptions = {},
 ): Promise<void> {
-  const { force = false, volume = 0.6 } = options;
+  const { force = false, volume = readPreferences().cueVolume / 100 } = options;
+  if (volume <= 0) return;
 
   if (!force) {
     const access = readAccessibility();

@@ -19,8 +19,9 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { parseAddress, type ServerAddress } from "@/lib/address";
 import { Gateway, closeMessage, type CloseInfo } from "@/lib/gateway";
 import { t } from "@/lib/i18n";
-import { mentionsSelf } from "@/lib/mentions";
-import { announce, shouldNotify } from "@/lib/notifications";
+import { mentionReach, mentionsSelf, type MentionReach } from "@/lib/mentions";
+import { shouldNotifyHere } from "@/lib/muting";
+import { announce } from "@/lib/notifications";
 import {
   AuralError,
   Ev,
@@ -611,6 +612,15 @@ export interface ConnectionState {
     permissions?: string;
     hoist?: boolean;
   }): Promise<void>;
+  /**
+   * Restacks the hierarchy.
+   *
+   * `roleIds` is the whole stack from the bottom up, without the everyone
+   * role, which is beneath everything and is not part of the order. The server
+   * takes it as one decision and refuses it as one, so a move that would lift
+   * a role to or above the caller's own leaves the stack exactly as it was.
+   */
+  reorderRoles(roleIds: number[]): Promise<void>;
   deleteRole(roleId: number): Promise<void>;
   setRoleMembership(userId: number, roleId: number, granted: boolean): Promise<void>;
   handleEvent(op: string, payload: unknown): void;
@@ -1082,7 +1092,8 @@ export function createConnection({
 
       // Roles are passed as well as the user, so a message that names a group
       // this member is in counts as naming them.
-      const mention = mentionsSelf(message.content, state.self, state.roles);
+      const reach = mentionReach(message.content, state.self, state.roles);
+      const mention = reach !== "none";
       const current = state.unread.get(message.channelId) ?? { count: 0, mention: false };
       const unread = new Map(state.unread);
       unread.set(message.channelId, {
@@ -1098,7 +1109,8 @@ export function createConnection({
         // "who said it and where" is what identifies a message, and a toast
         // has one line to say it in.
         channel: state.channels.get(message.channelId)?.name ?? "",
-        mention,
+        channelId: message.channelId,
+        reach,
         direct: false,
         tag: `channel:${message.channelId}`,
         open: () => {
@@ -1127,7 +1139,8 @@ export function createConnection({
 
       const bodyText = post.body?.content ?? "";
       const content = bodyText ? `${post.title}: ${bodyText}` : post.title;
-      const mention = mentionsSelf(content, state.self, state.roles);
+      const reach = mentionReach(content, state.self, state.roles);
+      const mention = reach !== "none";
       const current = state.unread.get(post.channelId) ?? { count: 0, mention: false };
       const unread = new Map(state.unread);
       unread.set(post.channelId, {
@@ -1140,7 +1153,8 @@ export function createConnection({
         author: post.author,
         content,
         channel: state.channels.get(post.channelId)?.name ?? "",
-        mention,
+        channelId: post.channelId,
+        reach,
         direct: false,
         tag: `channel:${post.channelId}:post:${post.id}`,
         open: () => {
@@ -1162,17 +1176,29 @@ export function createConnection({
       content: string;
       /** The channel it landed in, or empty for a private conversation. */
       channel: string;
-      mention: boolean;
+      /** The channel's id, or null for a private conversation. */
+      channelId: number | null;
+      /** How far it reached towards this user, which the rules are written in. */
+      reach: MentionReach;
       direct: boolean;
       /** Unique within this connection; the server id is added here. */
       tag: string;
       open(): void;
     }): void {
-      if (!shouldNotify({ mention: message.mention, direct: message.direct })) return;
+      if (
+        !shouldNotifyHere({
+          serverId: id,
+          channelId: message.channelId,
+          reach: message.reach,
+          direct: message.direct,
+        })
+      ) {
+        return;
+      }
       announce({
         title: message.channel ? `${message.author} — #${message.channel}` : message.author,
         body: message.content,
-        mention: message.mention,
+        mention: message.reach !== "none",
         tag: `${id}:${message.tag}`,
         activate: message.open,
       });
@@ -1594,9 +1620,10 @@ export function createConnection({
               author: message.author,
               content: message.content,
               channel: "",
+              channelId: null,
               // A line addressed to one person is a mention of them whether or
               // not it spells their name, so it flashes the taskbar like one.
-              mention: true,
+              reach: "direct",
               direct: true,
               tag: `dm:${conversation.userId}`,
               open: () => {
@@ -1754,6 +1781,12 @@ export function createConnection({
         case Ev.ServerUpdated: {
           const { server } = payload as ServerUpdatedEvent;
           set({ server });
+          // An operator can change what this server carries — including which
+          // side relays audio — while people are sitting in a voice channel,
+          // and a client still holding the mode it was told at connect would
+          // open the next session the wrong way round.
+          voiceConfig = server.voice;
+          if (host.ownsVoice()) useVoice.getState().serverConfigChanged(voiceConfig);
           host.savedChanged(
             upsertServer({
               id,
@@ -3001,6 +3034,10 @@ export function createConnection({
 
       async updateRole(input) {
         await requireGateway().request(Op.RoleUpdate, input);
+      },
+
+      async reorderRoles(roleIds) {
+        await requireGateway().request(Op.RoleReorder, { roleIds });
       },
 
       async deleteRole(roleId) {

@@ -105,6 +105,14 @@ interface VoiceStoreState {
     own: VoiceState | null,
   ): void;
   detach(): void;
+  /**
+   * The connection carrying the call has fresh audio configuration.
+   *
+   * An operator editing what the server carries reaches every client this way,
+   * and switching who relays has to reach a call that is already up: the two
+   * modes are different topologies, not different settings.
+   */
+  serverConfigChanged(config: VoiceConfig | undefined): void;
   /** Signalling only: presence is the connection's, not this store's. */
   handleEvent(op: string, payload: unknown): void;
   /** This client's own voice state changed on the server carrying the call. */
@@ -134,6 +142,22 @@ interface VoiceStoreState {
   setMeterActive(active: boolean): void;
   /** The voice state of this client, if it has one. Reads `own`. */
   self(): VoiceState | null;
+}
+
+/** Whether two server configurations would have anything here behave differently. */
+function sameVoiceConfig(a: VoiceConfig, b: VoiceConfig): boolean {
+  return (
+    a.enabled === b.enabled &&
+    a.mode === b.mode &&
+    a.sampleRate === b.sampleRate &&
+    a.bitrate === b.bitrate &&
+    a.minBitrate === b.minBitrate &&
+    a.maxBitrate === b.maxBitrate &&
+    a.fec === b.fec &&
+    a.dtx === b.dtx &&
+    a.stereo === b.stereo &&
+    a.maxParticipants === b.maxParticipants
+  );
 }
 
 /**
@@ -321,6 +345,18 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
         deviceWatchOff = () =>
           navigator.mediaDevices.removeEventListener("devicechange", onChange);
       }
+    },
+
+    serverConfigChanged(config) {
+      if (!config || !engine) return;
+      const previous = get().config;
+      if (previous && sameVoiceConfig(previous, config)) return;
+      set({ config, mode: config.mode });
+      // The bitrate is derived from the preferences *and* the server's bounds,
+      // so a narrower ceiling has to reach the encoder before the session that
+      // will carry it is rebuilt.
+      engine.reconfigure(config);
+      void engine.apply(settings(get().prefs, config));
     },
 
     detach() {

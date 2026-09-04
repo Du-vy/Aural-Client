@@ -2462,7 +2462,8 @@ console.log("\nmoderation, expressions and the soundboard");
 
 console.log("\nunread notifications and the taskbar count");
 {
-  const { shouldNotify } = await import("@/lib/notifications");
+  const { shouldNotifyHere, setChannelOverride, setServerOverride, MUTED_FOREVER } =
+    await import("@/lib/muting");
   const { startUnreadBadgeSync, totalUnread } = await import("@/lib/unreadBadge");
   const { DEFAULT_NOTIFICATIONS } = await import("@/lib/storage");
 
@@ -2471,38 +2472,83 @@ console.log("\nunread notifications and the taskbar count");
     ...patch,
   });
 
-  const plain = { mention: false, direct: false };
-  const named = { mention: true, direct: false };
-  const privately = { mention: false, direct: true };
+  const here = "notify.example:7000";
+  const at = (patch: Partial<Parameters<typeof shouldNotifyHere>[0]> = {}) => ({
+    serverId: here,
+    channelId: 4 as number | null,
+    reach: "none" as const,
+    direct: false,
+    ...patch,
+  });
+
+  const plain = at();
+  const named = at({ reach: "direct" });
+  const privately = at({ channelId: null, direct: true, reach: "direct" });
 
   checkThat(
     "every message notifies when the scope is all",
-    shouldNotify(plain, settings({ scope: "all" })),
+    shouldNotifyHere(plain, settings({ scope: "all" })),
   );
   checkThat(
     "an unnamed message is silent when the scope is mentions",
-    !shouldNotify(plain, settings({ scope: "mentions" })),
+    !shouldNotifyHere(plain, settings({ scope: "mentions" })),
   );
   checkThat(
     "a mention still notifies when the scope is mentions",
-    shouldNotify(named, settings({ scope: "mentions" })),
+    shouldNotifyHere(named, settings({ scope: "mentions" })),
   );
   checkThat(
     "nothing notifies when the scope is none",
-    !shouldNotify(named, settings({ scope: "none" })),
+    !shouldNotifyHere(named, settings({ scope: "none" })),
   );
   checkThat(
     "a direct message notifies past a scope of mentions",
-    shouldNotify(privately, settings({ scope: "mentions" })),
+    shouldNotifyHere(privately, settings({ scope: "mentions" })),
   );
   checkThat(
     "a direct message notifies past a scope of none",
-    shouldNotify(privately, settings({ scope: "none" })),
+    shouldNotifyHere(privately, settings({ scope: "none" })),
   );
   checkThat(
     "direct messages can be turned off on their own",
-    !shouldNotify(privately, settings({ directMessages: false })),
+    !shouldNotifyHere(privately, settings({ directMessages: false })),
   );
+
+  // The overrides: a channel disagrees with its server, a server disagrees with
+  // the client, and a mute outranks all three.
+  setServerOverride(here, { scope: "mentions" });
+  checkThat(
+    "a server narrows what the client would have allowed",
+    !shouldNotifyHere(plain, settings({ scope: "all" })),
+  );
+  setChannelOverride(here, 4, { scope: "all" });
+  checkThat(
+    "a channel widens what its server narrowed",
+    shouldNotifyHere(plain, settings({ scope: "all" })),
+  );
+  setChannelOverride(here, 4, { mutedUntil: MUTED_FOREVER });
+  checkThat("a muted channel is silent whatever its scope says", !shouldNotifyHere(named));
+  setChannelOverride(here, 4, { mutedUntil: Date.now() - 1 });
+  checkThat("a mute that has run out is no mute at all", shouldNotifyHere(plain));
+
+  // The keyword and role switches are about being one of many, so somebody's
+  // own name goes through both of them.
+  setChannelOverride(here, 4, { suppressEveryone: true, suppressRoles: true });
+  checkThat("@everyone can be suppressed on its own", !shouldNotifyHere(at({ reach: "keyword" })));
+  checkThat("role mentions can be suppressed on their own", !shouldNotifyHere(at({ reach: "role" })));
+  checkThat("your own name is not suppressed by either", shouldNotifyHere(named));
+
+  setServerOverride(here, { mutedUntil: MUTED_FOREVER });
+  checkThat("a muted server silences a channel that was not muted", !shouldNotifyHere(named));
+  checkThat("and silences private messages with it", !shouldNotifyHere(privately));
+
+  setServerOverride(here, { scope: null, mutedUntil: 0 });
+  setChannelOverride(here, 4, {
+    scope: null,
+    mutedUntil: 0,
+    suppressEveryone: false,
+    suppressRoles: false,
+  });
 
   // A message in a channel nobody has open, on the connection in front. The
   // rest of the client counts it; this is about what the taskbar then says.

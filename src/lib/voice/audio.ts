@@ -282,8 +282,16 @@ export class Microphone {
     // As in open(), the denoiser is settled before the microphone is asked
     // for. Switching suppression is the one change that alters both halves at
     // once, and they have to agree.
+    //
+    // Asking again when RNNoise is already chosen but absent is the second
+    // half of it: a load that failed once — an asset that had not arrived, a
+    // worklet the page could not register yet — leaves the setting saying
+    // `rnnoise` and the graph without it, and without this the only way back
+    // would be to restart the client.
     let denoise = this.denoise;
-    if (options.noiseSuppression !== this.options.noiseSuppression) {
+    const wantsMissingRnnoise =
+      options.noiseSuppression === "rnnoise" && this.denoise === null;
+    if (options.noiseSuppression !== this.options.noiseSuppression || wantsMissingRnnoise) {
       denoise =
         options.noiseSuppression === "rnnoise" && this.context
           ? await prepareDenoiser(this.context)

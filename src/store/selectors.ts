@@ -343,13 +343,21 @@ export function roleHas(role: Role, bit: bigint): boolean {
  * "is there anything here" and "does any of it name me", and a reader who
  * wants the breakdown is one click from the channel list that has it.
  */
-export function unreadTotals(unread: ReadonlyMap<number, Unread>): {
+export function unreadTotals(
+  unread: ReadonlyMap<number, Unread>,
+  /**
+   * Channels to leave out of the sum, which is how a muted one stays unread
+   * without asking for anybody's attention.
+   */
+  skip?: (channelId: number) => boolean,
+): {
   count: number;
   mentions: number;
 } {
   let count = 0;
   let mentions = 0;
-  for (const entry of unread.values()) {
+  for (const [channelId, entry] of unread) {
+    if (skip?.(channelId)) continue;
     count += entry.count;
     if (entry.mention) mentions += 1;
   }

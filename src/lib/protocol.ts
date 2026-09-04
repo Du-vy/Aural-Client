@@ -115,6 +115,7 @@ export const Op = {
 
   RoleCreate: "role.create",
   RoleUpdate: "role.update",
+  RoleReorder: "role.reorder",
   RoleDelete: "role.delete",
   RoleAssign: "role.assign",
   RoleUnassign: "role.unassign",
@@ -245,6 +246,19 @@ export interface ServerInfo {
    * offers them there has every send refused.
    */
   directMessages?: boolean;
+  /**
+   * What this server will accept as a username and password. Absent from a
+   * server older than the field, in which case the form says nothing about the
+   * policy and lets the server answer instead.
+   */
+  registration?: RegistrationLimits;
+}
+
+/** The account policy, so a form can say what it wants before it is refused. */
+export interface RegistrationLimits {
+  minPasswordLength: number;
+  minUsernameLength: number;
+  maxUsernameLength: number;
 }
 
 /**

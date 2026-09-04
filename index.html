@@ -7,6 +7,11 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
     />
     <meta name="color-scheme" content="dark" />
+    <!-- Twitter's media CDN refuses a request that carries a Referer it does not
+         know, which is every embed drawn here. Dropping the header for the whole
+         document is what makes those videos and thumbnails load, and a chat
+         client has no reason to tell anybody which page a request came from. -->
+    <meta name="referrer" content="no-referrer" />
     <meta name="description" content="Aural, an open source voice and chat client for self-hosted servers" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

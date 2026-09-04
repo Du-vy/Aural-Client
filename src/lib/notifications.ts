@@ -9,9 +9,9 @@
  * desktop plugin's activation callback needs an action type registered per
  * platform, so a desktop toast is read rather than clicked for now.
  *
- * Nothing here decides *whether* to notify. That is `shouldNotify`, which the
- * connection asks before building a request, so a connection never pays for a
- * notification the settings have already ruled out.
+ * Nothing here decides *whether* to notify. That is `shouldNotifyHere` in
+ * `lib/muting`, which the connection asks before building a request, so a
+ * connection never pays for a notification the settings have already ruled out.
  */
 
 import { isTauri } from "@tauri-apps/api/core";
@@ -34,23 +34,6 @@ export interface NotificationRequest {
   tag: string;
   /** Brings the sender's channel to the front. Only wired up in a browser. */
   activate?(): void;
-}
-
-/**
- * Whether one arriving message clears the bar the settings set.
- *
- * `direct` is separate from `mention` because a direct message is addressed to
- * one person whether or not it spells their name, and the setting that says so
- * is its own.
- */
-export function shouldNotify(
-  { mention, direct }: { mention: boolean; direct: boolean },
-  settings: NotificationSettings = readNotifications(),
-): boolean {
-  if (direct) return settings.directMessages;
-  if (settings.scope === "none") return false;
-  if (settings.scope === "mentions") return mention;
-  return true;
 }
 
 /* --- Permission ------------------------------------------------------------ */

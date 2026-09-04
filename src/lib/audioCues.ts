@@ -1,5 +1,6 @@
 import { getAudioContext } from "./audioContext";
 import { readAccessibility } from "./storage";
+import { readPreferences } from "./voice/settings";
 
 /**
  * Synthesizes a soft, pleasant audio chime for mute / unmute states.
@@ -8,6 +9,11 @@ import { readAccessibility } from "./storage";
 export function playChime(muted: boolean): void {
   const ctx = getAudioContext();
   if (!ctx) return;
+
+  // The same fader as every other cue: this is one of the sounds that plays
+  // over a conversation, and it is turned down with the rest of them.
+  const level = readPreferences().cueVolume / 100;
+  if (level <= 0) return;
 
   try {
     const now = ctx.currentTime;
@@ -28,7 +34,7 @@ export function playChime(muted: boolean): void {
 
     // Soft envelope to prevent clicks or harsh transients
     gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.12, now + 0.02);
+    gain.gain.linearRampToValueAtTime(Math.max(0.002, 0.2 * level), now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
 
     osc.connect(gain);

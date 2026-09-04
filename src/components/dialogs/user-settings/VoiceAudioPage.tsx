@@ -52,6 +52,7 @@ export function VoiceAudioPage() {
   const refreshDevices = useVoice((state) => state.refreshDevices);
   const setMeterActive = useVoice((state) => state.setMeterActive);
   const denoising = useVoice((state) => state.denoising);
+  const retryMicrophone = useVoice((state) => state.retryMicrophone);
 
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState<MicrophoneFailure | null>(null);
@@ -514,9 +515,18 @@ export function VoiceAudioPage() {
           </div>
 
           {prefs.noiseSuppression === "rnnoise" && denoising === false ? (
-            <p className="field__error" style={{ marginTop: 10 }}>
-              {t("dialogs.userSettings.voice.rnnoiseUnavailable")}
-            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+              <p className="field__error" style={{ margin: 0 }}>
+                {t("dialogs.userSettings.voice.rnnoiseUnavailable")}
+              </p>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => void retryMicrophone()}
+              >
+                {t("dialogs.userSettings.voice.rnnoiseRetry")}
+              </button>
+            </div>
           ) : null}
         </div>
 
@@ -628,6 +638,26 @@ export function VoiceAudioPage() {
               <span className="settings-switch__slider" />
             </label>
           </div>
+
+          <Slider
+            label={t("dialogs.userSettings.voice.cueVolume")}
+            value={prefs.cueVolume}
+            min={0}
+            max={100}
+            suffix="%"
+            onChange={(cueVolume) => setPreferences({ cueVolume })}
+          />
+          <p className="field__hint">{t("dialogs.userSettings.voice.cueVolumeDesc")}</p>
+
+          <Slider
+            label={t("dialogs.userSettings.voice.soundboardVolume")}
+            value={prefs.soundboardVolume}
+            min={0}
+            max={100}
+            suffix="%"
+            onChange={(soundboardVolume) => setPreferences({ soundboardVolume })}
+          />
+          <p className="field__hint">{t("dialogs.userSettings.voice.soundboardVolumeDesc")}</p>
         </div>
       </div>
     </div>

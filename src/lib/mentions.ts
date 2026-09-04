@@ -292,55 +292,38 @@ export function splitMentions(text: string, directory: MentionDirectory): Mentio
   return tokens;
 }
 
-/** Every spelling that reaches one user: their names, their roles, the keywords. */
-function spellingsOf(self: User, roles?: ReadonlyMap<number, Role>): string[] {
-  const spellings = [self.nickname, self.username, EVERYONE, HERE].filter(
+/**
+ * How a message reached somebody.
+ *
+ * The three ways are kept apart because they are worth interrupting somebody
+ * for by different amounts, and because that is exactly what a person muting a
+ * busy channel is choosing between: their own name, a group they happen to be
+ * in, and a word that means the whole room.
+ */
+export type MentionReach = "none" | "keyword" | "role" | "direct";
+
+/** The spellings that name one person and nobody else. */
+function directSpellings(self: User): string[] {
+  return [self.nickname, self.username].filter(
     (name): name is string => typeof name === "string" && name.length > 0,
   );
-  if (roles) {
-    for (const id of self.roles) {
-      const role = roles.get(id);
-      // The everyone role is `@everyone`, which is already in the list above.
-      if (role && role.managed !== "everyone" && role.name) spellings.push(role.name);
-    }
+}
+
+/** The spellings that name a group this person is in. */
+function roleSpellings(self: User, roles?: ReadonlyMap<number, Role>): string[] {
+  const spellings: string[] = [];
+  if (!roles) return spellings;
+  for (const id of self.roles) {
+    const role = roles.get(id);
+    // The everyone role is `@everyone`, which is a keyword rather than a group.
+    if (role && role.managed !== "everyone" && role.name) spellings.push(role.name);
   }
   return spellings;
 }
 
-/**
- * Every `<@id>` that reaches one user: their own, and each role they hold.
- *
- * The everyone role is included here where it is left out of the spellings,
- * because a webhook naming that role by its id means everyone by it — there is
- * no `<@…>` for the `@everyone` keyword to have covered it already.
- */
-function idsOf(self: User, roles?: ReadonlyMap<number, Role>): string[] {
-  const ids = [`<@${self.id}>`];
-  if (roles) {
-    for (const id of self.roles) {
-      if (roles.has(id)) ids.push(`<@&${id}>`);
-    }
-  }
-  return ids;
-}
-
-/**
- * Whether a message names this user.
- *
- * This is what an unread badge is decided by, so it runs on every message that
- * arrives and holds no directory of its own: only the handful of spellings
- * that reach one person. It is generous about case and mean about substrings,
- * because a badge that lights up for somebody else's name is worse than one
- * that misses.
- */
-export function mentionsSelf(
-  content: string,
-  self: User | null,
-  roles?: ReadonlyMap<number, Role>,
-): boolean {
-  if (!self) return false;
-  const text = content.toLowerCase();
-  for (const spelling of spellingsOf(self, roles)) {
+/** Whether any of `spellings` is written as an `@…` in `text`, lowercased. */
+function namesAny(text: string, spellings: readonly string[]): boolean {
+  for (const spelling of spellings) {
     const needle = `@${spelling.toLowerCase()}`;
     for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + 1)) {
       const before = at === 0 ? undefined : text[at - 1]!;
@@ -349,12 +332,69 @@ export function mentionsSelf(
       if (after === undefined || !WORDISH.test(after)) return true;
     }
   }
-  // An id needs no boundary test: the brackets are the boundary, and nothing
-  // longer can contain `<@12>` and mean somebody else by it.
-  for (const id of idsOf(self, roles)) {
+  return false;
+}
+
+/** Whether any of `ids` appears. The brackets are the boundary. */
+function holdsAny(text: string, ids: readonly string[]): boolean {
+  for (const id of ids) {
     if (text.includes(id)) return true;
   }
   return false;
+}
+
+/**
+ * How far a message reaches towards this user: by name, by a role they hold,
+ * by a word that means the room, or not at all.
+ *
+ * This is what an unread badge and every notification rule are decided by, so
+ * it runs on every message that arrives and holds no directory of its own:
+ * only the handful of spellings that reach one person. It is generous about
+ * case and mean about substrings, because a badge that lights up for somebody
+ * else's name is worse than one that misses.
+ *
+ * The strongest reach wins. A message that spells out a name and also says
+ * `@everyone` was addressed to that person, and muting the keyword must not
+ * take it away from them.
+ */
+export function mentionReach(
+  content: string,
+  self: User | null,
+  roles?: ReadonlyMap<number, Role>,
+): MentionReach {
+  if (!self) return "none";
+  const text = content.toLowerCase();
+
+  if (namesAny(text, directSpellings(self)) || text.includes(`<@${self.id}>`)) return "direct";
+
+  const roleIds: string[] = [];
+  if (roles) {
+    for (const id of self.roles) {
+      // The everyone role is included here where it is left out of the
+      // spellings: a webhook naming that role by its id means everyone by it,
+      // and there is no `<@…>` for the keyword to have covered it already.
+      if (roles.get(id)?.managed === "everyone") continue;
+      if (roles.has(id)) roleIds.push(`<@&${id}>`);
+    }
+  }
+  if (namesAny(text, roleSpellings(self, roles)) || holdsAny(text, roleIds)) return "role";
+
+  if (namesAny(text, [EVERYONE, HERE])) return "keyword";
+  if (roles) {
+    for (const [id, role] of roles) {
+      if (role.managed === "everyone" && text.includes(`<@&${id}>`)) return "keyword";
+    }
+  }
+  return "none";
+}
+
+/** Whether a message names this user at all, by any of the three routes. */
+export function mentionsSelf(
+  content: string,
+  self: User | null,
+  roles?: ReadonlyMap<number, Role>,
+): boolean {
+  return mentionReach(content, self, roles) !== "none";
 }
 
 /**

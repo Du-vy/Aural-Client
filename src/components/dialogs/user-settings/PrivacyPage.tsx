@@ -2,6 +2,11 @@ import { useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { describeError, type DMPrivacy } from "@/lib/protocol";
 import { useSession } from "@/store/session";
+import {
+  AUTO_AWAY_MINUTES,
+  readPresence,
+  writePresence,
+} from "@/lib/storage";
 
 export function PrivacyPage() {
   const { t } = useTranslation();
@@ -27,6 +32,7 @@ export function PrivacyPage() {
 
   const [telemetry, setTelemetry] = useState(false);
   const [embeds, setEmbeds] = useState(true);
+  const [presence, setPresence] = useState(readPresence);
 
   function choose(next: DMPrivacy) {
     if (next === privacy) return;
@@ -115,6 +121,51 @@ export function PrivacyPage() {
             </label>
           ))}
         </div>
+      </div>
+
+      <div className="settings-card" style={{ marginTop: 16 }}>
+        <div className="settings-row">
+          <div className="settings-row__info">
+            <h3 className="settings-card__title">
+              {t("dialogs.userSettings.privacy.autoAwayTitle")}
+            </h3>
+            <p className="settings-card__subtitle">
+              {t("dialogs.userSettings.privacy.autoAwayDesc")}
+            </p>
+          </div>
+          <label className="settings-switch">
+            <input
+              type="checkbox"
+              checked={presence.autoAway}
+              onChange={(e) => setPresence(writePresence({ autoAway: e.target.checked }))}
+            />
+            <span className="settings-switch__slider" />
+          </label>
+        </div>
+
+        {presence.autoAway ? (
+          <div className="settings-row" style={{ marginTop: 16 }}>
+            <div className="settings-row__info">
+              <h3 className="settings-card__title">
+                {t("dialogs.userSettings.privacy.autoAwayAfter")}
+              </h3>
+            </div>
+            <select
+              className="input"
+              style={{ width: 160 }}
+              value={presence.autoAwayMinutes}
+              onChange={(e) =>
+                setPresence(writePresence({ autoAwayMinutes: Number(e.target.value) }))
+              }
+            >
+              {AUTO_AWAY_MINUTES.map((minutes) => (
+                <option key={minutes} value={minutes}>
+                  {t("dialogs.userSettings.privacy.autoAwayMinutes", { minutes })}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
       </div>
 
       <div className="settings-card" style={{ marginTop: 16 }}>

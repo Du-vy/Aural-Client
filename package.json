@@ -1,6 +1,6 @@
 {
   "name": "aural-client",
-  "version": "0.7.6",
+  "version": "0.7.8",
   "private": true,
   "type": "module",
   "description": "Client for Aural, an open source voice and chat platform with self-hosted servers",

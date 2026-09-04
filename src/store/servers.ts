@@ -18,6 +18,7 @@ import { useStore } from "zustand";
 
 import { parseAddress } from "@/lib/address";
 import { describeError, type DirectMessage, type User } from "@/lib/protocol";
+import { forgetServerMuting } from "@/lib/muting";
 import { listServers, removeServer, type SavedServer } from "@/lib/storage";
 import {
   createConnection,
@@ -208,6 +209,10 @@ export const useServers = createStore<ServersState>((set, get) => ({
 
   forget(id) {
     if (get().connections.has(id)) get().close(id);
+    // The notification overrides go with it. They are keyed by server, and a
+    // server that is added again later is a fresh decision rather than one
+    // that inherits a mute from months ago.
+    forgetServerMuting(id);
     set({ saved: removeServer(id) });
   },
 

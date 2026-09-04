@@ -17,6 +17,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { unreadTotals } from "@/store/selectors";
 import { useServers } from "@/store/servers";
 
+import { channelMuted, onMutingChanged, serverMuted } from "./muting";
 import { onNotificationsChanged, readNotifications } from "./storage";
 
 /** The window title with nothing waiting. Matches `tauri.conf.json`. */
@@ -29,13 +30,21 @@ export interface UnreadSummary {
   mentions: number;
 }
 
-/** Adds up what every open connection is holding. */
+/**
+ * Adds up what every open connection is holding.
+ *
+ * A muted server contributes nothing at all, and a muted channel contributes
+ * nothing from a server that is otherwise counted. Muting is about not being
+ * asked for attention, and the number on the taskbar is the largest ask there
+ * is: leaving a silenced channel in it would make the mute meaningless.
+ */
 export function totalUnread(): UnreadSummary {
   let count = 0;
   let mentions = 0;
-  for (const store of useServers.getState().connections.values()) {
+  for (const [serverId, store] of useServers.getState().connections) {
+    if (serverMuted(serverId)) continue;
     const state = store.getState();
-    const totals = unreadTotals(state.unread);
+    const totals = unreadTotals(state.unread, (channelId) => channelMuted(serverId, channelId));
     count += totals.count;
     mentions += totals.mentions;
     for (const conversation of state.conversations.values()) {
@@ -227,11 +236,18 @@ export function startUnreadBadgeSync(): () => void {
     last = "";
     schedule();
   });
+  // Muting a channel changes the sum without any store having written, so it
+  // has to say so here too.
+  const stopMuting = onMutingChanged(() => {
+    last = "";
+    schedule();
+  });
   reconcile();
 
   return () => {
     stopRegistry();
     stopSettings();
+    stopMuting();
     for (const unsubscribe of watched.values()) unsubscribe();
     watched.clear();
   };

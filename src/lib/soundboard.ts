@@ -27,6 +27,7 @@
  */
 
 import { getAudioContext } from "./audioContext";
+import { readPreferences } from "./voice/settings";
 
 /** What the trimmer hands back, ready to upload. */
 export interface TrimmedClip {
@@ -203,10 +204,15 @@ const playing = new Set<AudioBufferSourceNode>();
  * Plays a clip.
  *
  * `volume` is the clip's own level, 0..100, so one recorded hot sits beside the
- * others without being re-cut. `gain` on top of it is the listener's: it is
- * where being deafened, or turning the soundboard down, is applied.
+ * others without being re-cut. `gain` on top of it is the listener's: it
+ * defaults to the soundboard fader in this client's voice preferences, and is
+ * passed explicitly only where something else has to be applied on top.
  */
-export async function playSoundClip(url: string, volume: number, gain = 1): Promise<void> {
+export async function playSoundClip(
+  url: string,
+  volume: number,
+  gain = readPreferences().soundboardVolume / 100,
+): Promise<void> {
   const context = getAudioContext();
   if (!context || gain <= 0) return;
 

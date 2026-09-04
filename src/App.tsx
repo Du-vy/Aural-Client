@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { CloseIcon } from "@/components/Icons";
 import { useTranslation } from "@/lib/i18n";
+import { startIdleWatch } from "@/lib/idle";
 import { preloadNotificationSound } from "@/lib/notificationSounds";
 import { preloadVoiceSounds } from "@/lib/voiceSounds";
 import { readNotifications } from "@/lib/storage";
@@ -23,6 +24,11 @@ export function App() {
   // is started here rather than anywhere inside the server view: that tree is
   // replaced whenever the foreground server changes.
   useEffect(() => startUnreadBadgeSync(), []);
+
+  // Away follows every connection for the same reason the badge does, and for
+  // one more: one person is idle or is not, and two watchers deciding that
+  // separately would fight over the answer.
+  useEffect(() => startIdleWatch(), []);
 
   // The tray menu is built during startup, before anything that knows which
   // language this is being read in has loaded, so it is written in English and

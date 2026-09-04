@@ -571,3 +571,65 @@
   display: none;
 }
 
+
+/* A role's row: the role itself, and the arrows that move it in the stack. */
+.rolelist__row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  transition: background var(--speed) ease;
+}
+
+.rolelist__row:hover {
+  background: var(--hover);
+}
+
+.rolelist__row--active {
+  background: var(--selected);
+}
+
+.rolelist__row .rolelist__item {
+  flex: 1;
+  min-width: 0;
+  background: none;
+}
+
+.rolelist__row .rolelist__item:hover {
+  background: none;
+}
+
+.rolelist__arrows {
+  display: flex;
+  flex-direction: column;
+  padding-right: 6px;
+  opacity: 0;
+  transition: opacity var(--speed) ease;
+}
+
+.rolelist__row:hover .rolelist__arrows,
+.rolelist__row:focus-within .rolelist__arrows {
+  opacity: 1;
+}
+
+.rolelist__arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 14px;
+  border: none;
+  background: none;
+  border-radius: 3px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.rolelist__arrow:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.rolelist__arrow:disabled {
+  opacity: 0.25;
+  cursor: default;
+}

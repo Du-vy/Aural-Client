@@ -359,6 +359,65 @@ export function initAccessibility(): AccessibilitySettings {
 
 
 
+/* --- Presence settings (client-side) ---------------------------------------- */
+
+const PRESENCE_KEY = "aural.presence.v1";
+
+export interface PresenceSettings {
+  /** Whether stopping for a while shows this person as away by itself. */
+  autoAway: boolean;
+  /** How long "a while" is, in minutes. */
+  autoAwayMinutes: number;
+}
+
+export const DEFAULT_PRESENCE: PresenceSettings = {
+  autoAway: true,
+  autoAwayMinutes: 10,
+};
+
+/** The values the settings page offers, and the only ones accepted from disk. */
+export const AUTO_AWAY_MINUTES = [1, 5, 10, 15, 30, 60] as const;
+
+export function readPresence(): PresenceSettings {
+  try {
+    const raw = localStorage.getItem(PRESENCE_KEY);
+    if (!raw) return { ...DEFAULT_PRESENCE };
+    const parsed = JSON.parse(raw) as Partial<PresenceSettings>;
+    return {
+      autoAway:
+        typeof parsed.autoAway === "boolean" ? parsed.autoAway : DEFAULT_PRESENCE.autoAway,
+      autoAwayMinutes: (AUTO_AWAY_MINUTES as readonly number[]).includes(
+        parsed.autoAwayMinutes as number,
+      )
+        ? (parsed.autoAwayMinutes as number)
+        : DEFAULT_PRESENCE.autoAwayMinutes,
+    };
+  } catch {
+    return { ...DEFAULT_PRESENCE };
+  }
+}
+
+const presenceListeners = new Set<(settings: PresenceSettings) => void>();
+
+/** Watches the presence settings, which the idle watcher has to be told about. */
+export function onPresenceChanged(listener: (settings: PresenceSettings) => void): () => void {
+  presenceListeners.add(listener);
+  return () => {
+    presenceListeners.delete(listener);
+  };
+}
+
+export function writePresence(patch: Partial<PresenceSettings>): PresenceSettings {
+  const updated: PresenceSettings = { ...readPresence(), ...patch };
+  try {
+    localStorage.setItem(PRESENCE_KEY, JSON.stringify(updated));
+  } catch {
+    // Storage is unavailable. The change still applies to this session.
+  }
+  for (const listener of presenceListeners) listener(updated);
+  return updated;
+}
+
 /* --- Notification settings (client-side) ------------------------------------ */
 
 const NOTIFICATIONS_KEY = "aural.notifications.v1";

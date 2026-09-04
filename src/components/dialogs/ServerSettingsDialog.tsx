@@ -17,6 +17,8 @@ import { useSession } from "@/store/session";
 import { manageableWebhookChannels, useMyPermissions, useMyRank } from "@/store/selectors";
 import { SettingsModal, type SettingsNavCategory } from "../SettingsModal";
 import {
+  ChevronIcon,
+  ChevronUpIcon,
   FileTextIcon,
   FolderIcon,
   GifIcon,
@@ -196,7 +198,7 @@ export function ServerSettingsDialog({
         </span>
       </button>
       <div className="settings-sidebar__version-wrap">
-        <span className="settings-sidebar__version">Aural Client v0.7.6</span>
+        <span className="settings-sidebar__version">Aural Client v0.7.8</span>
       </div>
     </div>
   );
@@ -598,13 +600,59 @@ function ServerRolesPage() {
   const roles = useSession((state) => state.roles);
   const createRole = useSession((state) => state.createRole);
   const deleteRole = useSession((state) => state.deleteRole);
+  const reorderRoles = useSession((state) => state.reorderRoles);
   const myPermissions = useMyPermissions();
   const myRank = useMyRank();
 
+  // Highest first, which is how a hierarchy reads and the order the arrows
+  // move things in. The everyone role is always the last row: it is beneath
+  // everything by definition and has no position to argue about.
   const ordered = useMemo(
     () => [...roles.values()].sort((a, b) => b.position - a.position),
     [roles],
   );
+  const canManageRoles = has(myPermissions, Perm.ManageRoles);
+
+  /**
+   * Swaps a role with its neighbour and sends the whole stack.
+   *
+   * The server takes a reorder as one decision about every role, so what goes
+   * up is the complete order bottom-up rather than the pair that moved — and
+   * the everyone role is left out of it, being the floor the rest stand on.
+   */
+  async function move(index: number, delta: number) {
+    const next = [...ordered];
+    const other = index + delta;
+    const role = next[index];
+    const neighbour = next[other];
+    if (!role || !neighbour) return;
+    next[index] = neighbour;
+    next[other] = role;
+    setError(null);
+    try {
+      await reorderRoles(
+        next
+          .filter((entry) => entry.managed !== "everyone")
+          .reverse()
+          .map((entry) => entry.id),
+      );
+    } catch (caught) {
+      setError(describeError(caught));
+    }
+  }
+
+  /** Whether a role may be swapped with the row `delta` away from it. */
+  function movable(index: number, delta: number): boolean {
+    if (!canManageRoles) return false;
+    const role = ordered[index];
+    const neighbour = ordered[index + delta];
+    if (!role || !neighbour) return false;
+    // Neither the everyone role nor anything at or above the caller's own may
+    // change places. The server refuses both; saying so with a disabled arrow
+    // is the difference between a rule and a failure.
+    if (role.managed === "everyone" || neighbour.managed === "everyone") return false;
+    return role.position < myRank && neighbour.position < myRank;
+  }
   const [selectedId, setSelectedId] = useState<number | null>(ordered[0]?.id ?? null);
   const [error, setError] = useState<string | null>(null);
 
@@ -652,21 +700,50 @@ function ServerRolesPage() {
           </button>
 
           <div className="settings-role-list">
-            {ordered.map((role) => (
-              <button
+            {ordered.map((role, index) => (
+              <div
                 key={role.id}
-                type="button"
-                className={`rolelist__item ${role.id === selectedId ? "rolelist__item--active" : ""}`}
-                onClick={() => setSelectedId(role.id)}
+                className={`rolelist__row ${role.id === selectedId ? "rolelist__row--active" : ""}`}
               >
-                <span
-                  className="rolelist__swatch"
-                  style={role.color ? { background: role.color } : undefined}
-                />
-                <span className="rolelist__name">{role.name}</span>
-              </button>
+                <button
+                  type="button"
+                  className="rolelist__item"
+                  onClick={() => setSelectedId(role.id)}
+                >
+                  <span
+                    className="rolelist__swatch"
+                    style={role.color ? { background: role.color } : undefined}
+                  />
+                  <span className="rolelist__name">{role.name}</span>
+                </button>
+                <span className="rolelist__arrows">
+                  <button
+                    type="button"
+                    className="rolelist__arrow"
+                    disabled={!movable(index, -1)}
+                    title={t("dialogs.serverSettings.roles.moveUp")}
+                    aria-label={t("dialogs.serverSettings.roles.moveUp")}
+                    onClick={() => void move(index, -1)}
+                  >
+                    <ChevronUpIcon size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    className="rolelist__arrow"
+                    disabled={!movable(index, 1)}
+                    title={t("dialogs.serverSettings.roles.moveDown")}
+                    aria-label={t("dialogs.serverSettings.roles.moveDown")}
+                    onClick={() => void move(index, 1)}
+                  >
+                    <ChevronIcon size={13} />
+                  </button>
+                </span>
+              </div>
             ))}
           </div>
+          <p className="field__hint" style={{ marginTop: 8 }}>
+            {t("dialogs.serverSettings.roles.hierarchyHint")}
+          </p>
         </div>
 
         {/* Right Column: Role Editor */}

@@ -91,7 +91,12 @@ export async function prepareDenoiser(context: AudioContext): Promise<RnnoiseWor
     // The binary crosses to the worklet by structured clone, not transfer, so
     // the cached copy stays usable for every later microphone.
     return new Node(context, { maxChannels: 1, wasmBinary: binary });
-  } catch {
+  } catch (error) {
+    // The caller falls back to the browser's own suppressor, and the interface
+    // says so. What it cannot say is *why*, and the difference between a
+    // blocked fetch, a worklet the platform refused and a context in the wrong
+    // state is the whole of diagnosing a report of this, so it is logged.
+    console.warn("Aural: RNNoise could not be loaded", error);
     return null;
   }
 }

@@ -177,6 +177,16 @@
   color: var(--text);
 }
 
+/* A silenced server is still there and still reachable; it just stops being one
+   of the things the eye is drawn down the rail towards. */
+.rail__item--muted:not(.rail__item--active) {
+  opacity: 0.4;
+}
+
+.rail__item--muted:hover {
+  opacity: 1;
+}
+
 /* A server with something waiting takes a short version of the mark hovering
    draws, so the rail can be read down its edge without counting badges. The
    hover and active rules outrank this one, which is what makes the mark grow
@@ -1244,6 +1254,20 @@
   transform: translateY(-50%);
   border-radius: 0 3px 3px 0;
   background: var(--text);
+}
+
+/* Silenced: still legible, plainly quieter, and saying why. */
+.channel--muted .channel__name,
+.channel--muted .channel__icon {
+  opacity: 0.45;
+}
+
+.channel__muted {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  opacity: 0.7;
 }
 
 .channel__badge {

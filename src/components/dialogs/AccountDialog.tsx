@@ -3,12 +3,15 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { Perm, has } from "@/lib/permissions";
 
-import { describeError } from "@/lib/protocol";
+import { describeError, type RegistrationLimits } from "@/lib/protocol";
 import { useSession } from "@/store/session";
 import { useMyPermissions } from "@/store/selectors";
 import { Modal } from "../Modal";
 
 type Tab = "identity" | "account" | "ownership" | "preferences";
+
+/** What the server accepts in a username, mirrored from `validateUsername`. */
+const USERNAME_CHARS = /^[A-Za-z0-9._-]+$/;
 
 /**
  * Everything about who you are on this server: the display name, claiming the
@@ -61,7 +64,9 @@ export function AccountDialog({ onClose }: { onClose(): void }) {
       }
     >
       {tab === "identity" ? <ProfileTab /> : null}
-      {tab === "account" ? <AccountTab canRegister={canRegister} /> : null}
+      {tab === "account" ? (
+        <AccountTab canRegister={canRegister} policy={server.registration} />
+      ) : null}
       {tab === "ownership" ? <OwnershipTab /> : null}
       {tab === "preferences" ? <PreferencesTab /> : null}
     </Modal>
@@ -201,7 +206,23 @@ function ProfileTab() {
   );
 }
 
-function AccountTab({ canRegister }: { canRegister: boolean }) {
+/**
+ * Claiming this identity as an account.
+ *
+ * The server's policy is checked here as well as there. It has to be: the
+ * server answers a bad password with one sentence in its own language and the
+ * generic code `bad_request`, which the client can only render as "invalid
+ * request" — a message that tells somebody nothing about the password they
+ * just chose. Knowing the policy lets the form say what it wants beneath the
+ * field and refuse in the same words.
+ */
+function AccountTab({
+  canRegister,
+  policy,
+}: {
+  canRegister: boolean;
+  policy: RegistrationLimits | undefined;
+}) {
   const { t } = useTranslation();
   const self = useSession((state) => state.self);
   const register = useSession((state) => state.register);
@@ -227,14 +248,32 @@ function AccountTab({ canRegister }: { canRegister: boolean }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    const name = username.trim();
+    if (policy && (name.length < policy.minUsernameLength || name.length > policy.maxUsernameLength)) {
+      setError(
+        t("dialogs.account.usernamePolicy", {
+          min: policy.minUsernameLength,
+          max: policy.maxUsernameLength,
+        }),
+      );
+      return;
+    }
+    if (!USERNAME_CHARS.test(name)) {
+      setError(t("dialogs.account.usernameCharacters"));
+      return;
+    }
+    if (policy && [...password].length < policy.minPasswordLength) {
+      setError(t("dialogs.account.passwordPolicy", { min: policy.minPasswordLength }));
+      return;
+    }
     if (password !== confirm) {
-      setError(t("errors.invalid_credentials"));
+      setError(t("dialogs.account.passwordMismatch"));
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      await register(username.trim(), password);
+      await register(name, password);
       setPassword("");
       setConfirm("");
     } catch (caught) {
@@ -273,6 +312,14 @@ function AccountTab({ canRegister }: { canRegister: boolean }) {
           disabled={!canRegister}
           required
         />
+        {policy ? (
+          <p className="field__hint">
+            {t("dialogs.account.usernamePolicy", {
+              min: policy.minUsernameLength,
+              max: policy.maxUsernameLength,
+            })}
+          </p>
+        ) : null}
       </div>
 
       <div className="field">
@@ -289,6 +336,11 @@ function AccountTab({ canRegister }: { canRegister: boolean }) {
           disabled={!canRegister}
           required
         />
+        {policy ? (
+          <p className="field__hint">
+            {t("dialogs.account.passwordPolicy", { min: policy.minPasswordLength })}
+          </p>
+        ) : null}
       </div>
 
       <div className="field">

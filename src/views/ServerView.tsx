@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { ChannelSidebar } from "@/components/ChannelSidebar";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -6,6 +6,7 @@ import { DirectMessagePanel } from "@/components/DirectMessagePanel";
 import { ContextMenu, type MenuEntry } from "@/components/ContextMenu";
 import {
   AuralMark,
+  BellIcon,
   CalendarIcon,
   ChevronIcon,
   CloseIcon,
@@ -34,6 +35,7 @@ import {
   VoiceIcon,
 } from "@/components/Icons";
 import { MemberList } from "@/components/MemberList";
+import { notificationMenuEntries } from "@/components/NotificationMenu";
 import { SearchBar } from "@/components/SearchBar";
 import { SearchResults } from "@/components/SearchResults";
 import { UserPanel } from "@/components/UserPanel";
@@ -56,6 +58,13 @@ import {
   readSidebarWidth,
   writeSidebarWidth,
 } from "@/lib/storage";
+import {
+  muted,
+  mutingVersion,
+  onMutingChanged,
+  useMutedChannels,
+  useServerOverride,
+} from "@/lib/muting";
 import { Perm, has } from "@/lib/permissions";
 import { isPostChannel, type Channel, type ChannelType, type User } from "@/lib/protocol";
 import type { SavedServer } from "@/lib/storage";
@@ -168,6 +177,9 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   const [dialog, setDialog] = useState<Dialog>({ kind: "none" });
   const [statusOpen, setStatusOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
+  // The overrides live outside every store this view reads, so the menu is
+  // rebuilt from this rather than from a state change it would never see.
+  const mutingTick = useSyncExternalStore(onMutingChanged, mutingVersion, mutingVersion);
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [membersOpen, setMembersOpen] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth > 1100 : true,
@@ -340,6 +352,13 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         },
       ];
       entries.push({ type: "separator" });
+      entries.push({
+        id: "rail-notifications",
+        label: t("contextMenu.notifications"),
+        icon: <BellIcon size={16} />,
+        items: notificationMenuEntries({ serverId: entry.id }),
+      });
+      entries.push({ type: "separator" });
       if (live) {
         entries.push({
           id: "rail-disconnect",
@@ -385,6 +404,15 @@ export function ServerView({ onAddServer }: ServerViewProps) {
         );
       }
       entries.push({ type: "separator" });
+      if (serverId) {
+        entries.push({
+          id: "server-notifications",
+          label: t("contextMenu.notifications"),
+          icon: <BellIcon size={16} />,
+          items: notificationMenuEntries({ serverId }),
+        });
+        entries.push({ type: "separator" });
+      }
       entries.push(
         {
           id: "copy-address",
@@ -433,6 +461,18 @@ export function ServerView({ onAddServer }: ServerViewProps) {
             onClick: () => setDialog({ kind: "confirmDeleteChannel", channel: ch }),
           },
         );
+        entries.push({ type: "separator" });
+      }
+
+      // A category is a heading rather than somewhere messages land, so there
+      // is nothing about it to be notified of.
+      if (serverId && !isCat) {
+        entries.push({
+          id: "channel-notifications",
+          label: t("contextMenu.notifications"),
+          icon: <BellIcon size={16} />,
+          items: notificationMenuEntries({ serverId, channelId: ch.id }),
+        });
         entries.push({ type: "separator" });
       }
 
@@ -633,6 +673,8 @@ export function ServerView({ onAddServer }: ServerViewProps) {
     banUser,
     voiceStates,
     moderateVoice,
+    serverId,
+    mutingTick,
     t,
   ]);
 
@@ -1186,8 +1228,16 @@ function RailServer({
     setImgError(false);
   }, [iconUrl]);
 
+  // A silenced server shows no badge at all, and a silenced channel adds
+  // nothing to one that is otherwise drawn. Private messages are counted
+  // either way while the server itself is not muted: they were addressed to
+  // this person, not to a channel they happen to be in.
+  const silenced = muted(useServerOverride(entry.id));
+  const mutedChannels = useMutedChannels(entry.id);
+
   const waiting = useMemo(() => {
-    const totals = unreadTotals(unread);
+    if (silenced) return { count: 0, mentions: 0 };
+    const totals = unreadTotals(unread, (channelId) => mutedChannels.has(channelId));
     let dmCount = 0;
     if (conversations) {
       for (const conv of conversations.values()) {
@@ -1198,7 +1248,7 @@ function RailServer({
       count: totals.count + dmCount,
       mentions: totals.mentions + dmCount,
     };
-  }, [unread, conversations]);
+  }, [unread, conversations, silenced, mutedChannels]);
 
   const hasIcon = Boolean(iconUrl && !imgError);
 
@@ -1210,16 +1260,19 @@ function RailServer({
     classes.push("rail__item--pending");
   }
   if (waiting.count > 0) classes.push("rail__item--unread");
+  if (silenced) classes.push("rail__item--muted");
 
   const title = dialing
     ? t("server.connectingTo", { name })
     : status === "reconnecting"
       ? t("server.reconnectingTo", { name })
-      : waiting.mentions > 0
-        ? `${name} — ${t("server.unreadMentions", { count: waiting.mentions })}`
-        : waiting.count > 0
-          ? `${name} — ${t("server.unreadMessages", { count: waiting.count })}`
-          : name;
+      : silenced
+        ? `${name} — ${t("contextMenu.muteServer")}`
+        : waiting.mentions > 0
+          ? `${name} — ${t("server.unreadMentions", { count: waiting.mentions })}`
+          : waiting.count > 0
+            ? `${name} — ${t("server.unreadMessages", { count: waiting.count })}`
+            : name;
 
   return (
     <button

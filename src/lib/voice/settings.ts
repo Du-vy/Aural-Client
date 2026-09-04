@@ -49,6 +49,21 @@ export interface VoicePreferences {
   bitrate: number;
   /** Whether joining a channel starts muted. */
   joinMuted: boolean;
+  /**
+   * How loud the client's own cues are — joining, leaving, somebody arriving,
+   * the mute chime. A percentage, where 100 is the sample as recorded.
+   *
+   * It is a preference rather than a constant because these are the sounds
+   * that play over a conversation: what is a helpful marker to one person is
+   * a bang in the middle of a sentence to the next.
+   */
+  cueVolume: number;
+  /**
+   * How loud a soundboard clip somebody else played is, as a percentage of the
+   * level the clip itself was uploaded at. Nobody who shares a channel with an
+   * enthusiast should have to leave it to make them quieter.
+   */
+  soundboardVolume: number;
 }
 
 export const DEFAULT_PREFERENCES: VoicePreferences = {
@@ -65,6 +80,8 @@ export const DEFAULT_PREFERENCES: VoicePreferences = {
   autoGainControl: true,
   bitrate: 64000,
   joinMuted: false,
+  cueVolume: 60,
+  soundboardVolume: 100,
 };
 
 /** Bounds every numeric preference is forced into before it is used. */
@@ -74,6 +91,8 @@ const LIMITS = {
   pttReleaseMs: [0, 2000],
   threshold: [0, 100],
   bitrate: [6000, 510000],
+  cueVolume: [0, 100],
+  soundboardVolume: [0, 100],
 } as const;
 
 export function clamp(value: number, low: number, high: number): number {
@@ -110,7 +129,15 @@ export function readPreferences(): VoicePreferences {
   if (typeof stored.autoGainControl === "boolean") prefs.autoGainControl = stored.autoGainControl;
   if (typeof stored.joinMuted === "boolean") prefs.joinMuted = stored.joinMuted;
 
-  for (const key of ["inputVolume", "outputVolume", "pttReleaseMs", "threshold", "bitrate"] as const) {
+  for (const key of [
+    "inputVolume",
+    "outputVolume",
+    "pttReleaseMs",
+    "threshold",
+    "bitrate",
+    "cueVolume",
+    "soundboardVolume",
+  ] as const) {
     const value = stored[key];
     if (typeof value === "number") {
       const [low, high] = LIMITS[key];
