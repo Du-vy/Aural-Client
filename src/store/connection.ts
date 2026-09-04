@@ -111,6 +111,7 @@ import {
 } from "@/lib/uploads";
 import { deviceIdentifier } from "@/lib/device";
 import { forgetSoundCache, playSoundClip, stopAllSounds } from "@/lib/soundboard";
+import { playVoiceSound } from "@/lib/voiceSounds";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting";
 
@@ -852,6 +853,9 @@ export function createConnection({
     /** Closes audio, if this connection was the one carrying it. */
     function exitVoice(): void {
       if (!host.ownsVoice()) return;
+      if (useVoice.getState().channelId !== null) {
+        void playVoiceSound("leave");
+      }
       useVoice.getState().exit();
       host.dropVoice();
     }
@@ -859,6 +863,9 @@ export function createConnection({
     /** Tears the media session down entirely, because the socket under it went. */
     function abandonVoice(): void {
       if (!host.ownsVoice()) return;
+      if (useVoice.getState().channelId !== null) {
+        void playVoiceSound("leave");
+      }
       useVoice.getState().detach();
       host.dropVoice();
     }
@@ -1243,10 +1250,16 @@ export function createConnection({
         case Ev.UserDisconnected: {
           const { userId } = payload as UserDisconnectedEvent;
           const users = new Map(state.users);
+          const gone = users.get(userId);
+          if (host.ownsVoice()) {
+            const ourVoiceChannelId = useVoice.getState().channelId;
+            if (ourVoiceChannelId !== null && gone?.channelId === ourVoiceChannelId) {
+              void playVoiceSound("user-leave");
+            }
+          }
           // The event says a connection ended, not that a person left. A member
           // drops into the offline part of the list they were always in; a guest,
           // whose identity goes with the connection, drops out of it.
-          const gone = users.get(userId);
           if (gone?.registered) {
             users.set(userId, asOffline(gone));
           } else {
@@ -1260,6 +1273,13 @@ export function createConnection({
         case Ev.UserRemoved: {
           const { userId } = payload as UserRemovedEvent;
           const users = new Map(state.users);
+          const gone = users.get(userId);
+          if (host.ownsVoice()) {
+            const ourVoiceChannelId = useVoice.getState().channelId;
+            if (ourVoiceChannelId !== null && gone?.channelId === ourVoiceChannelId) {
+              void playVoiceSound("user-leave");
+            }
+          }
           users.delete(userId);
           set({ users });
           participantGone(userId);
@@ -1283,14 +1303,40 @@ export function createConnection({
           // There is one path either way.
           const destination = event.to === null ? null : state.channels.get(event.to);
           if (state.self?.id === event.userId) {
-            if (destination?.type === "voice") enterVoice(destination.id);
-            else exitVoice();
-          } else if (
-            !host.ownsVoice() ||
-            event.to === null ||
-            event.to !== useVoice.getState().channelId
-          ) {
-            participantGone(event.userId);
+            const prevChannel = existing.channelId !== null ? state.channels.get(existing.channelId) : null;
+            const wasInVoice = prevChannel?.type === "voice";
+
+            if (destination?.type === "voice") {
+              if (!wasInVoice || existing.channelId !== event.to) {
+                void playVoiceSound("join");
+              }
+              enterVoice(destination.id);
+            } else {
+              if (wasInVoice) {
+                void playVoiceSound("leave");
+              }
+              exitVoice();
+            }
+          } else {
+            if (host.ownsVoice()) {
+              const ourVoiceChannelId = useVoice.getState().channelId;
+              if (ourVoiceChannelId !== null) {
+                const wasInOurChannel = existing.channelId === ourVoiceChannelId;
+                const isNowInOurChannel = event.to === ourVoiceChannelId;
+                if (!wasInOurChannel && isNowInOurChannel) {
+                  void playVoiceSound("user-join");
+                } else if (wasInOurChannel && !isNowInOurChannel) {
+                  void playVoiceSound("user-leave");
+                }
+              }
+            }
+            if (
+              !host.ownsVoice() ||
+              event.to === null ||
+              event.to !== useVoice.getState().channelId
+            ) {
+              participantGone(event.userId);
+            }
           }
           return;
         }

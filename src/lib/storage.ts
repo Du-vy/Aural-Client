@@ -296,6 +296,8 @@ export interface AccessibilitySettings {
   alwaysUnderlineLinks: boolean;
   reduceTransparency: boolean;
   micAudioCues: boolean;
+  voiceAudioCues: boolean;
+  voiceParticipantCues: boolean;
 }
 
 export const DEFAULT_ACCESSIBILITY: AccessibilitySettings = {
@@ -305,6 +307,8 @@ export const DEFAULT_ACCESSIBILITY: AccessibilitySettings = {
   alwaysUnderlineLinks: false,
   reduceTransparency: false,
   micAudioCues: false,
+  voiceAudioCues: true,
+  voiceParticipantCues: true,
 };
 
 export function readAccessibility(): AccessibilitySettings {

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { CloseIcon } from "@/components/Icons";
 import { useTranslation } from "@/lib/i18n";
 import { preloadNotificationSound } from "@/lib/notificationSounds";
+import { preloadVoiceSounds } from "@/lib/voiceSounds";
 import { readNotifications } from "@/lib/storage";
 import { setTrayLabels } from "@/lib/systemSettings";
 import { startUnreadBadgeSync } from "@/lib/unreadBadge";
@@ -52,7 +53,10 @@ export function App() {
   // announcing is worse than no sound. Connecting is a click, so the audio
   // engine is unlocked by the time this runs.
   useEffect(() => {
-    if (connected) preloadNotificationSound(readNotifications().sound);
+    if (connected) {
+      preloadNotificationSound(readNotifications().sound);
+      preloadVoiceSounds();
+    }
   }, [connected]);
 
   return (

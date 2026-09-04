@@ -2579,6 +2579,25 @@ console.log("\nthe generated notification sounds");
   }
 }
 
+console.log("\nthe generated voice sounds");
+{
+  const { readFileSync } = await import("node:fs");
+  const { VOICE_SOUND_FILES } = await import("@/lib/voiceSounds");
+
+  for (const [key, file] of Object.entries(VOICE_SOUND_FILES)) {
+    const wav = readFileSync(`public/sounds/${file}`);
+    const samples = wav.readUInt32LE(40) / 2;
+    let peak = 0;
+    for (let i = 0; i < samples; i += 1) {
+      peak = Math.max(peak, Math.abs(wav.readInt16LE(44 + i * 2) / 32768));
+    }
+    checkThat(
+      `${file} (${key}) is a wave file that is not silent`,
+      wav.toString("ascii", 0, 4) === "RIFF" && samples > 1000 && peak > 0.5,
+    );
+  }
+}
+
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);
 
 await GlobalRegistrator.unregister();

@@ -6,6 +6,7 @@ import {
   type AccessibilitySettings,
 } from "@/lib/storage";
 import { playChime } from "@/lib/audioCues";
+import { playVoiceSound } from "@/lib/voiceSounds";
 import { VolumeIcon } from "@/components/Icons";
 
 export function AccessibilityPage() {
@@ -95,6 +96,82 @@ export function AccessibilityPage() {
                 type="checkbox"
                 checked={settings.micAudioCues}
                 onChange={(e) => updateSetting("micAudioCues", e.target.checked)}
+              />
+              <span className="settings-switch__slider" />
+            </label>
+          </div>
+        </div>
+
+        <div className="settings-group__item">
+          <div className="settings-row">
+            <div className="settings-row__info">
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <h3 className="settings-card__title">
+                  {t("dialogs.userSettings.accessibility.voiceAudioCuesTitle")}
+                </h3>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  style={{ padding: "2px 8px", fontSize: 12, height: 26 }}
+                  onClick={() => void playVoiceSound("join", { force: true })}
+                  title={t("dialogs.userSettings.accessibility.testJoinCue")}
+                >
+                  <VolumeIcon size={13} />
+                  {t("dialogs.userSettings.accessibility.testJoinCue")}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  style={{ padding: "2px 8px", fontSize: 12, height: 26 }}
+                  onClick={() => void playVoiceSound("leave", { force: true })}
+                  title={t("dialogs.userSettings.accessibility.testLeaveCue")}
+                >
+                  <VolumeIcon size={13} />
+                  {t("dialogs.userSettings.accessibility.testLeaveCue")}
+                </button>
+              </div>
+              <p className="settings-card__subtitle">
+                {t("dialogs.userSettings.accessibility.voiceAudioCuesDesc")}
+              </p>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.voiceAudioCues}
+                onChange={(e) => updateSetting("voiceAudioCues", e.target.checked)}
+              />
+              <span className="settings-switch__slider" />
+            </label>
+          </div>
+        </div>
+
+        <div className="settings-group__item">
+          <div className="settings-row">
+            <div className="settings-row__info">
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <h3 className="settings-card__title">
+                  {t("dialogs.userSettings.accessibility.voiceParticipantCuesTitle")}
+                </h3>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  style={{ padding: "2px 8px", fontSize: 12, height: 26 }}
+                  onClick={() => void playVoiceSound("user-join", { force: true })}
+                  title={t("dialogs.userSettings.accessibility.testJoinCue")}
+                >
+                  <VolumeIcon size={13} />
+                  {t("dialogs.userSettings.accessibility.testJoinCue")}
+                </button>
+              </div>
+              <p className="settings-card__subtitle">
+                {t("dialogs.userSettings.accessibility.voiceParticipantCuesDesc")}
+              </p>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.voiceParticipantCues}
+                onChange={(e) => updateSetting("voiceParticipantCues", e.target.checked)}
               />
               <span className="settings-switch__slider" />
             </label>

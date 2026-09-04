@@ -213,6 +213,68 @@ const SOUNDS = {
     partial(out, { freq: 1567.98, gain: 0.18, tau: 0.34, delay: 0.13 });
     return out;
   },
+
+  /** Connecting to a voice channel. A warm, ascending three-note major arpeggio with rich decay. */
+  "voice-join"() {
+    const out = buffer(0.7);
+    const notes = [
+      { freq: 587.33, delay: 0.0, gain: 0.5, tau: 0.22 },   // D5
+      { freq: 739.99, delay: 0.08, gain: 0.55, tau: 0.24 }, // F#5
+      { freq: 880.0, delay: 0.16, gain: 0.65, tau: 0.38 },  // A5
+    ];
+    for (const { freq, delay, gain, tau } of notes) {
+      partial(out, { freq, gain, tau, delay });
+      partial(out, { freq: freq * 2.005, gain: gain * 0.25, tau: tau * 0.65, delay });
+      partial(out, { freq: freq * 2.99, gain: gain * 0.08, tau: tau * 0.45, delay });
+      noiseBurst(out, { gain: 0.03, tau: 0.005, delay, cutoff: 3200, seed: Math.round(freq) });
+    }
+    return out;
+  },
+
+  /** Leaving a voice channel. A gentle, descending resolution tone. */
+  "voice-leave"() {
+    const out = buffer(0.65);
+    const notes = [
+      { freq: 880.0, delay: 0.0, gain: 0.55, tau: 0.2 },    // A5
+      { freq: 659.25, delay: 0.08, gain: 0.5, tau: 0.22 },  // E5
+      { freq: 587.33, delay: 0.16, gain: 0.6, tau: 0.36 },  // D5
+    ];
+    for (const { freq, delay, gain, tau } of notes) {
+      partial(out, { freq, gain, tau, delay });
+      partial(out, { freq: freq * 2.002, gain: gain * 0.22, tau: tau * 0.6, delay });
+      partial(out, { freq: freq * 2.98, gain: gain * 0.07, tau: tau * 0.4, delay });
+      noiseBurst(out, { gain: 0.025, tau: 0.005, delay, cutoff: 2800, seed: Math.round(freq) });
+    }
+    return out;
+  },
+
+  /** Another participant joined your voice channel. Discreet, warm upward chime. */
+  "voice-user-join"() {
+    const out = buffer(0.35);
+    const notes = [
+      { freq: 783.99, delay: 0.0, gain: 0.45, tau: 0.09 },   // G5
+      { freq: 1046.5, delay: 0.065, gain: 0.55, tau: 0.18 }, // C6
+    ];
+    for (const { freq, delay, gain, tau } of notes) {
+      partial(out, { freq, gain, tau, delay });
+      partial(out, { freq: freq * 2.01, gain: gain * 0.2, tau: tau * 0.5, delay });
+    }
+    return out;
+  },
+
+  /** Another participant left your voice channel. Discreet, soft downward chime. */
+  "voice-user-leave"() {
+    const out = buffer(0.35);
+    const notes = [
+      { freq: 1046.5, delay: 0.0, gain: 0.45, tau: 0.09 },   // C6
+      { freq: 783.99, delay: 0.065, gain: 0.55, tau: 0.18 }, // G5
+    ];
+    for (const { freq, delay, gain, tau } of notes) {
+      partial(out, { freq, gain, tau, delay });
+      partial(out, { freq: freq * 2.01, gain: gain * 0.2, tau: tau * 0.5, delay });
+    }
+    return out;
+  },
 };
 
 mkdirSync(OUTPUT_DIR, { recursive: true });
