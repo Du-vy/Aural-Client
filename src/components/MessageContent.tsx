@@ -7,9 +7,10 @@ import {
   splitCustomEmoji,
   type EmojiDirectory,
 } from "@/lib/customEmoji";
+import { bareMediaUrls, coveredUrls, normaliseUrl } from "@/lib/embeds";
 import { isEmojiOnly } from "@/lib/emoji";
 import { useTranslation } from "@/lib/i18n";
-import { extractUrls, isOnlyMediaUrls, tokenizeMessageText } from "@/lib/links";
+import { extractUrls, isOnlyMediaUrls, isOnlyUrls, tokenizeMessageText } from "@/lib/links";
 import {
   EMPTY_MENTIONS,
   splitMentions,
@@ -79,14 +80,33 @@ export function MessageContent({
 }: MessageContentProps) {
   const { t } = useTranslation();
   const urls = useMemo(() => extractUrls(content), [content]);
-  const onlyMedia = useMemo(() => isOnlyMediaUrls(content), [content]);
   const tokens = useMemo(() => tokenizeMessageText(content), [content]);
   const jumboEmoji = useMemo(
     () => isEmojiOnly(content) || isCustomEmojiOnly(content, emojis),
     [content, emojis],
   );
   const files = attachments ?? [];
-  const cards = embeds ?? [];
+  const cards = useMemo(() => embeds ?? [], [embeds]);
+
+  // A message relayed from Discord carries both the link and Discord's own
+  // card for it. Unfurling the link again here would say the same thing twice,
+  // so only the links no card speaks for are previewed.
+  const previewUrls = useMemo(() => {
+    if (cards.length === 0) return urls;
+    const covered = coveredUrls(cards);
+    return urls.filter((url) => !covered.has(normaliseUrl(url)));
+  }, [urls, cards]);
+
+  // The text of a link is left out when the link was only ever a picture. An
+  // address that says so itself is known from its extension; one that does not
+  // — a photo host that names its files by query string — is known once the
+  // card for it arrives saying the same.
+  const onlyMedia = useMemo(() => {
+    if (isOnlyMediaUrls(content)) return true;
+    if (urls.length === 0 || cards.length === 0 || !isOnlyUrls(content)) return false;
+    const media = bareMediaUrls(cards);
+    return urls.every((url) => media.has(normaliseUrl(url)));
+  }, [content, urls, cards]);
 
   // Links are found first and never looked inside, so a `@` in a URL stays
   // part of the address rather than becoming somebody's name.
@@ -140,7 +160,9 @@ export function MessageContent({
   if (onlyMedia && urls.length > 0) {
     return (
       <div className="msg__media-only">
-        <MessageEmbeds urls={urls} onOpenLink={onOpenLink} />
+        {previewUrls.length > 0 ? (
+          <MessageEmbeds urls={previewUrls} onOpenLink={onOpenLink} />
+        ) : null}
         <RichEmbeds embeds={cards} onOpenLink={onOpenLink} />
         {files.length > 0 ? (
           <MessageAttachments attachments={files} onOpenLink={onOpenLink} />
@@ -235,7 +257,7 @@ export function MessageContent({
         ) : null}
       </p>
 
-      {urls.length > 0 && <MessageEmbeds urls={urls} onOpenLink={onOpenLink} />}
+      {previewUrls.length > 0 && <MessageEmbeds urls={previewUrls} onOpenLink={onOpenLink} />}
 
       <RichEmbeds embeds={cards} onOpenLink={onOpenLink} />
 

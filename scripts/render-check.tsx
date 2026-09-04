@@ -1029,6 +1029,28 @@ render("server view with no saved servers and no notice", <App />);
 
 console.log("\nbehaviour");
 
+/** The markup one element renders to, for a check about what is *not* drawn. */
+function htmlOf(element: React.ReactElement): string {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    act(() => {
+      root.render(element);
+    });
+    return container.innerHTML;
+  } finally {
+    try {
+      act(() => {
+        root.unmount();
+      });
+    } catch {
+      // Unmount failures are not what this check is about.
+    }
+    container.remove();
+  }
+}
+
 function checkThat(name: string, condition: boolean): void {
   checks += 1;
   if (condition) {
@@ -2303,6 +2325,70 @@ console.log("\nwebhooks");
     "just this",
   ]);
   render("no embeds draws nothing at all", <RichEmbeds embeds={[]} onOpenLink={noop} />, []);
+
+  // A message relayed from Discord arrives with the link still in its text and
+  // Discord's own card for that link beside it. Both are the same thing said
+  // twice, so the card is what is drawn: the automatic preview is left off,
+  // and the card plays the video where its still picture would have sat.
+  {
+    const watch = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    const video = {
+      type: "video",
+      url: watch,
+      title: "A song",
+      author: { name: "A channel" },
+      thumbnail: { url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" },
+      video: { url: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+    };
+    const html = htmlOf(
+      <MessageContent content={watch} editedAt={null} embeds={[video]} onOpenLink={noop} />,
+    );
+    checkThat("a relayed video link is drawn as its card", html.includes("rich-embed__player"));
+    checkThat("and not unfurled a second time", !html.includes("msg-embed--youtube"));
+    checkThat(
+      "its still picture is the player's poster rather than a thumbnail beside it",
+      !html.includes("rich-embed__thumbnail"),
+    );
+
+    // The same card for a link somebody wrote about: the words stay, and the
+    // link with them, because only the preview was the duplicate.
+    const spoken = htmlOf(
+      <MessageContent
+        content={`listen to this ${watch}`}
+        editedAt={null}
+        embeds={[video]}
+        onOpenLink={noop}
+      />,
+    );
+    checkThat("words beside a covered link are kept", spoken.includes("listen to this"));
+    checkThat("and so is the link itself", spoken.includes("msg__link"));
+  }
+
+  // A picture posted as a link. Discord calls the card an image and carries
+  // nothing else in it, so it is drawn as the picture, and the address — which
+  // says nothing a reader wants, least of all one with no file extension in
+  // it — is left out of the message.
+  {
+    const picture = "https://pbs.twimg.com/media/HRZpRZja?format=jpg&name=large";
+    const html = htmlOf(
+      <MessageContent
+        content={picture}
+        editedAt={null}
+        embeds={[{ type: "image", url: picture, thumbnail: { url: picture, width: 1200, height: 800 } }]}
+        onOpenLink={noop}
+      />,
+    );
+    checkThat("a picture posted as a link is drawn as the picture", html.includes("rich-embed__media"));
+    checkThat("at full size rather than as a card's corner", !html.includes("rich-embed__thumbnail"));
+    checkThat("with the address left out", !html.includes("msg__link"));
+  }
+
+  // An ordinary card is still a card: the kind an application composes says
+  // nothing about media, and nothing about it changes.
+  checkThat(
+    "a card that is not media keeps its card",
+    htmlOf(<RichEmbeds embeds={[alertEmbed]} onOpenLink={noop} />).includes("rich-embed__grid"),
+  );
 
   // Clicking either picture opens the lightbox over the conversation.
   for (const [what, picture] of [

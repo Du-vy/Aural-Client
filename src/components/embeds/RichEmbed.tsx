@@ -1,11 +1,13 @@
 import { useState } from "react";
 
+import { isBareMedia, pictureOf, playbackOf, type EmbedPlayback } from "@/lib/embeds";
 import { useTranslation } from "@/lib/i18n";
 import type { Embed, EmbedMedia } from "@/lib/protocol";
 import { formatSmartDateTime } from "@/lib/time";
 import { Markdown } from "../attachments/Markdown";
 import { ImageLightbox, getFilenameFromUrl } from "../attachments/ImageLightbox";
 import { AnimatedImage } from "../AnimatedImage";
+import { PlayIcon } from "../Icons";
 
 /**
  * A rich card carried by a message.
@@ -49,9 +51,44 @@ function RichEmbed({ embed, onOpenLink }: { embed: Embed; onOpenLink(url: string
   const [thumbnailBroken, setThumbnailBroken] = useState(false);
 
   const accent = colorOf(embed.color);
+  const playback = playbackOf(embed);
   const image = imageBroken ? undefined : embed.image;
   const thumbnail = thumbnailBroken ? undefined : embed.thumbnail;
   const fields = embed.fields ?? [];
+
+  // A bare picture or loop is drawn as itself. Discord makes one of these out
+  // of a link to an image, where the address was never the point and a card
+  // around it would be a frame around a frame.
+  if (isBareMedia(embed)) {
+    const picture = pictureOf(embed);
+    if (playback) {
+      return (
+        <EmbedPlayer playback={playback} poster={picture?.url} title={embed.title} bare />
+      );
+    }
+    if (picture && !imageBroken) {
+      return (
+        <>
+          <EmbedPicture
+            media={picture}
+            className="rich-embed__media"
+            onOpen={() => setViewing(picture)}
+            onBroken={() => setImageBroken(true)}
+          />
+          {viewing?.url ? (
+            <ImageLightbox
+              url={viewing.url}
+              filename={getFilenameFromUrl(viewing.url)}
+              width={viewing.width}
+              height={viewing.height}
+              onOpenExternal={() => onOpenLink(viewing.url!)}
+              onClose={() => setViewing(null)}
+            />
+          ) : null}
+        </>
+      );
+    }
+  }
 
   return (
     <>
@@ -131,7 +168,13 @@ function RichEmbed({ embed, onOpenLink }: { embed: Embed; onOpenLink(url: string
               </div>
             ) : null}
 
-            {image?.url ? (
+            {playback ? (
+              <EmbedPlayer
+                playback={playback}
+                poster={image?.url ?? thumbnail?.url}
+                title={embed.title}
+              />
+            ) : image?.url ? (
               <EmbedPicture
                 media={image}
                 className="rich-embed__image"
@@ -160,7 +203,7 @@ function RichEmbed({ embed, onOpenLink }: { embed: Embed; onOpenLink(url: string
             ) : null}
           </div>
 
-          {thumbnail?.url ? (
+          {thumbnail?.url && !playback ? (
             <EmbedPicture
               media={thumbnail}
               className="rich-embed__thumbnail"
@@ -230,6 +273,95 @@ function EmbedPicture({
         onError={onBroken}
       />
     </button>
+  );
+}
+
+/**
+ * A card's clip, played where its picture would otherwise sit.
+ *
+ * Nothing loads until it is asked for: a channel of relayed links would
+ * otherwise open a dozen players at once, and the poster is the picture the
+ * card already carried. A silent loop — what a GIF host sends instead of a GIF
+ * — is the exception, since a loop nobody starts is the whole of what it is.
+ */
+function EmbedPlayer({
+  playback,
+  poster,
+  title,
+  bare = false,
+}: {
+  playback: EmbedPlayback;
+  poster?: string;
+  title?: string;
+  bare?: boolean;
+}) {
+  const { t } = useTranslation();
+  const [playing, setPlaying] = useState(false);
+  const className = bare ? "rich-embed__player rich-embed__player--bare" : "rich-embed__player";
+
+  if (playback.kind === "file" && playback.loop) {
+    return (
+      <video
+        className={`${className} rich-embed__player--loop`}
+        src={playback.src}
+        poster={poster}
+        autoPlay
+        loop
+        muted
+        playsInline
+      />
+    );
+  }
+
+  if (!playing) {
+    return (
+      <button
+        type="button"
+        className={`${className} rich-embed__player-btn`}
+        onClick={() => setPlaying(true)}
+        aria-label={t("embeds.playVideo")}
+      >
+        {poster ? (
+          <img
+            src={poster}
+            alt=""
+            className="rich-embed__player-poster"
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            aria-hidden="true"
+          />
+        ) : null}
+        <span className="rich-embed__player-overlay">
+          <span className="rich-embed__player-play">
+            <PlayIcon size={20} />
+          </span>
+        </span>
+      </button>
+    );
+  }
+
+  if (playback.kind === "file") {
+    return (
+      <video
+        className={className}
+        src={playback.src}
+        poster={poster}
+        controls
+        autoPlay
+        playsInline
+      />
+    );
+  }
+
+  return (
+    <iframe
+      className={className}
+      src={playback.src}
+      title={title || t("embeds.playVideo")}
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      referrerPolicy="strict-origin-when-cross-origin"
+      allowFullScreen
+    />
   );
 }
 

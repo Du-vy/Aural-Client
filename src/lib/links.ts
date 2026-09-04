@@ -137,23 +137,31 @@ export function classifyUrl(url: string): ParsedUrl {
  * and only the embedded media component should be displayed.
  */
 export function isOnlyMediaUrls(text: string): boolean {
+  if (!isOnlyUrls(text)) return false;
+  for (const url of text.trim().split(/\s+/)) {
+    if (classifyUrl(cleanUrl(url)).type === "general") {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Returns true if the message is links and nothing else — no words between
+ * them. Whether those links are worth showing as text is a separate question:
+ * an address with no file extension can still turn out to be a picture once a
+ * card for it arrives.
+ */
+export function isOnlyUrls(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
 
-  const words = trimmed.split(/\s+/);
-  if (words.length === 0) return false;
-
-  for (const word of words) {
+  for (const word of trimmed.split(/\s+/)) {
     const cleaned = cleanUrl(word);
     if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
       return false;
     }
-    const classified = classifyUrl(cleaned);
-    if (classified.type === "general") {
-      return false;
-    }
   }
-
   return true;
 }
 

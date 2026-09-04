@@ -760,3 +760,120 @@
     grid-column: span 6;
   }
 }
+
+/*
+ * A card that is nothing but a picture — what Discord makes of a link to an
+ * image — is drawn as the picture. None of a card's furniture applies: there
+ * is no title to sit above it and no stripe to colour, and at thumbnail size
+ * it would be smaller than the link it replaced.
+ */
+.rich-embed__media-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: block;
+  align-self: flex-start;
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  animation: embed-fade-in 140ms ease-out;
+  transition: opacity var(--speed) ease;
+}
+
+.rich-embed__media-btn:hover {
+  opacity: 0.85;
+}
+
+.rich-embed__media-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.rich-embed__media {
+  display: block;
+  max-width: 100%;
+  max-height: 350px;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+}
+
+/*
+ * The clip a card carries, in the place its still picture would have taken.
+ * A fixed width rather than a fitted one: the card sizes itself to its
+ * contents, and a player that only ever fills what is already there would end
+ * up as wide as the title above it.
+ */
+.rich-embed__player {
+  display: block;
+  width: 400px;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  border: none;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #000;
+}
+
+.rich-embed__player--bare {
+  animation: embed-fade-in 140ms ease-out;
+}
+
+.rich-embed__player--loop {
+  aspect-ratio: auto;
+  width: auto;
+  max-width: 100%;
+  max-height: 350px;
+  background: transparent;
+}
+
+.rich-embed__player-btn {
+  position: relative;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.rich-embed__player-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.rich-embed__player-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rich-embed__player-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  transition: background var(--speed) ease;
+}
+
+.rich-embed__player-btn:hover .rich-embed__player-overlay {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.rich-embed__player-play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(255, 0, 0, 0.9);
+  transition: transform var(--speed) ease;
+}
+
+.rich-embed__player-btn:hover .rich-embed__player-play {
+  transform: scale(1.08);
+}
