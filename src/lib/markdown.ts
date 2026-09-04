@@ -275,3 +275,49 @@ export function parseInline(source: string): Inline[] {
   flush();
   return out;
 }
+
+/** The words of a run of inline markdown, with the marks that shaped them gone. */
+function inlineText(nodes: readonly Inline[]): string {
+  let out = "";
+  for (const node of nodes) {
+    if (node.type === "text" || node.type === "code") out += node.value;
+    else out += inlineText(node.children);
+  }
+  return out;
+}
+
+/**
+ * A document as the single line something with one line has to say it in.
+ *
+ * The markdown is parsed and then dropped rather than shown: a preview has no
+ * room to render a heading, a table or a code block, and leaving the source
+ * standing would show a reader the hashes and asterisks somebody typed instead
+ * of what they wrote. Newlines become spaces for the same reason — the line is
+ * one line, and running it together would have joined the last word of one to
+ * the first of the next.
+ */
+export function plainText(source: string): string {
+  const parts: string[] = [];
+  for (const block of parseMarkdown(source)) {
+    switch (block.type) {
+      case "heading":
+      case "paragraph":
+      case "quote":
+        parts.push(inlineText(block.children));
+        break;
+      case "code":
+        parts.push(block.value);
+        break;
+      case "list":
+        for (const item of block.items) parts.push(inlineText(item));
+        break;
+      case "table":
+        for (const cell of block.header) parts.push(inlineText(cell));
+        for (const row of block.rows) for (const cell of row) parts.push(inlineText(cell));
+        break;
+      case "rule":
+        break;
+    }
+  }
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+}

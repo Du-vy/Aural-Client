@@ -4,11 +4,16 @@ import { useTranslation } from "@/lib/i18n";
 import { extractUrls, getDomain } from "@/lib/links";
 import type { ServerAddress } from "@/lib/address";
 import { EMPTY_EMOJI, type EmojiDirectory } from "@/lib/customEmoji";
-import { EMPTY_MENTIONS, mentionsSelf, type MentionDirectory } from "@/lib/mentions";
+import {
+  EMPTY_MENTIONS,
+  mentionsSelf,
+  repliesToSelf,
+  type MentionDirectory,
+} from "@/lib/mentions";
 import { openExternalUrl } from "@/lib/open";
 import { isDomainTrusted } from "@/lib/storage";
 import { GROUPING_WINDOW_SECONDS, formatDay, formatFull, formatTime, sameDay } from "@/lib/time";
-import type { MessageBase, Role, User } from "@/lib/protocol";
+import type { MessageBase, ReferencedMessage, Role, User } from "@/lib/protocol";
 import type { JumpTarget } from "@/store/session";
 import { colorRoleOf } from "@/store/selectors";
 import { Avatar } from "./Avatar";
@@ -17,6 +22,7 @@ import { DeleteMessageDialog } from "./dialogs/DeleteMessageDialog";
 import { ExternalLinkDialog } from "./dialogs/ExternalLinkDialog";
 import { ChevronIcon, CopyIcon, HashIcon, LinkIcon, PencilIcon, ReplyIcon, TrashIcon } from "./Icons";
 import { MessageContent } from "./MessageContent";
+import { ReplySnippet } from "./ReplySnippet";
 import { MessageAttachments } from "./attachments/MessageAttachments";
 
 /**
@@ -55,7 +61,11 @@ export function buildRows(messages: readonly MessageBase[], now: Date = new Date
     const withinWindow =
       previous !== undefined &&
       message.createdAt - previous.createdAt <= GROUPING_WINDOW_SECONDS;
-    const hasReply = !!(message.replyToId || message.replyTo);
+    // A reply is drawn with the line it answers above it, so it opens a
+    // block of its own however well it would otherwise have grouped. The test
+    // is the reference rather than the id: the id with no reference behind it
+    // draws nothing, and would leave a gap standing for nothing.
+    const hasReply = !!message.replyTo;
 
     rows.push({
       message,
@@ -88,8 +98,13 @@ interface MessageListProps {
   loading: boolean;
   error: string | null;
   canManageMessages: boolean;
-  /** Where a search result asked the view to go, when it is in this channel. */
-  jump: JumpTarget | null;
+  /**
+   * Where something asked the view to go: a search result, or a reply preview
+   * pointing at a message outside the window. Only the id and the nonce are
+   * read, so a channel jump and a conversation jump are the same thing here —
+   * which list it belongs to was decided before it reached this one.
+   */
+  jump: Pick<JumpTarget, "messageId" | "nonce"> | null;
   /**
    * What stands above the first message ever written here. A channel says so
    * in the words a channel uses; a private conversation has its own, which is
@@ -151,6 +166,11 @@ export function MessageList({
   const anchor = useRef<{ id: number; offset: number } | null>(null);
   /** The row a jump landed on, marked until the reader looks somewhere else. */
   const [landed, setLanded] = useState<number | null>(null);
+  /** The timer clearing that mark, held so leaving the view cancels it. */
+  const landedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (landedTimer.current !== null) clearTimeout(landedTimer.current);
+  }, []);
 
   const [editing, setEditing] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<MessageBase | null>(null);
@@ -170,10 +190,15 @@ export function MessageList({
   const naming = useMemo(() => {
     const marked = new Set<number>();
     for (const message of messages) {
-      if (mentionsSelf(message.content, self, roles)) marked.add(message.id);
+      // Answering somebody addresses them as surely as writing their name.
+      // Answering yourself does not: a thought you carried on is still yours,
+      // and marking it would light up half of what you wrote.
+      const answersReader =
+        message.userId !== selfId && repliesToSelf(message.replyTo, self);
+      if (answersReader || mentionsSelf(message.content, self, roles)) marked.add(message.id);
     }
     return marked;
-  }, [messages, self, roles]);
+  }, [messages, self, selfId, roles]);
 
   function requestDelete(message: MessageBase, shiftKey = false) {
     if (shiftKey) {
@@ -199,6 +224,22 @@ export function MessageList({
     if (following.current && !hasMoreAfter) bottom.current?.scrollIntoView({ block: "end" });
   }, [newest, hasMoreAfter]);
 
+  // The list shares its column with the composer, so the composer growing
+  // shrinks the list: a reply bar opening, files being attached, a draft
+  // running onto a second line. The scroll position survives that, which means
+  // a reader who was at the bottom is quietly no longer there — the last thing
+  // said slides out of sight at the moment they answer it. So the bottom is
+  // taken again whenever the box the messages are in changes size.
+  useEffect(() => {
+    const node = scroller.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (following.current && !hasMoreAfter) bottom.current?.scrollIntoView({ block: "end" });
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMoreAfter]);
+
   // A jump moves the view to one message and marks it. This runs after the
   // effect above, which is what lets it win: the page a jump loads ends in a
   // new newest id, and following it to the bottom is exactly what must not
@@ -214,17 +255,27 @@ export function MessageList({
     onJumpDone(jump.nonce);
   }, [jump, messages, onJumpDone]);
 
+  // The ids on screen, which is what says whether a reference can be reached
+  // without asking the server for the window around it.
+  const held = useMemo(() => new Set(messages.map((message) => message.id)), [messages]);
+
   function handleJumpToMessage(targetId: number) {
     const row = scroller.current?.querySelector(`[data-message="${targetId}"]`);
-    if (row) {
-      following.current = false;
-      anchor.current = null;
-      row.scrollIntoView({ block: "center", behavior: "smooth" });
-      setLanded(targetId);
-      setTimeout(() => setLanded((curr) => (curr === targetId ? null : curr)), 2500);
-    } else if (onJumpToMessage) {
-      onJumpToMessage(targetId);
+    if (!row) {
+      // Not on screen: only a loader that can fetch the window around it can
+      // get there. A list with none — a private conversation — stays put.
+      onJumpToMessage?.(targetId);
+      return;
     }
+    following.current = false;
+    anchor.current = null;
+    row.scrollIntoView({ block: "center", behavior: "smooth" });
+    setLanded(targetId);
+    if (landedTimer.current !== null) clearTimeout(landedTimer.current);
+    landedTimer.current = setTimeout(
+      () => setLanded((curr) => (curr === targetId ? null : curr)),
+      2500,
+    );
   }
 
   // The window moves at both ends — an older page arriving at the top, a trim
@@ -447,7 +498,13 @@ export function MessageList({
             onOpenMember={onOpenMember}
             onContextMenuMember={onContextMenuMember}
             onReply={onReply ? () => onReply(message) : undefined}
-            onJumpToMessage={handleJumpToMessage}
+            onJumpToMessage={
+              message.replyTo &&
+              !message.replyTo.deleted &&
+              (held.has(message.replyTo.id) || onJumpToMessage !== undefined)
+                ? handleJumpToMessage
+                : undefined
+            }
             onOpenLink={handleOpenLink}
             onContextMenu={(event) => {
               event.preventDefault();
@@ -527,6 +584,63 @@ interface MessageRowProps {
   onContextMenu?(event: React.MouseEvent): void;
 }
 
+/**
+ * The line above a reply naming what it answers.
+ *
+ * It is a button only when there is somewhere to go. A reference whose message
+ * is gone has no target at all, and a list that cannot fetch the window around
+ * an id it is not holding cannot reach one either — a private conversation is
+ * read forwards from where it was left, and has no jump. Offering a jump that
+ * does nothing reads as a broken link rather than as an absent one.
+ */
+function ReplyReference({
+  reference,
+  emojis,
+  address,
+  onJump,
+}: {
+  reference: ReferencedMessage;
+  emojis: EmojiDirectory;
+  address: ServerAddress | null;
+  onJump?: (() => void) | undefined;
+}) {
+  const { t } = useTranslation();
+
+  // A message that is gone has no author left to name, so the marker stands on
+  // its own rather than under an empty handle.
+  const body = reference.deleted ? (
+    <span className="msg__reply-deleted">{t("chat.originalDeleted")}</span>
+  ) : (
+    <>
+      <span className="msg__reply-author">@{reference.author}</span>
+      <span className="msg__reply-snippet">
+        <ReplySnippet content={reference.content} emojis={emojis} address={address} />
+      </span>
+    </>
+  );
+
+  if (!onJump) {
+    return (
+      <span className="msg__reply-preview msg__reply-preview--flat">
+        <ReplyIcon size={12} className="msg__reply-icon" />
+        {body}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="msg__reply-preview"
+      onClick={onJump}
+      title={t("chat.jumpToOriginal")}
+    >
+      <ReplyIcon size={12} className="msg__reply-icon" />
+      {body}
+    </button>
+  );
+}
+
 function MessageRow({
   message,
   startsBlock,
@@ -577,22 +691,12 @@ function MessageRow({
       {message.replyTo ? (
         <div className="msg__reply">
           <div className="msg__reply-spine" aria-hidden="true" />
-          <button
-            type="button"
-            className="msg__reply-preview"
-            onClick={() => onJumpToMessage?.(message.replyTo!.id)}
-            title={t("chat.jumpToOriginal")}
-          >
-            <ReplyIcon size={12} className="msg__reply-icon" />
-            <span className="msg__reply-author">@{message.replyTo.author}</span>
-            {message.replyTo.deleted ? (
-              <span className="msg__reply-deleted">{t("chat.originalDeleted")}</span>
-            ) : (
-              <span className="msg__reply-snippet">
-                {message.replyTo.content || (message.replyTo.deleted ? t("chat.originalDeleted") : "")}
-              </span>
-            )}
-          </button>
+          <ReplyReference
+            reference={message.replyTo}
+            emojis={emojis}
+            address={address}
+            onJump={onJumpToMessage && (() => onJumpToMessage(message.replyTo!.id))}
+          />
         </div>
       ) : null}
 

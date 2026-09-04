@@ -19,7 +19,7 @@
  * and the raw text of a message stays something a person can read.
  */
 
-import type { Role, User } from "./protocol";
+import type { ReferencedMessage, Role, User } from "./protocol";
 
 /** The two keyword mentions: everybody, and everybody who is here. */
 export const EVERYONE = "everyone";
@@ -395,6 +395,26 @@ export function mentionsSelf(
   roles?: ReadonlyMap<number, Role>,
 ): boolean {
   return mentionReach(content, self, roles) !== "none";
+}
+
+/**
+ * Whether a reply answers something this user wrote.
+ *
+ * This is the fourth route to naming somebody, and the only one that is a
+ * field rather than a convention over the words. Answering somebody is
+ * addressing them whether or not the answer spells their name, so a reply
+ * reaches as far as writing the name out would: it marks the row, it counts
+ * the badge as a mention, and it is worth a notification. A reply nobody is
+ * told about is one the person it answers never sees.
+ *
+ * A reference whose message is gone carries no author, so it names nobody.
+ */
+export function repliesToSelf(
+  reference: ReferencedMessage | null | undefined,
+  self: User | null,
+): boolean {
+  if (!self || !reference || reference.deleted) return false;
+  return reference.userId !== null && reference.userId === self.id;
 }
 
 /**

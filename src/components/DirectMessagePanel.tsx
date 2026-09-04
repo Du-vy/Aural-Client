@@ -39,6 +39,16 @@ export function DirectMessagePanel({
 
   const openConversation = useSession((state) => state.openConversation);
   const loadOlderDirect = useSession((state) => state.loadOlderDirect);
+  const loadNewerDirect = useSession((state) => state.loadNewerDirect);
+  const returnToPresentDirect = useSession((state) => state.returnToPresentDirect);
+  const jumpToDirectMessage = useSession((state) => state.jumpToDirectMessage);
+  const clearDirectJump = useSession((state) => state.clearDirectJump);
+  // A jump belongs to the conversation it names. Reading somebody else's
+  // thread must not move this one, so one that is not for this person is not
+  // this list's to answer.
+  const jump = useSession((state) =>
+    state.directJump?.userId === userId ? state.directJump : null,
+  );
   const sendDirectMessage = useSession((state) => state.sendDirectMessage);
   const editDirectMessage = useSession((state) => state.editDirectMessage);
   const deleteDirectMessage = useSession((state) => state.deleteDirectMessage);
@@ -87,19 +97,20 @@ export function DirectMessagePanel({
         // it to hold the permission, so only your own lines are yours to
         // remove.
         canManageMessages={false}
-        jump={null}
+        jump={jump}
         startIcon={peer ? <Avatar user={peer} size="lg" /> : null}
         startTitle={t("dm.startTitle", { name })}
         startBody={t("dm.startBody")}
-        onJumpDone={() => {}}
+        onJumpDone={(nonce) => clearDirectJump(nonce)}
         onLoadOlder={() => void loadOlderDirect(userId)}
-        onLoadNewer={() => {}}
-        onReturnToPresent={() => {}}
+        onLoadNewer={() => void loadNewerDirect(userId)}
+        onReturnToPresent={() => void returnToPresentDirect(userId)}
         onEdit={(messageId, content) => void editDirectMessage(messageId, content)}
         onDelete={(messageId) => void deleteDirectMessage(messageId)}
         onOpenMember={onOpenMember}
         onContextMenuMember={onContextMenuMember}
         onReply={(msg) => setReplyingTo(msg)}
+        onJumpToMessage={(targetId) => void jumpToDirectMessage(userId, targetId)}
       />
 
       <MessageComposer

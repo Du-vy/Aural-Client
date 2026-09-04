@@ -12,6 +12,7 @@ import {
   type KeyboardEvent,
 } from "react";
 
+import { emojiDirectory } from "@/lib/customEmoji";
 import { useTranslation } from "@/lib/i18n";
 import {
   EMPTY_MENTIONS,
@@ -24,10 +25,12 @@ import {
 import { describeError, type Attachment, type MessageBase, type UploadLimits } from "@/lib/protocol";
 import { readAccessibility } from "@/lib/storage";
 import { UploadCancelled, formatBytes, parseBytes } from "@/lib/uploads";
+import { useSession } from "@/store/session";
 import { AttachmentTray, type PendingFile } from "./AttachmentTray";
 import { EmojiPicker, type PickerTab } from "./EmojiPicker";
 import { CloseIcon, GifIcon, PlusIcon, ReplyIcon, SmileyIcon, StickerIcon } from "./Icons";
 import { MentionPicker } from "./MentionPicker";
+import { ReplySnippet } from "./ReplySnippet";
 
 /** Matches the server's own limit, so the count means the same on both sides. */
 export const MAX_MESSAGE_LENGTH = 2000;
@@ -116,6 +119,13 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     ref,
   ) {
   const { t } = useTranslation();
+  // Read here rather than passed down: the bar above the box shows the message
+  // being answered, and it has to draw a custom emoji the same way the message
+  // list does. Every sibling of this box reads the store for the same reason.
+  const expressions = useSession((state) => state.expressions);
+  const address = useSession((state) => state.address);
+  const emojis = useMemo(() => emojiDirectory(expressions.values()), [expressions]);
+
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -513,7 +523,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
               <strong className="composer__reply-author">@{replyingTo.author}</strong>
             </span>
             <span className="composer__reply-snippet">
-              {replyingTo.content || (replyingTo.attachments?.length ? t("chat.attachment") : "")}
+              <ReplySnippet content={replyingTo.content} emojis={emojis} address={address} />
             </span>
           </div>
           <button

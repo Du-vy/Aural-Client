@@ -37,6 +37,7 @@ const { MentionPicker } = await import("@/components/MentionPicker");
 const { MessageList } = await import("@/components/MessageList");
 const { RichEmbeds, colorOf } = await import("@/components/embeds/RichEmbed");
 const { SearchResults } = await import("@/components/SearchResults");
+const { PostCommentsThread } = await import("@/components/posts/PostCommentsThread");
 const { insertAtCaret } = await import("@/components/MessageComposer");
 const { ServerSettingsDialog } = await import("@/components/dialogs/ServerSettingsDialog");
 const { UserSettingsDialog } = await import("@/components/dialogs/UserSettingsDialog");
@@ -47,7 +48,7 @@ const { MessageAttachments } = await import("@/components/attachments/MessageAtt
 const { AttachmentTray } = await import("@/components/AttachmentTray");
 const { Markdown } = await import("@/components/attachments/Markdown");
 const { TextAttachment } = await import("@/components/attachments/TextAttachment");
-const { parseMarkdown, parseInline } = await import("@/lib/markdown");
+const { parseMarkdown, parseInline, plainText } = await import("@/lib/markdown");
 const { attachmentKind, formatBytes, extensionOf, attachmentUrl } = await import("@/lib/uploads");
 const { parseAddress } = await import("@/lib/address");
 const { extractUrls, classifyUrl, isOnlyMediaUrls, tokenizeMessageText } = await import("@/lib/links");
@@ -1158,6 +1159,219 @@ function checkThat(name: string, condition: boolean): void {
     "a link that is not http is stripped of its href",
     link.every((node) => node.type !== "link"),
   );
+
+  // A one-line preview shows what somebody wrote, not what they typed to shape
+  // it. Everything the parser understands has to come back as its words.
+  checkThat(
+    "a preview drops the marks and keeps the words",
+    plainText("# Title\n\nsome **bold** and *thin* text") === "Title some bold and thin text",
+  );
+  checkThat(
+    "a preview folds a message onto one line",
+    plainText("first line\nsecond line") === "first line second line",
+  );
+  checkThat(
+    "a preview keeps what a code block says",
+    plainText("look:\n\n```\nconst x = 1;\n```") === "look: const x = 1;",
+  );
+  checkThat("a preview of nothing is nothing", plainText("   ") === "");
+}
+
+{
+  // The line above a reply names what it answers. Three things it has to get
+  // right cannot be seen from a type check: a message that is gone has no
+  // author to name, a message that was nothing but its files has no words to
+  // quote, and a reference nothing can reach must not be offered as a link.
+  const answered: Message = {
+    id: 940,
+    channelId: 2,
+    userId: guest.id,
+    author: "Bob",
+    content: "the question",
+    createdAt: nowSeconds - 120,
+    editedAt: null,
+  };
+  const reply = (replyTo: Message["replyTo"], id = 941): Message => ({
+    id,
+    channelId: 2,
+    userId: admin.id,
+    author: "Pablo",
+    content: "the answer",
+    createdAt: nowSeconds - 60,
+    editedAt: null,
+    replyToId: replyTo?.id ?? null,
+    replyTo,
+  });
+
+  const mount = (messages: Message[], onJumpToMessage?: () => void) => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <MessageList
+          channelName="general"
+          messages={messages}
+          users={
+            new Map([
+              [admin.id, admin],
+              [guest.id, guest],
+            ])
+          }
+          roles={new Map(roles.map((role) => [role.id, role]))}
+          self={admin}
+          hasMore={false}
+          hasMoreAfter={false}
+          loading={false}
+          error={null}
+          canManageMessages={false}
+          jump={null}
+          onJumpDone={noop}
+          onLoadOlder={noop}
+          onLoadNewer={noop}
+          onReturnToPresent={noop}
+          onEdit={noop}
+          onDelete={noop}
+          onReply={noop}
+          onJumpToMessage={onJumpToMessage}
+        />,
+      );
+    });
+    const html = container.innerHTML;
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    return { html, container };
+  };
+
+  const inWindow = mount([
+    answered,
+    reply({ id: answered.id, author: "Bob", content: "the question" }),
+  ]).html;
+  checkThat("a reply names who it answers", inWindow.includes("@Bob"));
+  checkThat("a reply quotes what it answers", inWindow.includes("the question"));
+  checkThat(
+    "a reply opens a block of its own, however well it would have grouped",
+    (inWindow.match(/msg--has-reply/g) ?? []).length === 1,
+  );
+
+  const gone = mount([
+    reply({ id: 999, author: "", content: "", deleted: true }),
+  ]).html;
+  checkThat("a reference whose message is gone says so", gone.includes("msg__reply-deleted"));
+  checkThat(
+    "and names nobody, rather than naming an empty handle",
+    !gone.includes(">@<"),
+  );
+  checkThat(
+    "a reference with no target is not offered as a jump",
+    gone.includes("msg__reply-preview--flat"),
+  );
+
+  const filesOnly = mount([
+    reply({ id: 998, author: "Bob", content: "" }),
+  ]).html;
+  checkThat(
+    "a reference to a message that was only its files is named, not left blank",
+    filesOnly.includes("Attachment"),
+  );
+
+  // Nothing on screen carries id 998, so only a list that can fetch the window
+  // around it can reach it. A private conversation cannot, and says so by
+  // drawing the reference flat.
+  checkThat(
+    "an unreachable reference is drawn flat",
+    filesOnly.includes("msg__reply-preview--flat"),
+  );
+  checkThat(
+    "the same reference is a jump where the window can be fetched",
+    !mount([reply({ id: 998, author: "Bob", content: "" })], noop).html.includes(
+      "msg__reply-preview--flat",
+    ),
+  );
+
+  // Answering somebody addresses them, whether or not the answer spells their
+  // name. The row says so the same way a written-out mention does. The
+  // reference names the reader; the answer is somebody else's.
+  const mine = { id: 997, userId: admin.id, author: "Pablo", content: "the question" };
+  const answeringReader = mount([
+    { ...reply(mine), userId: guest.id, author: "Bob" },
+  ]).html;
+  checkThat(
+    "a reply to something you wrote marks the row, without naming you",
+    answeringReader.includes("msg--mention"),
+  );
+
+  // Carrying on your own thought is not addressing yourself: the same
+  // reference, answered by the person who wrote it.
+  const answeringSelf = mount([reply(mine)]).html;
+  checkThat("answering yourself does not mark the row", !answeringSelf.includes("msg--mention"));
+
+  // The preview shows the words, not the marks that shaped them.
+  const shaped = mount([
+    reply({ id: 995, author: "Bob", content: "some **bold** words" }),
+  ]).html;
+  checkThat("a reference shows the words", shaped.includes("some bold words"));
+  checkThat("and not the marks around them", !shaped.includes("**bold**"));
+}
+
+{
+  // A post's comments are their own thread with their own box, so replying in
+  // one goes through markup the message list never touches. It reads from the
+  // store rather than from props, so the state is seeded and the component
+  // mounted as the view mounts it.
+  const post = {
+    id: 70,
+    channelId: 2,
+    userId: guest.id,
+    author: "Bob",
+    title: "A post",
+    locked: false,
+    pinned: false,
+    createdAt: nowSeconds - 600,
+    editedAt: null,
+    comments: 2,
+    lastCommentAt: nowSeconds - 60,
+  };
+  const asked = {
+    id: 971,
+    channelId: 2,
+    postId: post.id,
+    userId: guest.id,
+    author: "Bob",
+    content: "how do I build it?",
+    createdAt: nowSeconds - 300,
+    editedAt: null,
+  };
+  const answered = {
+    id: 972,
+    channelId: 2,
+    postId: post.id,
+    userId: admin.id,
+    author: "Pablo",
+    content: "run **npm** run build",
+    createdAt: nowSeconds - 60,
+    editedAt: null,
+    replyToId: asked.id,
+    replyTo: { id: asked.id, userId: guest.id, author: "Bob", content: "how do I build it?" },
+  };
+
+  seed({
+    posts: new Map([
+      [2, { posts: [post], hasMore: false, loading: false, error: null }],
+    ]),
+    postComments: new Map([
+      [post.id, { messages: [asked, answered], hasMore: false, loading: false, error: null }],
+    ]),
+  });
+
+  render(
+    "a post thread holding a comment that answers another",
+    <PostCommentsThread channelId={2} post={post} />,
+    ["how do I build it?", "@Bob", "post-comment__ref"],
+  );
+  seed();
 }
 
 {

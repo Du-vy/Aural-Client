@@ -74,6 +74,7 @@ export type {
   ConnectionState,
   ConnectionStatus,
   DirectHistory,
+  DirectJumpTarget,
   JumpTarget,
   SearchState,
   Unread,

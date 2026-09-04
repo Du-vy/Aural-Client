@@ -1372,10 +1372,27 @@
   color: var(--text-dim);
 }
 
+.post-comment__reply {
+  margin-left: auto;
+  opacity: 0.6;
+  padding: 2px;
+}
+
+.post-comment__reply:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
 .post-comment__delete {
   margin-left: auto;
   opacity: 0.6;
   padding: 2px;
+}
+
+/* Two buttons at the right of the row, not one at the right and one adrift in
+   the middle: only the first of them claims the free space. */
+.post-comment__reply + .post-comment__delete {
+  margin-left: 0;
 }
 
 .post-comment__delete:hover {
@@ -1386,6 +1403,110 @@
 .post-comment__content {
   font-size: 0.875rem;
   color: var(--text);
+}
+
+/* The line naming what a comment answers. It sits above the words rather than
+   beside them, so a thread reads down the page in the order it was written. */
+.post-comment__ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 1px 5px 1px 3px;
+  border: 0;
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.725rem;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--speed) ease;
+}
+
+.post-comment__ref:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+/* A reference with nothing to jump to is still worth reading; it is just not
+   worth offering. It keeps its colour rather than greying out. */
+.post-comment__ref:disabled {
+  cursor: default;
+}
+
+.post-comment__ref-author {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.post-comment__ref-snippet,
+.post-comment__ref-deleted {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.post-comment__ref-deleted {
+  font-style: italic;
+}
+
+/* Long enough to find the row, short enough not to sit there. */
+.post-comment--landed {
+  border-color: var(--accent);
+  transition: border-color 0.4s ease;
+}
+
+.post-thread__reply-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.post-thread__reply-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.post-thread__reply-label {
+  flex-shrink: 0;
+}
+
+.post-thread__reply-snippet {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-dim);
+}
+
+.post-thread__reply-cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.post-thread__reply-cancel:hover {
+  color: var(--text);
+  background: var(--hover);
 }
 
 .post-thread__locked {

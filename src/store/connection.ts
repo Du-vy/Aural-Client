@@ -19,7 +19,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { parseAddress, type ServerAddress } from "@/lib/address";
 import { Gateway, closeMessage, type CloseInfo } from "@/lib/gateway";
 import { t } from "@/lib/i18n";
-import { mentionReach, mentionsSelf, type MentionReach } from "@/lib/mentions";
+import { mentionReach, mentionsSelf, repliesToSelf, type MentionReach } from "@/lib/mentions";
 import { shouldNotifyHere } from "@/lib/muting";
 import { announce } from "@/lib/notifications";
 import {
@@ -52,6 +52,7 @@ import {
   type ExpressionKind,
   type ICEServer,
   type Message,
+  type MessageBase,
   type MessageDeletedEvent,
   type MessageEvent,
   type MessageHistoryResult,
@@ -183,6 +184,24 @@ export const EMPTY_DIRECT_HISTORY: DirectHistory = {
 export const CHANNEL_WINDOW = 200;
 
 /**
+ * Takes one message out of a window, and marks every reply that pointed at it.
+ *
+ * A reply outlives what it answered, and the reference on it is what says so.
+ * Left alone it would go on naming a message that is no longer there — the
+ * server already renders the reference as deleted, but only to whoever reads
+ * the window again, which is nobody who was already looking at it.
+ */
+function withoutMessage<T extends MessageBase>(messages: readonly T[], messageId: number): T[] {
+  return messages
+    .filter((held) => held.id !== messageId)
+    .map((held) =>
+      held.replyTo?.id === messageId
+        ? { ...held, replyTo: { id: messageId, author: "", content: "", deleted: true } }
+        : held,
+    );
+}
+
+/**
  * How much of a channel survives being left.
  *
  * A channel stops being read the moment another one is opened, and what makes
@@ -259,6 +278,18 @@ export const EMPTY_SEARCH: SearchState = {
  */
 export interface JumpTarget {
   channelId: number;
+  messageId: number;
+  nonce: number;
+}
+
+/**
+ * The same, for a private conversation, which is addressed by the other person
+ * rather than by a channel id. The two are kept apart because a client can be
+ * reading a channel and a conversation at once, and one jump must not move the
+ * other list.
+ */
+export interface DirectJumpTarget {
+  userId: number;
   messageId: number;
   nonce: number;
 }
@@ -422,6 +453,8 @@ export interface ConnectionState {
   search: SearchState;
   /** The message the view should move to, set by a jump and cleared by it. */
   jump: JumpTarget | null;
+  /** The same, for the conversation being read. */
+  directJump: DirectJumpTarget | null;
 
   connect(options?: ConnectOptions): Promise<void>;
   disconnect(): void;
@@ -622,6 +655,18 @@ export interface ConnectionState {
   openConversation(userId: number): Promise<void>;
   /** Loads the page before the oldest line held. */
   loadOlderDirect(userId: number): Promise<void>;
+  /** Loads the page after the newest line held, walking a jumped-into window
+   * forwards. Does nothing while the window already ends at the present. */
+  loadNewerDirect(userId: number): Promise<void>;
+  /** Drops a jumped-into window and reads the newest page again. */
+  returnToPresentDirect(userId: number): Promise<void>;
+  /**
+   * Moves the conversation to one line, fetching the window around it when it
+   * is not among the ones held. It is what a reply preview follows.
+   */
+  jumpToDirectMessage(userId: number, messageId: number): Promise<void>;
+  /** Clears a conversation jump once the view has moved to it. */
+  clearDirectJump(nonce: number): void;
   sendDirectMessage(userId: number, content: string, replyToId?: number): Promise<void>;
   editDirectMessage(messageId: number, content: string): Promise<void>;
   deleteDirectMessage(messageId: number): Promise<void>;
@@ -1139,8 +1184,12 @@ export function createConnection({
       if (watching) return;
 
       // Roles are passed as well as the user, so a message that names a group
-      // this member is in counts as naming them.
-      const reach = mentionReach(message.content, state.self, state.roles);
+      // this member is in counts as naming them. Answering somebody names them
+      // too, and does it without spelling anything — so it is checked first
+      // and reaches as far as writing the name out would.
+      const reach = repliesToSelf(message.replyTo, state.self)
+        ? "direct"
+        : mentionReach(message.content, state.self, state.roles);
       const mention = reach !== "none";
       const current = state.unread.get(message.channelId) ?? { count: 0, mention: false };
       const unread = new Map(state.unread);
@@ -1618,7 +1667,7 @@ export function createConnection({
               const postComments = new Map(state.postComments);
               postComments.set(postId, {
                 ...held,
-                messages: held.messages.filter((m) => m.id !== event.messageId),
+                messages: withoutMessage(held.messages, event.messageId),
               });
               const currentChannel = state.posts.get(event.channelId);
               let posts = state.posts;
@@ -1642,7 +1691,7 @@ export function createConnection({
           const history = new Map(state.history);
           history.set(event.channelId, {
             ...current,
-            messages: current.messages.filter((held) => held.id !== event.messageId),
+            messages: withoutMessage(current.messages, event.messageId),
           });
           set({ history });
           return;
@@ -1700,9 +1749,7 @@ export function createConnection({
         case Ev.DMDeleted: {
           const { userId, messageId } = payload as DMDeletedEvent;
           const current = state.directHistory.get(userId);
-          const remaining = current
-            ? current.messages.filter((held) => held.id !== messageId)
-            : [];
+          const remaining = current ? withoutMessage(current.messages, messageId) : [];
           if (current) patchDirect(userId, { messages: remaining });
 
           // The preview under a name is the last thing that was said, so a
@@ -1894,6 +1941,7 @@ export function createConnection({
         speaking: new Set(),
         search: EMPTY_SEARCH,
         jump: null,
+        directJump: null,
       });
       host.ended(message, wasConnected);
     }
@@ -2028,6 +2076,7 @@ export function createConnection({
       speaking: new Set(),
       search: EMPTY_SEARCH,
       jump: null,
+      directJump: null,
 
       async connect(options = {}) {
         const previous = get().gateway;
@@ -2227,6 +2276,7 @@ export function createConnection({
           speaking: new Set(),
           search: EMPTY_SEARCH,
           jump: null,
+          directJump: null,
         });
         stopAllSounds();
         forgetSoundCache();
@@ -2266,6 +2316,7 @@ export function createConnection({
           activeConversationId: null,
           search: EMPTY_SEARCH,
           jump: null,
+          directJump: null,
         });
       },
 
@@ -2833,6 +2884,71 @@ export function createConnection({
         } catch (error) {
           patchDirect(userId, { loading: false, error: describeError(error) });
         }
+      },
+
+      async loadNewerDirect(userId) {
+        const current = get().directHistory.get(userId);
+        if (!current || current.loading || !current.hasMoreAfter) return;
+        const newest = current.messages.at(-1);
+        if (!newest) return;
+
+        patchDirect(userId, { loading: true, error: null });
+        try {
+          const page = await requireGateway().request<DMHistoryResult>(Op.DMHistory, {
+            userId,
+            after: newest.id,
+          });
+          const held = get().directHistory.get(userId)?.messages ?? [];
+          patchDirect(userId, {
+            hasMoreAfter: page.hasMoreAfter,
+            loading: false,
+            error: null,
+            ...clampWindow(mergeMessages(held, page.messages), "newest"),
+          });
+        } catch (error) {
+          patchDirect(userId, { loading: false, error: describeError(error) });
+        }
+      },
+
+      async returnToPresentDirect(userId) {
+        // The window being held is dropped rather than paged forward through:
+        // the present is one request away, and everything between is history
+        // the reader can scroll back into.
+        const directHistory = new Map(get().directHistory);
+        directHistory.delete(userId);
+        set({ directHistory });
+        await get().openConversation(userId);
+      },
+
+      async jumpToDirectMessage(userId, messageId) {
+        set({ directJump: { userId, messageId, nonce: jumpNonce++ } });
+
+        const current = get().directHistory.get(userId);
+        if (current && current.messages.some((held) => held.id === messageId)) return;
+
+        patchDirect(userId, { loading: true, error: null });
+        try {
+          const page = await requireGateway().request<DMHistoryResult>(Op.DMHistory, {
+            userId,
+            around: messageId,
+          });
+          // The window replaces whatever was held rather than merging into it:
+          // the two runs need not touch, and a merge would draw them as if
+          // they did.
+          patchDirect(userId, {
+            messages: page.messages,
+            hasMore: page.hasMore,
+            hasMoreAfter: page.hasMoreAfter,
+            loading: false,
+            error: null,
+          });
+        } catch (error) {
+          patchDirect(userId, { loading: false, error: describeError(error) });
+        }
+      },
+
+      clearDirectJump(nonce) {
+        if (get().directJump?.nonce === nonce) set({ directJump: null });
       },
 
       async sendDirectMessage(userId, content, replyToId) {

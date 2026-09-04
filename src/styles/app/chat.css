@@ -168,7 +168,10 @@
   margin-top: 14px;
 }
 
-.msg--has-reply {
+/* A reply always opens a block, and the line naming what it answers already
+   sits above it. Taking the ordinary block spacing as well would stack two
+   separations on top of each other, so a reply takes less room over it. */
+.msg--first.msg--has-reply {
   margin-top: 8px;
 }
 
@@ -229,6 +232,18 @@
   text-decoration: underline;
 }
 
+/* A reference with nowhere to go is drawn, not offered: no pointer, and none
+   of the marks that say a click would do something. */
+.msg__reply-preview--flat,
+.msg__reply-preview--flat:hover {
+  cursor: default;
+  background: transparent;
+}
+
+.msg__reply-preview--flat:hover .msg__reply-author {
+  text-decoration: none;
+}
+
 .msg__reply-icon {
   flex-shrink: 0;
   color: var(--text-dim);
@@ -248,6 +263,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Smaller than the one in a message, and held to the line rather than sitting
+   on it: a preview is a line of text with pictures in it, not a row of them. */
+.emoji--reply {
+  width: 1.15em;
+  height: 1.15em;
+  object-fit: contain;
+  vertical-align: -0.2em;
+  margin: 0 1px;
 }
 
 .msg__reply-deleted {

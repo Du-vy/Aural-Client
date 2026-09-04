@@ -1,17 +1,20 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { formatTimeAgo } from "@/lib/time";
 import { Perm, has } from "@/lib/permissions";
 import { useMyPermissions } from "@/store/selectors";
 import { useSession } from "@/store/session";
-import type { Attachment, Post } from "@/lib/protocol";
+import type { Attachment, MessageBase, Post } from "@/lib/protocol";
 import { Avatar } from "../Avatar";
 import { MessageContent } from "../MessageContent";
 import { MentionPicker } from "../MentionPicker";
 import { useMentionAutocomplete } from "./useMentionAutocomplete";
+import { ReplySnippet } from "../ReplySnippet";
 import {
+  CloseIcon,
   LockIcon,
   PaperclipIcon,
+  ReplyIcon,
   SendIcon,
   TrashIcon,
 } from "../Icons";
@@ -43,6 +46,11 @@ export function PostCommentsThread({
   const loading = commentState?.loading ?? false;
 
   const [draft, setDraft] = useState("");
+  /** The comment being answered, or null. Cleared once the answer is sent. */
+  const [replyingTo, setReplyingTo] = useState<MessageBase | null>(null);
+  /** The comment a jump landed on, marked briefly so the eye can find it. */
+  const [landed, setLanded] = useState<number | null>(null);
+  const landedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const {
@@ -63,7 +71,34 @@ export function PostCommentsThread({
 
   useEffect(() => {
     void openPostComments(channelId, post.id);
+    // A reply belongs to the thread it was started in, and nothing about it
+    // carries over to the next post opened.
+    setReplyingTo(null);
   }, [channelId, post.id, openPostComments]);
+
+  useEffect(
+    () => () => {
+      if (landedTimer.current !== null) clearTimeout(landedTimer.current);
+    },
+    [],
+  );
+
+  // Which comments are on screen, and so which references can be followed.
+  // A thread is read from the newest page back, so an answer to something
+  // older than what is loaded has nowhere to go until that page is asked for.
+  const inThread = useMemo(() => new Set(messages.map((m) => m.id)), [messages]);
+
+  function jumpToComment(targetId: number) {
+    const row = listRef.current?.querySelector(`[data-comment="${targetId}"]`);
+    if (!row) return;
+    row.scrollIntoView({ block: "center", behavior: "smooth" });
+    setLanded(targetId);
+    if (landedTimer.current !== null) clearTimeout(landedTimer.current);
+    landedTimer.current = setTimeout(
+      () => setLanded((current) => (current === targetId ? null : current)),
+      2500,
+    );
+  }
 
   const canManageMessages = has(permissions, Perm.ManageMessages) || has(permissions, Perm.Administrator);
 
@@ -93,7 +128,8 @@ export function PostCommentsThread({
         attachmentIds = uploaded.map((a) => a.id);
       }
 
-      await sendPostComment(channelId, post.id, content, attachmentIds);
+      await sendPostComment(channelId, post.id, content, attachmentIds, replyingTo?.id);
+      setReplyingTo(null);
     } catch (err) {
       console.error("Failed to send post comment:", err);
       setDraft((current) => (current ? `${savedDraft} ${current}` : savedDraft));
@@ -112,6 +148,12 @@ export function PostCommentsThread({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Escape" && replyingTo) {
+      event.preventDefault();
+      event.stopPropagation();
+      setReplyingTo(null);
+      return;
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void handleSend();
@@ -160,8 +202,20 @@ export function PostCommentsThread({
           const isSelf = comment.userId !== null && self?.id === comment.userId;
           const canDelete = isSelf || canManageMessages;
 
+          const reference = comment.replyTo;
+          // A reference is followed only where there is something to follow it
+          // to: the answer to a comment older than the page held has nowhere
+          // to go until that page is asked for.
+          const reachable = !!reference && !reference.deleted && inThread.has(reference.id);
+
           return (
-            <div key={comment.id} className="post-comment">
+            <div
+              key={comment.id}
+              data-comment={comment.id}
+              className={
+                comment.id === landed ? "post-comment post-comment--landed" : "post-comment"
+              }
+            >
               <div
                 className="post-comment__avatar"
                 onClick={(e) => {
@@ -191,6 +245,20 @@ export function PostCommentsThread({
                   <span className="post-comment__time">
                     {formatTimeAgo(comment.createdAt)}
                   </span>
+                  {post.locked ? null : (
+                    <button
+                      type="button"
+                      className="post-comment__reply iconbtn"
+                      title={t("chat.reply")}
+                      aria-label={t("chat.reply")}
+                      onClick={() => {
+                        setReplyingTo(comment);
+                        composerInputRef.current?.focus();
+                      }}
+                    >
+                      <ReplyIcon size={13} />
+                    </button>
+                  )}
                   {canDelete ? (
                     <button
                       type="button"
@@ -202,6 +270,30 @@ export function PostCommentsThread({
                     </button>
                   ) : null}
                 </div>
+
+                {reference ? (
+                  <button
+                    type="button"
+                    className="post-comment__ref"
+                    disabled={!reachable}
+                    onClick={() => jumpToComment(reference.id)}
+                    title={reachable ? t("chat.jumpToOriginal") : undefined}
+                  >
+                    <ReplyIcon size={11} />
+                    {reference.deleted ? (
+                      <span className="post-comment__ref-deleted">
+                        {t("chat.originalDeleted")}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="post-comment__ref-author">@{reference.author}</span>
+                        <span className="post-comment__ref-snippet">
+                          <ReplySnippet content={reference.content} />
+                        </span>
+                      </>
+                    )}
+                  </button>
+                ) : null}
 
                 <div className="post-comment__content">
                   <MessageContent
@@ -235,6 +327,28 @@ export function PostCommentsThread({
               onHover={setActiveMentionIndex}
               onPick={chooseMention}
             />
+          ) : null}
+
+          {replyingTo ? (
+            <div className="post-thread__reply-bar">
+              <ReplyIcon size={12} className="post-thread__reply-icon" />
+              <span className="post-thread__reply-label">
+                {t("chat.replyingTo")}{" "}
+                <strong>@{replyingTo.author}</strong>
+              </span>
+              <span className="post-thread__reply-snippet">
+                <ReplySnippet content={replyingTo.content} />
+              </span>
+              <button
+                type="button"
+                className="post-thread__reply-cancel"
+                onClick={() => setReplyingTo(null)}
+                title={t("chat.cancelReply")}
+                aria-label={t("chat.cancelReply")}
+              >
+                <CloseIcon size={12} />
+              </button>
+            </div>
           ) : null}
 
           {pendingFiles.length > 0 ? (
