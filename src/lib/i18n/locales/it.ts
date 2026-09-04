@@ -142,6 +142,12 @@ export const it: DeepPartial<TranslationSchema> = {
     webhookBadgeTitle: "Pubblicato da un webhook",
     relayBadge: "DISCORD",
     relayBadgeTitle: "Scritto sul server Discord collegato e riportato qui",
+    reply: "Rispondi",
+    replyingTo: "In risposta a",
+    cancelReply: "Annulla risposta",
+    originalDeleted: "Il messaggio originale è stato eliminato.",
+    jumpToOriginal: "Vai al messaggio originale",
+    attachment: "Allegato",
   },
   composer: {
     bold: "Grassetto",

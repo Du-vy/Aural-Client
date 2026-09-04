@@ -145,6 +145,12 @@ export const en = {
     webhookBadgeTitle: "Posted by a webhook",
     relayBadge: "DISCORD",
     relayBadgeTitle: "Written on the linked Discord server and relayed here",
+    reply: "Reply",
+    replyingTo: "Replying to",
+    cancelReply: "Cancel reply",
+    originalDeleted: "Original message was deleted.",
+    jumpToOriginal: "Jump to original message",
+    attachment: "Attachment",
   },
   composer: {
     bold: "Bold",

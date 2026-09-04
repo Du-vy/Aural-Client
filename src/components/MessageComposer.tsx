@@ -21,12 +21,12 @@ import {
   type MentionQuery,
   type MentionTarget,
 } from "@/lib/mentions";
-import { describeError, type Attachment, type UploadLimits } from "@/lib/protocol";
+import { describeError, type Attachment, type MessageBase, type UploadLimits } from "@/lib/protocol";
 import { readAccessibility } from "@/lib/storage";
 import { UploadCancelled, formatBytes, parseBytes } from "@/lib/uploads";
 import { AttachmentTray, type PendingFile } from "./AttachmentTray";
 import { EmojiPicker, type PickerTab } from "./EmojiPicker";
-import { GifIcon, PlusIcon, SmileyIcon, StickerIcon } from "./Icons";
+import { CloseIcon, GifIcon, PlusIcon, ReplyIcon, SmileyIcon, StickerIcon } from "./Icons";
 import { MentionPicker } from "./MentionPicker";
 
 /** Matches the server's own limit, so the count means the same on both sides. */
@@ -82,7 +82,9 @@ interface MessageComposerProps {
   limits: UploadLimits | null;
   /** Who can be named here, for the picker an `@` opens. */
   mentions?: MentionDirectory;
-  onSend(content: string, attachments: number[]): Promise<void>;
+  replyingTo?: MessageBase | null;
+  onCancelReply?: () => void;
+  onSend(content: string, attachments: number[], replyToId?: number): Promise<void>;
   onUpload(file: File, onProgress: (fraction: number) => void): {
     done: Promise<Attachment>;
     cancel(): void;
@@ -93,6 +95,7 @@ let localIdSeq = 0;
 
 export interface MessageComposerHandle {
   addFiles(files: FileList | File[]): void;
+  focus(): void;
 }
 
 export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposerProps>(
@@ -105,6 +108,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       canAttach,
       limits,
       mentions = EMPTY_MENTIONS,
+      replyingTo,
+      onCancelReply,
       onSend,
       onUpload,
     },
@@ -164,6 +169,12 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     for (const cancel of running.current.values()) cancel();
     running.current.clear();
   }, [draftKey]);
+
+  useEffect(() => {
+    if (replyingTo) {
+      input.current?.focus();
+    }
+  }, [replyingTo]);
 
   // An upload still in flight when the client closes has nothing to attach to.
   useEffect(() => {
@@ -310,6 +321,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     ref,
     () => ({
       addFiles,
+      focus: () => input.current?.focus(),
     }),
     [addFiles],
   );
@@ -356,7 +368,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     input.current?.focus();
 
     try {
-      await onSend(content, attachmentIds);
+      await onSend(content, attachmentIds, replyingTo?.id);
+      onCancelReply?.();
     } catch (failure) {
       // The draft and its files are deliberately restored: a rejected
       // message is one the writer still has, and making them redo it would be
@@ -402,6 +415,13 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         setMention(null);
         return;
       }
+    }
+
+    if (event.key === "Escape" && replyingTo) {
+      event.preventDefault();
+      event.stopPropagation();
+      onCancelReply?.();
+      return;
     }
 
     const acc = readAccessibility();
@@ -482,6 +502,30 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
 
       {pending.length > 0 ? (
         <AttachmentTray items={pending} onRemove={removePending} />
+      ) : null}
+
+      {replyingTo ? (
+        <div className="composer__reply-bar">
+          <div className="composer__reply-info">
+            <ReplyIcon size={14} className="composer__reply-icon" />
+            <span className="composer__reply-label">
+              {t("chat.replyingTo")}{" "}
+              <strong className="composer__reply-author">@{replyingTo.author}</strong>
+            </span>
+            <span className="composer__reply-snippet">
+              {replyingTo.content || (replyingTo.attachments?.length ? t("chat.attachment") : "")}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="composer__reply-cancel"
+            onClick={onCancelReply}
+            title={t("chat.cancelReply")}
+            aria-label={t("chat.cancelReply")}
+          >
+            <CloseIcon size={14} />
+          </button>
+        </div>
       ) : null}
 
       <div className="composer__box">

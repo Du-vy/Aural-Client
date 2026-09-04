@@ -142,6 +142,12 @@ export const es: TranslationSchema = {
     webhookBadgeTitle: "Publicado por un webhook",
     relayBadge: "DISCORD",
     relayBadgeTitle: "Escrito en el servidor de Discord enlazado y retransmitido aquí",
+    reply: "Responder",
+    replyingTo: "Respondiendo a",
+    cancelReply: "Cancelar respuesta",
+    originalDeleted: "El mensaje original fue eliminado.",
+    jumpToOriginal: "Ir al mensaje original",
+    attachment: "Archivo adjunto",
   },
   composer: {
     bold: "Negrita",

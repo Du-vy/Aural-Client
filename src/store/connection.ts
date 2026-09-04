@@ -580,7 +580,12 @@ export interface ConnectionState {
    */
   runSearch(options?: { input?: string; sort?: SearchSort; offset?: number }): Promise<void>;
   /** Posts a message, optionally carrying files already uploaded. */
-  sendMessage(channelId: number, content: string, attachments?: number[]): Promise<void>;
+  sendMessage(
+    channelId: number,
+    content: string,
+    attachments?: number[],
+    replyToId?: number,
+  ): Promise<void>;
   /**
    * Sends one file to a channel and resolves with the attachment it became.
    * The returned handle can cancel an upload still in flight.
@@ -602,7 +607,13 @@ export interface ConnectionState {
   rsvpPost(postId: number, response: string): Promise<void>;
   openPostComments(channelId: number, postId: number): Promise<void>;
   loadOlderPostComments(channelId: number, postId: number): Promise<void>;
-  sendPostComment(channelId: number, postId: number, content: string, attachments?: number[]): Promise<void>;
+  sendPostComment(
+    channelId: number,
+    postId: number,
+    content: string,
+    attachments?: number[],
+    replyToId?: number,
+  ): Promise<void>;
 
   /**
    * Opens the conversation with somebody: loads its newest page, and puts it
@@ -611,7 +622,7 @@ export interface ConnectionState {
   openConversation(userId: number): Promise<void>;
   /** Loads the page before the oldest line held. */
   loadOlderDirect(userId: number): Promise<void>;
-  sendDirectMessage(userId: number, content: string): Promise<void>;
+  sendDirectMessage(userId: number, content: string, replyToId?: number): Promise<void>;
   editDirectMessage(messageId: number, content: string): Promise<void>;
   deleteDirectMessage(messageId: number): Promise<void>;
   /**
@@ -2736,11 +2747,12 @@ export function createConnection({
         }
       },
 
-      async sendMessage(channelId, content, attachments) {
+      async sendMessage(channelId, content, attachments, replyToId) {
         await requireGateway().request(Op.MessageSend, {
           channelId,
           content,
           ...(attachments && attachments.length > 0 ? { attachments } : {}),
+          ...(replyToId ? { replyToId } : {}),
         });
       },
 
@@ -2823,8 +2835,12 @@ export function createConnection({
         }
       },
 
-      async sendDirectMessage(userId, content) {
-        await requireGateway().request(Op.DMSend, { userId, content });
+      async sendDirectMessage(userId, content, replyToId) {
+        await requireGateway().request(Op.DMSend, {
+          userId,
+          content,
+          ...(replyToId ? { replyToId } : {}),
+        });
       },
 
       async editDirectMessage(messageId, content) {
@@ -3089,12 +3105,13 @@ export function createConnection({
         }
       },
 
-      async sendPostComment(channelId, postId, content, attachments) {
+      async sendPostComment(channelId, postId, content, attachments, replyToId) {
         await requireGateway().request<MessageEvent>(Op.MessageSend, {
           channelId,
           postId,
           content,
           ...(attachments && attachments.length > 0 ? { attachments } : {}),
+          ...(replyToId ? { replyToId } : {}),
         });
       },
 

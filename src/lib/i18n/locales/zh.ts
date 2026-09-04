@@ -142,6 +142,12 @@ export const zh: DeepPartial<TranslationSchema> = {
     webhookBadgeTitle: "由 Webhook 发布",
     relayBadge: "DISCORD",
     relayBadgeTitle: "在关联的 Discord 服务器上写下并转发到这里",
+    reply: "回复",
+    replyingTo: "回复",
+    cancelReply: "取消回复",
+    originalDeleted: "原始消息已被删除。",
+    jumpToOriginal: "跳转到原始消息",
+    attachment: "附件",
   },
   composer: {
     bold: "粗体",

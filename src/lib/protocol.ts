@@ -516,6 +516,22 @@ export interface MessageBase {
   webhook?: MessageWebhook;
   /** The rich cards the message carries. Only a webhook produces them. */
   embeds?: Embed[];
+  /** The id of the message this one replies to, if any. */
+  replyToId?: number | null;
+  /** Snapshot of the referenced message when loaded. */
+  replyTo?: ReferencedMessage | null;
+}
+
+/**
+ * A snapshot of a message being replied to.
+ */
+export interface ReferencedMessage {
+  id: number;
+  channelId?: number;
+  userId?: number | null;
+  author: string;
+  content: string;
+  deleted?: boolean;
 }
 
 /** The sender of a message that came in through a webhook. */
@@ -1049,6 +1065,8 @@ export interface MessageSendRequest {
    * its own, which is the one case where empty content is accepted.
    */
   attachments?: number[];
+  /** The id of the message being replied to, if any. */
+  replyToId?: number;
 }
 
 /**
@@ -1183,6 +1201,7 @@ export interface DMHistoryResult {
 export interface DMSendRequest {
   userId: number;
   content: string;
+  replyToId?: number;
 }
 
 export interface DMEditRequest {

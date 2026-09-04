@@ -1,9 +1,9 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useTranslation } from "@/lib/i18n";
 import { buildMentions } from "@/lib/mentions";
 import { Perm, has } from "@/lib/permissions";
-import type { User } from "@/lib/protocol";
+import type { MessageBase, User } from "@/lib/protocol";
 import { EMPTY_DIRECT_HISTORY, useSession } from "@/store/session";
 import { useMyPermissions } from "@/store/selectors";
 import { Avatar } from "./Avatar";
@@ -51,9 +51,11 @@ export function DirectMessagePanel({
   // means nothing here still means somebody on this server, and writing it is
   // how you tell the other person who you are talking about.
   const mentions = useMemo(() => buildMentions(users, roles), [users, roles]);
+  const [replyingTo, setReplyingTo] = useState<MessageBase | null>(null);
 
   useEffect(() => {
     void openConversation(userId);
+    setReplyingTo(null);
   }, [userId, openConversation]);
 
   // Three separate reasons the box may be closed, and they read differently:
@@ -97,6 +99,7 @@ export function DirectMessagePanel({
         onDelete={(messageId) => void deleteDirectMessage(messageId)}
         onOpenMember={onOpenMember}
         onContextMenuMember={onContextMenuMember}
+        onReply={(msg) => setReplyingTo(msg)}
       />
 
       <MessageComposer
@@ -109,7 +112,11 @@ export function DirectMessagePanel({
         canAttach={false}
         limits={null}
         mentions={mentions}
-        onSend={(content) => sendDirectMessage(userId, content)}
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
+        onSend={(content, _attachments, replyToId) =>
+          sendDirectMessage(userId, content, replyToId)
+        }
         onUpload={() => ({
           done: Promise.reject(new Error(t("dm.noAttachments"))),
           cancel: () => {},

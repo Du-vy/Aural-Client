@@ -15,7 +15,7 @@ import { Avatar } from "./Avatar";
 import { ContextMenu, type MenuEntry } from "./ContextMenu";
 import { DeleteMessageDialog } from "./dialogs/DeleteMessageDialog";
 import { ExternalLinkDialog } from "./dialogs/ExternalLinkDialog";
-import { ChevronIcon, CopyIcon, HashIcon, LinkIcon, PencilIcon, TrashIcon } from "./Icons";
+import { ChevronIcon, CopyIcon, HashIcon, LinkIcon, PencilIcon, ReplyIcon, TrashIcon } from "./Icons";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./attachments/MessageAttachments";
 
@@ -55,11 +55,12 @@ export function buildRows(messages: readonly MessageBase[], now: Date = new Date
     const withinWindow =
       previous !== undefined &&
       message.createdAt - previous.createdAt <= GROUPING_WINDOW_SECONDS;
+    const hasReply = !!(message.replyToId || message.replyTo);
 
     rows.push({
       message,
       daySeparator: newDay ? formatDay(message.createdAt, now) : null,
-      startsBlock: newDay || !sameAuthor || !withinWindow,
+      startsBlock: newDay || !sameAuthor || !withinWindow || hasReply,
     });
   }
   return rows;
@@ -105,6 +106,8 @@ interface MessageListProps {
   onDelete(messageId: number): void;
   onOpenMember?(userId: number, anchorRect?: DOMRect): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
+  onReply?(message: MessageBase): void;
+  onJumpToMessage?(messageId: number): void;
 }
 
 export function MessageList({
@@ -133,6 +136,8 @@ export function MessageList({
   onDelete,
   onOpenMember,
   onContextMenuMember,
+  onReply,
+  onJumpToMessage,
 }: MessageListProps) {
   const { t } = useTranslation();
   const scroller = useRef<HTMLDivElement>(null);
@@ -208,6 +213,19 @@ export function MessageList({
     setLanded(jump.messageId);
     onJumpDone(jump.nonce);
   }, [jump, messages, onJumpDone]);
+
+  function handleJumpToMessage(targetId: number) {
+    const row = scroller.current?.querySelector(`[data-message="${targetId}"]`);
+    if (row) {
+      following.current = false;
+      anchor.current = null;
+      row.scrollIntoView({ block: "center", behavior: "smooth" });
+      setLanded(targetId);
+      setTimeout(() => setLanded((curr) => (curr === targetId ? null : curr)), 2500);
+    } else if (onJumpToMessage) {
+      onJumpToMessage(targetId);
+    }
+  }
 
   // The window moves at both ends — an older page arriving at the top, a trim
   // dropping the far end to keep the window bounded — and either one carries
@@ -295,6 +313,15 @@ export function MessageList({
     const isAuthor = msg.userId !== null && msg.userId === selfId;
     const canDelete = isAuthor || canManageMessages;
     const entries: MenuEntry[] = [];
+
+    if (onReply) {
+      entries.push({
+        id: "reply",
+        label: t("chat.reply"),
+        icon: <ReplyIcon size={15} />,
+        onClick: () => onReply(msg),
+      });
+    }
 
     if (isAuthor) {
       entries.push({
@@ -419,6 +446,8 @@ export function MessageList({
             onDelete={(e) => requestDelete(message, e.shiftKey)}
             onOpenMember={onOpenMember}
             onContextMenuMember={onContextMenuMember}
+            onReply={onReply ? () => onReply(message) : undefined}
+            onJumpToMessage={handleJumpToMessage}
             onOpenLink={handleOpenLink}
             onContextMenu={(event) => {
               event.preventDefault();
@@ -492,6 +521,8 @@ interface MessageRowProps {
   onDelete(event: React.MouseEvent): void;
   onOpenMember?(userId: number, anchorRect?: DOMRect): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
+  onReply?(): void;
+  onJumpToMessage?(targetId: number): void;
   onOpenLink(url: string): void;
   onContextMenu?(event: React.MouseEvent): void;
 }
@@ -515,6 +546,8 @@ function MessageRow({
   onDelete,
   onOpenMember,
   onContextMenuMember,
+  onReply,
+  onJumpToMessage,
   onOpenLink,
   onContextMenu,
 }: MessageRowProps) {
@@ -537,9 +570,32 @@ function MessageRow({
   const classes = ["msg"];
   if (startsBlock) classes.push("msg--first");
   if (namesReader) classes.push("msg--mention");
+  if (message.replyTo) classes.push("msg--has-reply");
 
   return (
     <div className={classes.join(" ")} onContextMenu={onContextMenu}>
+      {message.replyTo ? (
+        <div className="msg__reply">
+          <div className="msg__reply-spine" aria-hidden="true" />
+          <button
+            type="button"
+            className="msg__reply-preview"
+            onClick={() => onJumpToMessage?.(message.replyTo!.id)}
+            title={t("chat.jumpToOriginal")}
+          >
+            <ReplyIcon size={12} className="msg__reply-icon" />
+            <span className="msg__reply-author">@{message.replyTo.author}</span>
+            {message.replyTo.deleted ? (
+              <span className="msg__reply-deleted">{t("chat.originalDeleted")}</span>
+            ) : (
+              <span className="msg__reply-snippet">
+                {message.replyTo.content || (message.replyTo.deleted ? t("chat.originalDeleted") : "")}
+              </span>
+            )}
+          </button>
+        </div>
+      ) : null}
+
       <div className="msg__gutter">
         {startsBlock ? (
           author ? (
@@ -685,6 +741,17 @@ function MessageRow({
 
       {editing ? null : (
         <div className="msg__actions">
+          {onReply ? (
+            <button
+              type="button"
+              className="iconbtn"
+              onClick={onReply}
+              title={t("chat.reply")}
+              aria-label={t("chat.reply")}
+            >
+              <ReplyIcon size={14} />
+            </button>
+          ) : null}
           {editable ? (
             <button
               className="iconbtn"

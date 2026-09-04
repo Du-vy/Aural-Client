@@ -113,6 +113,13 @@ export const CloseIcon = icon(
   </>,
 );
 
+export const ReplyIcon = icon(
+  <>
+    <polyline points="9 17 4 12 9 7" />
+    <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+  </>,
+);
+
 export const ShieldIcon = icon(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />);
 
 /** The mark of whoever owns the server, which no role carries. */

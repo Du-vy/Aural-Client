@@ -142,6 +142,12 @@ export const hi: DeepPartial<TranslationSchema> = {
     webhookBadgeTitle: "वेबहुक द्वारा पोस्ट किया गया",
     relayBadge: "डिस्कॉर्ड",
     relayBadgeTitle: "जुड़े हुए Discord सर्वर पर लिखा गया और यहाँ पहुँचाया गया",
+    reply: "उत्तर दें",
+    replyingTo: "को उत्तर दे रहे हैं",
+    cancelReply: "उत्तर रद्द करें",
+    originalDeleted: "मूल संदेश हटा दिया गया था।",
+    jumpToOriginal: "मूल संदेश पर जाएं",
+    attachment: "संलग्नक",
   },
   composer: {
     bold: "बोल्ड",

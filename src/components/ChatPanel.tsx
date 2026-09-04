@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { emojiDirectory } from "@/lib/customEmoji";
 import { buildMentions } from "@/lib/mentions";
 import { Perm, has } from "@/lib/permissions";
-import type { Channel, User } from "@/lib/protocol";
+import type { Channel, MessageBase, User } from "@/lib/protocol";
 import { EMPTY_HISTORY, useSession } from "@/store/session";
 import { useChannelPermissions } from "@/store/selectors";
 import { MessageComposer, type MessageComposerHandle } from "./MessageComposer";
@@ -37,6 +37,7 @@ export function ChatPanel({
   const returnToPresent = useSession((state) => state.returnToPresent);
   const jump = useSession((state) => state.jump);
   const clearJump = useSession((state) => state.clearJump);
+  const jumpToMessage = useSession((state) => state.jumpToMessage);
   const sendMessage = useSession((state) => state.sendMessage);
   const editMessage = useSession((state) => state.editMessage);
   const deleteMessage = useSession((state) => state.deleteMessage);
@@ -53,6 +54,7 @@ export function ChatPanel({
 
   const composerRef = useRef<MessageComposerHandle>(null);
   const [dragDepth, setDragDepth] = useState(0);
+  const [replyingTo, setReplyingTo] = useState<MessageBase | null>(null);
 
   // Built once per change to the member list rather than once per message:
   // both the picker and every message in the window resolve against it.
@@ -69,6 +71,7 @@ export function ChatPanel({
 
   useEffect(() => {
     setDragDepth(0);
+    setReplyingTo(null);
   }, [channel.id]);
 
   function carriesFiles(event: DragEvent): boolean {
@@ -159,6 +162,8 @@ export function ChatPanel({
         onDelete={(messageId) => void deleteMessage(messageId)}
         onOpenMember={onOpenMember}
         onContextMenuMember={onContextMenuMember}
+        onReply={(msg) => setReplyingTo(msg)}
+        onJumpToMessage={(targetId) => void jumpToMessage(channel.id, targetId)}
       />
 
       <MessageComposer
@@ -169,7 +174,11 @@ export function ChatPanel({
         canAttach={canAttach}
         limits={server?.uploads ?? null}
         mentions={mentions}
-        onSend={(content, attachments) => sendMessage(channel.id, content, attachments)}
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
+        onSend={(content, attachments, replyToId) =>
+          sendMessage(channel.id, content, attachments, replyToId)
+        }
         onUpload={(file, onProgress) => uploadAttachment(channel.id, file, onProgress)}
       />
     </div>
