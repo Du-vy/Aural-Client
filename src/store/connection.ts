@@ -73,6 +73,7 @@ import {
   type RoleEvent,
   type SearchSort,
   type ServerInfo,
+  type ServerMetricsResponse,
   type ServerUpdatedEvent,
   type Sound,
   type SoundPlayedEvent,
@@ -569,6 +570,7 @@ export interface ConnectionState {
     /** The audio plane, replaced whole. See `VoiceSettings`. */
     voice?: VoiceSettings;
   }): Promise<void>;
+  fetchServerMetrics(force?: boolean): Promise<ServerMetricsResponse>;
 
   createChannel(input: {
     name: string;
@@ -2557,6 +2559,10 @@ export function createConnection({
             }),
           );
         }
+      },
+
+      async fetchServerMetrics(force = false) {
+        return await requireGateway().request<ServerMetricsResponse>(Op.ServerMetrics, { force });
       },
 
       async createChannel(input) {

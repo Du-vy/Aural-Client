@@ -102,6 +102,7 @@ export const Op = {
 
   ServerClaimAdmin: "server.claimAdmin",
   ServerUpdate: "server.update",
+  ServerMetrics: "server.metrics",
 
   UserUpdate: "user.update",
   UserMove: "user.move",
@@ -1772,4 +1773,88 @@ export function describeError(error: unknown): string {
       return error.message || t("errors.unknown");
   }
 }
+
+export interface ServerMetricsRequest {
+  force?: boolean;
+}
+
+export interface StorageCountSize {
+  count: number;
+  bytes: number;
+}
+
+export interface ServerStorageBreakdown {
+  totalBytes: number;
+  hostTotal: number;
+  hostFree: number;
+  attachments: {
+    videos: StorageCountSize;
+    images: StorageCountSize;
+    audio: StorageCountSize;
+    files: StorageCountSize;
+    total: StorageCountSize;
+  };
+  profiles: {
+    avatars: StorageCountSize;
+    banners: StorageCountSize;
+    total: StorageCountSize;
+  };
+  expressions: {
+    emojis: StorageCountSize;
+    stickers: StorageCountSize;
+    sounds: StorageCountSize;
+    total: StorageCountSize;
+  };
+  serverMedia: {
+    iconBytes: number;
+  };
+  database: {
+    sizeBytes: number;
+  };
+}
+
+export interface ServerCPUMetrics {
+  processPercent: number;
+  systemPercent: number;
+  cores: number;
+}
+
+export interface ServerMemoryMetrics {
+  processRss: number;
+  processHeapAlloc: number;
+  processHeapSys: number;
+  systemTotal: number;
+  systemUsed: number;
+  systemFree: number;
+  systemPercent: number;
+}
+
+export interface ServerActivityMetrics {
+  activeConnections: number;
+  onlineUsers: number;
+  voiceUsers: number;
+  activeVoiceRooms: number;
+  registeredUsers: number;
+  totalChannels: number;
+  totalMessages: number;
+}
+
+export interface ServerSystemInfo {
+  uptimeSeconds: number;
+  startedAt: number;
+  goroutines: number;
+  goVersion: string;
+  os: string;
+  arch: string;
+  serverVersion: string;
+}
+
+export interface ServerMetricsResponse {
+  cpu: ServerCPUMetrics;
+  memory: ServerMemoryMetrics;
+  storage: ServerStorageBreakdown;
+  activity: ServerActivityMetrics;
+  system: ServerSystemInfo;
+}
+
 

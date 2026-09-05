@@ -48,6 +48,7 @@ import { ServerBansPage } from "./server-settings/BansPage";
 import { ServerExpressionsPage } from "./server-settings/ExpressionsPage";
 import { ServerRelayPage } from "./server-settings/RelayPage";
 import { ServerSoundsPage } from "./server-settings/SoundsPage";
+import { ServerTelemetrySection } from "./server-settings/ServerTelemetrySection";
 
 type ServerTabId =
   | "overview"
@@ -540,6 +541,8 @@ function ServerOverviewPage() {
           </div>
         </div>
       </div>
+
+      {allowed ? <ServerTelemetrySection /> : null}
 
       {/* Claim Server Administrator Section */}
       <div className="settings-card">

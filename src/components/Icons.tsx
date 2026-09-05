@@ -735,3 +735,54 @@ export const ScissorsIcon = icon(
 
 /** A square stop button, for cutting a preview short. */
 export const StopIcon = icon(<rect x="6" y="6" width="12" height="12" rx="2" />);
+
+/** A processor chip, for CPU metrics. */
+export const CpuIcon = icon(
+  <>
+    <rect x="4" y="4" width="16" height="16" rx="2" />
+    <rect x="9" y="9" width="6" height="6" />
+    <line x1="9" y1="1" x2="9" y2="4" />
+    <line x1="15" y1="1" x2="15" y2="4" />
+    <line x1="9" y1="20" x2="9" y2="23" />
+    <line x1="15" y1="20" x2="15" y2="23" />
+    <line x1="20" y1="9" x2="23" y2="9" />
+    <line x1="20" y1="15" x2="23" y2="15" />
+    <line x1="1" y1="9" x2="4" y2="9" />
+    <line x1="1" y1="15" x2="4" y2="15" />
+  </>,
+);
+
+/** A database cylinder, for SQLite and storage. */
+export const DatabaseIcon = icon(
+  <>
+    <ellipse cx="12" cy="5" rx="9" ry="3" />
+    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+  </>,
+);
+
+/** A hard drive, for disk space metrics. */
+export const HardDriveIcon = icon(
+  <>
+    <line x1="22" y1="12" x2="2" y2="12" />
+    <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    <line x1="6" y1="16" x2="6.01" y2="16" />
+    <line x1="10" y1="16" x2="10.01" y2="16" />
+  </>,
+);
+
+/** An activity pulse line, for real-time telemetry. */
+export const ActivityIcon = icon(
+  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />,
+);
+
+/** A refresh icon for live reload. */
+export const RefreshCwIcon = icon(
+  <>
+    <polyline points="23 4 23 10 17 10" />
+    <polyline points="1 20 1 14 7 14" />
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+  </>,
+);
+
+
