@@ -1,6 +1,6 @@
 [package]
 name = "aural-client"
-version = "0.8.6"
+version = "0.8.7"
 description = "Client for Aural, an open source voice and chat platform with self-hosted servers"
 edition = "2021"
 rust-version = "1.77.2"
