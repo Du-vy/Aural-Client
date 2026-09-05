@@ -3009,11 +3009,18 @@ console.log("\nanimated media background pause and accessibility");
   checkThat("can re-enable pauseAnimatedImagesOnBlur", readAccessibility().pauseAnimatedImagesOnBlur === true);
   checkThat("restores document attribute data-pause-animated-blur", document.documentElement.getAttribute("data-pause-animated-blur") === "true");
 
+  checkThat("detects server animated gif icon", isPotentiallyAnimated("http://localhost:8080/files/server-icon.gif"));
+  checkThat("detects server animated webp icon", isPotentiallyAnimated("http://localhost:8080/files/server-icon.webp"));
+  checkThat("detects discord animated server icon", isPotentiallyAnimated("https://cdn.discordapp.com/icons/12345/a_67890.gif?size=64"));
+  checkThat("detects discord animated server icon without extension", isPotentiallyAnimated("https://cdn.discordapp.com/icons/12345/a_67890"));
+  checkThat("identifies static server icon as not animated", !isPotentiallyAnimated("http://localhost:8080/files/server-icon.png"));
+
   const expectedTitle = t("dialogs.userSettings.accessibility.pauseAnimatedOnBlurTitle");
   render("AccessibilityPage renders with pause animated toggle", <AccessibilityPage />, [expectedTitle]);
   render("AppearancePage renders with pause animated toggle", <AppearancePage />, [expectedTitle]);
   render("AnimatedImage renders a static image", <AnimatedImage src="https://example.com/photo.jpg" alt="test" />);
   render("AnimatedImage renders an animated gif", <AnimatedImage src="https://example.com/cat.gif" alt="test gif" />);
+  render("AnimatedImage renders server icon with hovered state", <AnimatedImage className="rail__icon" src="http://localhost:8080/files/server.gif" alt="server" hovered={true} />);
 }
 
 console.log("\nthe protocol range");

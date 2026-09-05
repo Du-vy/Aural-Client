@@ -17,7 +17,8 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.server-icon-preview img {
+.server-icon-preview img,
+.server-icon-preview canvas {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -612,7 +613,8 @@
   flex: none;
 }
 
-.relay-guild__icon img {
+.relay-guild__icon img,
+.relay-guild__icon canvas {
   width: 100%;
   height: 100%;
   object-fit: cover;

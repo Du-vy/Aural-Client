@@ -65,7 +65,8 @@
   overflow: hidden;
 }
 
-.settings-server-header__icon img {
+.settings-server-header__icon img,
+.settings-server-header__icon canvas {
   width: 100%;
   height: 100%;
   object-fit: cover;

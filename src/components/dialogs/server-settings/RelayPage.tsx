@@ -13,6 +13,7 @@ import { formatDateTime } from "@/lib/time";
 import { useSession } from "@/store/session";
 import { useMyPermissions } from "@/store/selectors";
 import { ConfirmDialog } from "../ConfirmDialog";
+import { AnimatedImage } from "../../AnimatedImage";
 import { HashIcon, LinkIcon, PlusIcon, TrashIcon } from "../../Icons";
 
 /**
@@ -640,7 +641,7 @@ function RelayGuildsCard() {
             <li key={guild.id} className="relay-guild">
               <span className="relay-guild__icon" aria-hidden="true">
                 {guild.icon ? (
-                  <img src={guild.icon} alt="" referrerPolicy="no-referrer" />
+                  <AnimatedImage src={guild.icon} alt="" referrerPolicy="no-referrer" />
                 ) : (
                   guild.name.slice(0, 1).toUpperCase()
                 )}

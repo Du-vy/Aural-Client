@@ -15,6 +15,7 @@ import { formatDateTime } from "@/lib/time";
 import { resolveServerIconUrl, serverOrigin } from "@/lib/uploads";
 import { useSession } from "@/store/session";
 import { manageableWebhookChannels, useMyPermissions, useMyRank } from "@/store/selectors";
+import { AnimatedImage } from "../AnimatedImage";
 import { SettingsModal, type SettingsNavCategory } from "../SettingsModal";
 import {
   BridgeIcon,
@@ -176,7 +177,7 @@ export function ServerSettingsDialog({
     <div className="settings-server-header">
       <div className="settings-server-header__icon">
         {serverIconUrl && !headerIconError ? (
-          <img
+          <AnimatedImage
             src={serverIconUrl}
             alt={server.name}
             onError={() => setHeaderIconError(true)}
@@ -466,7 +467,7 @@ function ServerOverviewPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12 }}>
               <div className="server-icon-preview">
                 {serverIconUrl && !iconError ? (
-                  <img
+                  <AnimatedImage
                     src={serverIconUrl}
                     alt={name || "Server"}
                     onError={() => setIconError(true)}

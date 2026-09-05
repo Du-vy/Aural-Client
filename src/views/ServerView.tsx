@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { ChannelSidebar } from "@/components/ChannelSidebar";
+import { AnimatedImage } from "@/components/AnimatedImage";
 import { ChatPanel } from "@/components/ChatPanel";
 import { DirectMessagePanel } from "@/components/DirectMessagePanel";
 import { ContextMenu, type MenuEntry } from "@/components/ContextMenu";
@@ -1258,6 +1259,7 @@ function RailServer({
   const inCall = useServerRegistry((state) => state.voiceId === entry.id);
   const dialing = useServerRegistry((state) => state.dialing.includes(entry.id));
   const [imgError, setImgError] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const iconUrl = useMemo(() => {
     if (liveIcon) {
@@ -1328,6 +1330,8 @@ function RailServer({
             // The connect screen renders the failure; the entry stays put.
           });
       }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       onContextMenu={onContextMenu}
       title={title}
       aria-label={title}
@@ -1335,10 +1339,11 @@ function RailServer({
     >
       {hasIcon ? (
         <span className="rail__icon-wrapper">
-          <img
+          <AnimatedImage
             className="rail__icon"
             src={iconUrl!}
             alt={name}
+            hovered={isHovered}
             onError={() => setImgError(true)}
           />
         </span>

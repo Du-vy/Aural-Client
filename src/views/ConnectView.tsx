@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import { Avatar } from "@/components/Avatar";
+import { AnimatedImage } from "@/components/AnimatedImage";
 import { AuralMark, TrashIcon } from "@/components/Icons";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { DEFAULT_PORT, fetchServerInfo, parseAddress } from "@/lib/address";
@@ -281,7 +282,7 @@ function SavedServerBadge({ server }: { server: SavedServer }) {
   return (
     <span className="saved__badge">
       {iconUrl && !error ? (
-        <img
+        <AnimatedImage
           className="saved__badge-img"
           src={iconUrl}
           alt={server.name}

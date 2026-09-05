@@ -26,6 +26,10 @@ export interface AnimatedImageProps extends ImgHTMLAttributes<HTMLImageElement> 
    * If omitted, reads the user's Accessibility setting.
    */
   pauseOnBlur?: boolean;
+  /**
+   * Optional external hover state (e.g. when parent component manages hover).
+   */
+  hovered?: boolean;
 }
 
 /**
@@ -47,7 +51,8 @@ export function isPotentiallyAnimated(url?: string | null): boolean {
       lower.includes("/stickers/") ||
       lower.includes("tenor.com") ||
       lower.includes("giphy.com") ||
-      lower.includes("klipy.com")
+      lower.includes("klipy.com") ||
+      (lower.includes("discord") && lower.includes("/a_"))
     );
   } catch {
     return false;
@@ -74,6 +79,7 @@ export const AnimatedImage = forwardRef<HTMLImageElement, AnimatedImageProps>(fu
     animated,
     interactive = true,
     pauseOnBlur,
+    hovered,
     onLoad,
     onMouseEnter,
     onMouseLeave,
@@ -86,7 +92,8 @@ export const AnimatedImage = forwardRef<HTMLImageElement, AnimatedImageProps>(fu
 ) {
   const isWindowFocused = useWindowFocused();
   const settingPauseOnBlur = usePauseAnimatedOnBlur();
-  const [isHovered, setIsHovered] = useState(false);
+  const [internalHovered, setInternalHovered] = useState(false);
+  const isHovered = hovered !== undefined ? hovered : internalHovered;
 
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -150,12 +157,12 @@ export const AnimatedImage = forwardRef<HTMLImageElement, AnimatedImageProps>(fu
         className={className}
         style={{
           ...style,
-          display: shouldFreeze ? (style?.display ?? "inline-block") : "none",
+          display: shouldFreeze ? style?.display : "none",
         }}
         onClick={onClick as unknown as React.MouseEventHandler<HTMLCanvasElement>}
         onContextMenu={onContextMenu as unknown as React.MouseEventHandler<HTMLCanvasElement>}
-        onMouseEnter={() => interactive && setIsHovered(true)}
-        onMouseLeave={() => interactive && setIsHovered(false)}
+        onMouseEnter={() => interactive && setInternalHovered(true)}
+        onMouseLeave={() => interactive && setInternalHovered(false)}
         title={title}
         aria-hidden={rest["aria-hidden"]}
       />
@@ -176,11 +183,11 @@ export const AnimatedImage = forwardRef<HTMLImageElement, AnimatedImageProps>(fu
         }}
         onMouseEnter={(e) => {
           onMouseEnter?.(e);
-          if (interactive) setIsHovered(true);
+          if (interactive) setInternalHovered(true);
         }}
         onMouseLeave={(e) => {
           onMouseLeave?.(e);
-          if (interactive) setIsHovered(false);
+          if (interactive) setInternalHovered(false);
         }}
         onClick={onClick}
         onContextMenu={onContextMenu}
