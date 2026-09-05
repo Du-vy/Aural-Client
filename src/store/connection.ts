@@ -29,6 +29,7 @@ import {
   describeError,
   isPostChannel,
   protocolFit,
+  type Activity,
   type Attachment,
   type Channel,
   type ChannelDeletedEvent,
@@ -470,6 +471,16 @@ export interface ConnectionState {
   moveUser(userId: number, channelId: number | null): Promise<void>;
   setNickname(nickname: string, userId?: number): Promise<void>;
   setStatus(status: "online" | "idle" | "dnd" | "invisible"): Promise<void>;
+  /**
+   * Reports what this machine says its owner is doing outside Aural, or `null`
+   * to clear it.
+   *
+   * Nothing is set locally: the server answers with the view it broadcast, and
+   * the `user.updated` that carries it is what puts it on screen, exactly as
+   * for everybody else's. Rejections are the caller's to swallow — this is
+   * driven by a watcher on a timer, not by a person who could be told.
+   */
+  reportActivity(activity: Activity | null): Promise<void>;
   updateProfile(patch: {
     nickname?: string;
     status?: string;
@@ -772,7 +783,17 @@ function indexById<T extends { id: number }>(items: T[]): Map<number, T> {
  * leaves an invisible member indistinguishable from an absent one.
  */
 function asOffline(user: User): User {
-  return { ...user, online: false, status: "offline", customStatus: "", channelId: null };
+  return {
+    ...user,
+    online: false,
+    status: "offline",
+    customStatus: "",
+    // An activity belongs to the connection that reported it. The server drops
+    // it from every offline entry it sends; this is the same rule applied to
+    // the entry this client keeps when a connection simply ends.
+    activity: null,
+    channelId: null,
+  };
 }
 
 /**
@@ -2346,6 +2367,10 @@ export function createConnection({
         await requireGateway().request(Op.UserUpdate, { status });
       },
 
+      async reportActivity(activity) {
+        await requireGateway().request(Op.UserActivity, { activity });
+      },
+
       async updateProfile(patch) {
         // A picture is removed by sending an empty string, never null: the server
         // decodes a JSON null into the same absent field as a missing key, so a
@@ -3289,6 +3314,7 @@ export function createConnection({
 }
 
 export type {
+  Activity,
   Attachment,
   Channel,
   Conversation,

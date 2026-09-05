@@ -80,6 +80,7 @@ export type {
   Unread,
 } from "./connection";
 export type {
+  Activity,
   Attachment,
   Channel,
   Conversation,

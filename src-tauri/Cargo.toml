@@ -55,7 +55,33 @@ tauri-plugin-process = "2"
 # what those resolve to so the interfaces are the same types theirs are.
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
-windows = "0.61"
+# The features are what decide which of Windows this build can reach, and three
+# groups are in play. `Media_Control` is the media session — the thing that
+# draws the track on the lock screen, and the whole of the "listening to"
+# source. The `Win32_System_Pipes`/`IO`/`Threading` group is the named pipe a
+# game's rich presence is written to, which has to be overlapped so that
+# turning the feature off can actually release it. `Win32_Storage_FileSystem`
+# carries both the pipe's client side and the version resource an executable
+# keeps its readable name in.
+windows = { version = "0.61", features = [
+    "Foundation",
+    "Media_Control",
+    "Storage_Streams",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_IO",
+    "Win32_System_Pipes",
+    "Win32_System_Threading",
+] }
+# Cover art arrives from the media session as whatever the player had on hand,
+# which for a browser can be far larger than anything a member list draws. It
+# is re-encoded down to 128 pixels before being broadcast to every connected
+# member, and these two are the decode and the encoding of the result. Both are
+# already in the tree by way of Tauri, so naming them costs no new dependency.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+base64 = "0.22"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
 webkit2gtk = { version = "=2.0.2", features = ["v2_38"] }

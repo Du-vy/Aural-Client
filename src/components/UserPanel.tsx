@@ -1,6 +1,7 @@
 import { useTranslation } from "@/lib/i18n";
 import { useSession } from "@/store/session";
 import { Avatar } from "./Avatar";
+import { ActivityGlyph, activityText, activityTooltip } from "./ActivityCard";
 import { GearIcon, LogOutIcon } from "./Icons";
 
 interface UserPanelProps {
@@ -36,14 +37,20 @@ export function UserPanel({ onOpenAccount, onOpenStatus }: UserPanelProps) {
           ? t("status.invisible")
           : t("status.online");
 
+  // Same order as the member list, with reconnecting in front of all of it:
+  // while the connection is coming back, what this person is doing is not the
+  // thing they need to be told.
+  const activity = status === "reconnecting" || channel ? null : self.activity;
   const state =
     status === "reconnecting"
       ? t("connect.reconnecting")
       : channel
         ? channel.name
-        : self.customStatus
-          ? self.customStatus
-          : statusLabel;
+        : activity
+          ? activityText(activity)
+          : self.customStatus
+            ? self.customStatus
+            : statusLabel;
 
   return (
     <div className="userpanel">
@@ -55,7 +62,11 @@ export function UserPanel({ onOpenAccount, onOpenStatus }: UserPanelProps) {
         <Avatar user={self} size="md" status={self.status || (status === "connected" ? "online" : "offline")} showStatus />
         <span className="userpanel__body">
           <span className="userpanel__name">{self.nickname}</span>
-          <span className="userpanel__status" title={typeof state === "string" ? state : undefined}>
+          <span
+            className="userpanel__status"
+            title={activity ? activityTooltip(activity) : state}
+          >
+            {activity ? <ActivityGlyph activity={activity} /> : null}
             {state}
           </span>
         </span>

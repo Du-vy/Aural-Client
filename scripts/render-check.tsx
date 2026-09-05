@@ -3395,6 +3395,120 @@ console.log("\nshowing away by itself, and coming back from it");
   seed();
 }
 
+console.log("\nreporting what somebody is doing outside Aural");
+{
+  const { chooseActivity, startActivityWatch } = await import("@/lib/activity");
+  const { DEFAULT_ACTIVITY, writeActivity } = await import("@/lib/storage");
+  const { Op } = await import("@/lib/protocol");
+  type Activity = import("@/lib/protocol").Activity;
+
+  const track: Activity = {
+    type: "listening",
+    name: "Spotify",
+    details: "Teardrop",
+    state: "Massive Attack",
+    image: "data:image/jpeg;base64,AAAA",
+  };
+  const game: Activity = {
+    type: "playing",
+    name: "Counter-Strike 2",
+    details: "Competitive",
+    image: "https://example.com/cover.png",
+  };
+  const on = { ...DEFAULT_ACTIVITY, share: true };
+
+  // Which of the two sources wins, and what the switches take out of it.
+  checkThat(
+    "nothing is reported while sharing is off",
+    chooseActivity({ media: track, games: game }, { ...on, share: false }) === null,
+  );
+  checkThat(
+    "a track is reported when it is all there is",
+    chooseActivity({ media: track, games: null }, on)?.name === "Spotify",
+  );
+  checkThat(
+    "a game outranks the music playing behind it",
+    chooseActivity({ media: track, games: game }, on)?.name === "Counter-Strike 2",
+  );
+  checkThat(
+    "the music comes back once the game is gone",
+    chooseActivity({ media: track, games: null }, on)?.name === "Spotify",
+  );
+  checkThat(
+    "a source that has been switched off is not consulted",
+    chooseActivity({ media: track, games: game }, { ...on, games: false })?.name === "Spotify",
+  );
+  checkThat(
+    "switching both off reports nothing at all",
+    chooseActivity({ media: track, games: game }, { ...on, media: false, games: false }) === null,
+  );
+
+  const stripped = chooseActivity({ media: track, games: null }, { ...on, artwork: false });
+  checkThat("artwork can be dropped", stripped?.image === undefined);
+  checkThat("without dropping the activity with it", stripped?.details === "Teardrop");
+
+  // What a list has room for. There is no verb in it — a glyph carries that —
+  // and what leads differs by kind, because the part somebody wants is the
+  // song in one case and the game in the other. Whatever leads is what
+  // survives the ellipsis.
+  const { activityText, activityTooltip } = await import("@/components/ActivityCard");
+
+  const listened = activityText(track);
+  checkThat("a track leads with the track", listened.startsWith("Teardrop"));
+  checkThat(
+    "and leaves the player to the card",
+    !listened.includes("Spotify"),
+  );
+  checkThat("with the artist still on the line", listened.includes("Massive Attack"));
+
+  const played = activityText(game);
+  checkThat("a game leads with the game", played.startsWith("Counter-Strike 2"));
+  checkThat("with what is happening in it", played.includes("Competitive"));
+
+  // The hover has no space to save, so nothing is left out of it.
+  const hovered = activityTooltip(track);
+  checkThat("the tooltip names the player", hovered.includes("Spotify"));
+  checkThat("and the track", hovered.includes("Teardrop"));
+  checkThat("and says what is being done", hovered.length > listened.length);
+
+  // A source that reports nothing but its own name still says something.
+  checkThat(
+    "a bare activity falls back to its name",
+    activityText({ type: "listening", name: "Radio" }) === "Radio",
+  );
+
+  /** Counts what the watcher asks of a connected server. */
+  const asked: unknown[] = [];
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  seed();
+  useSession.setState({
+    gateway: {
+      isOpen: true,
+      request: (op: string, payload: unknown) => {
+        if (op === Op.UserActivity) asked.push(payload);
+        return Promise.resolve({});
+      },
+    } as never,
+  });
+
+  // A server that has just been signed in to holds no activity, so a client
+  // with nothing to report has nothing to say. Sending a clear anyway would be
+  // a frame per connection on startup for a feature most people never turn on.
+  writeActivity({ share: false });
+  const stopActivity = startActivityWatch();
+  await tick();
+  await tick();
+  checkThat("a connection is told nothing when there is nothing to report", asked.length === 0);
+
+  stopActivity();
+  await tick();
+  checkThat("and stopping the watcher says nothing either", asked.length === 0);
+
+  writeActivity({ ...DEFAULT_ACTIVITY });
+  seed();
+}
+
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);
 
 await GlobalRegistrator.unregister();

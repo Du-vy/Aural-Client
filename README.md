@@ -533,6 +533,20 @@ connecting a bot and bridging channels, live connection status with the reason
 a failed one failed, per-link direction and file switches, and a distinct badge
 for the messages that arrive through one.
 
+**Unreleased** — rich presence: what somebody is doing outside Aural, shown
+under their name in the member list and on their profile card with the artwork
+and a running timer. No game reports anything to Aural, and none is asked to:
+the shell reads the system's media session — the one the media keys drive, so
+every player populates it — and listens on the socket a game opens to publish
+its own rich presence, which is a matter of being the thing on the other end of
+a local pipe rather than of intercepting anything. Only one application per
+machine can hold that socket, so when Discord already has it the settings page
+says so plainly instead of leaving a feature that silently does nothing. Album
+art comes off the media session's own bytes; a game's artwork is a key only
+Discord can resolve, so it is handed to the Aural server to look up once for
+everybody rather than resolved here by every client separately. Off until
+switched on, per source, and released the moment it is switched off.
+
 **Later** — bots, screen sharing, a global push-to-talk hotkey in the native
 shell, and Aural Hub for finding public servers.
 

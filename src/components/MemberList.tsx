@@ -6,6 +6,7 @@ import { useSession } from "@/store/session";
 import { colorRoleOf, groupMembers, isOnline } from "@/store/selectors";
 import type { User } from "@/lib/protocol";
 import { Avatar } from "./Avatar";
+import { ActivityGlyph, activityText, activityTooltip } from "./ActivityCard";
 
 interface MemberListProps {
   onOpenMember(userId: number, anchorRect?: DOMRect): void;
@@ -69,15 +70,30 @@ export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProp
                         ) : null}
                       </span>
                       {(() => {
+                        // One line, four things that could go in it. The voice
+                        // channel wins because it is where they are rather
+                        // than what they are doing, and an activity beats a
+                        // custom status because it is live: the status was
+                        // written once and is true all week, the activity is
+                        // true now and will be wrong in ten minutes.
+                        const activity = channel ? null : user.activity;
                         const meta = channel
                           ? channel.name
-                          : user.customStatus
-                            ? user.customStatus
-                            : user.registered
-                              ? t("common.member")
-                              : t("common.guest");
+                          : activity
+                            ? activityText(activity)
+                            : user.customStatus
+                              ? user.customStatus
+                              : user.registered
+                                ? t("common.member")
+                                : t("common.guest");
                         return (
-                          <span className="member__meta" title={typeof meta === "string" ? meta : undefined}>
+                          <span
+                            className="member__meta"
+                            // The hover carries the verb and the application
+                            // that the line itself has no room for.
+                            title={activity ? activityTooltip(activity) : meta}
+                          >
+                            {activity ? <ActivityGlyph activity={activity} /> : null}
                             {meta}
                           </span>
                         );

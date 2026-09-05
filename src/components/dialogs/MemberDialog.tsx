@@ -6,6 +6,7 @@ import { describeError } from "@/lib/protocol";
 import { useSession } from "@/store/session";
 import { assignableRoles, isOnline, outranks, useMyPermissions } from "@/store/selectors";
 import { useVoice } from "@/store/voice";
+import { ActivityCard } from "../ActivityCard";
 import { Avatar, avatarColor, resolveAvatarUrl } from "../Avatar";
 import { CheckIcon, CloseIcon, CopyIcon, CrownIcon, PlusIcon } from "../Icons";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -263,6 +264,11 @@ export function MemberDialog({
         {/* Dark Inner Section */}
         <div className="profile-card__inner">
           {error ? <div className="alert alert--danger">{error}</div> : null}
+
+          {/* What they are doing outside Aural. First because it is the only
+              thing on this card that is true right now rather than in general,
+              and it is gone the moment their connection is. */}
+          {user.activity ? <ActivityCard activity={user.activity} /> : null}
 
           {/* Server / Account Section */}
           <div className="profile-card__section">

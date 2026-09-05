@@ -785,4 +785,27 @@ export const RefreshCwIcon = icon(
   </>,
 );
 
+/**
+ * A game controller, and a music note. They stand in for the words "playing"
+ * and "listening" wherever an activity has one line and no room to spend on a
+ * verb — which is every list in the client. The words themselves survive on
+ * the profile card, next to the same glyph, so that the icon on its own is
+ * something a reader has already been taught.
+ */
+export const GamepadIcon = icon(
+  <>
+    <rect x="2" y="6" width="20" height="12" rx="6" />
+    <line x1="6" y1="12" x2="10" y2="12" />
+    <line x1="8" y1="10" x2="8" y2="14" />
+    <line x1="15.5" y1="13.5" x2="15.51" y2="13.5" />
+    <line x1="18" y1="10.5" x2="18.01" y2="10.5" />
+  </>,
+);
 
+export const MusicNoteIcon = icon(
+  <>
+    <path d="M9 18V5l12-2v13" />
+    <circle cx="6" cy="18" r="3" />
+    <circle cx="18" cy="16" r="3" />
+  </>,
+);

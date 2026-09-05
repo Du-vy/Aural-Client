@@ -8,6 +8,10 @@
 //! global push-to-talk hotkey and pinning self-signed certificates so a server
 //! reached by address can still be served over TLS are still to come.
 
+// Desktop only: reading a media session and holding a rich-presence socket are
+// both about a machine somebody sits at, and neither exists on a phone.
+#[cfg(desktop)]
+mod activity;
 mod device;
 mod media;
 // Desktop only, and every line of it: a tray icon, a window that can be hidden
@@ -137,6 +141,8 @@ pub fn run() {
                 system::set_system_settings,
                 system::set_tray_labels,
                 system::restart_app,
+                activity::activity_state,
+                activity::activity_configure,
             ])
     };
 
@@ -161,6 +167,12 @@ pub fn run() {
                 // what decides if the window is allowed to disappear into one.
                 system::setup_tray(&handle);
                 system::watch_close(&handle);
+
+                // Both sources start dormant and stay that way until the page
+                // says otherwise, so this only puts the machinery in place.
+                // Reading what somebody is listening to is not something to
+                // begin doing because an application launched.
+                _app.manage(activity::start(&handle));
 
                 if let Some(window) = _app.get_webview_window("main") {
                     // Best effort by design: if the handle cannot be reached

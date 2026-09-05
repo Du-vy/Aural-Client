@@ -451,6 +451,92 @@ export function writePresence(patch: Partial<PresenceSettings>): PresenceSetting
   return updated;
 }
 
+/* --- Activity settings (client-side) ----------------------------------------- */
+
+const ACTIVITY_KEY = "aural.activity.v1";
+
+/**
+ * What this machine is allowed to say about what its owner is doing.
+ *
+ * Kept here rather than on a server because it is a decision about this
+ * computer, and it has to hold for every server the client is connected to at
+ * once: a switch that were per-server would mean turning the same thing off in
+ * four places, and forgetting one of them.
+ */
+export interface ActivitySettings {
+  /** Whether anything at all is reported. Nothing below matters while it is off. */
+  share: boolean;
+  /** Report what the system's media session is playing. */
+  media: boolean;
+  /** Report what a game says over the rich-presence socket. */
+  games: boolean;
+  /**
+   * Send the artwork with the text.
+   *
+   * Separate because it is the part that costs something: a cover is a picture
+   * broadcast to every connected member each time a track changes, where the
+   * text is a line. Somebody on a metered connection can keep the feature and
+   * drop the pictures.
+   */
+  artwork: boolean;
+}
+
+/**
+ * Off until asked for.
+ *
+ * Every other default in this file is the helpful one, and this is the
+ * exception on purpose: reading the media session and listening for games
+ * means telling a server what somebody is doing on their own computer, which
+ * is not a thing to start doing because they installed a chat client. The
+ * three switches under it are on, so that turning the one at the top on is the
+ * whole of enabling the feature.
+ */
+export const DEFAULT_ACTIVITY: ActivitySettings = {
+  share: false,
+  media: true,
+  games: true,
+  artwork: true,
+};
+
+export function readActivity(): ActivitySettings {
+  try {
+    const raw = localStorage.getItem(ACTIVITY_KEY);
+    if (!raw) return { ...DEFAULT_ACTIVITY };
+    const parsed = JSON.parse(raw) as Partial<ActivitySettings>;
+    const flag = (value: unknown, fallback: boolean) =>
+      typeof value === "boolean" ? value : fallback;
+    return {
+      share: flag(parsed.share, DEFAULT_ACTIVITY.share),
+      media: flag(parsed.media, DEFAULT_ACTIVITY.media),
+      games: flag(parsed.games, DEFAULT_ACTIVITY.games),
+      artwork: flag(parsed.artwork, DEFAULT_ACTIVITY.artwork),
+    };
+  } catch {
+    return { ...DEFAULT_ACTIVITY };
+  }
+}
+
+const activityListeners = new Set<(settings: ActivitySettings) => void>();
+
+/** Watches the activity settings, which the watcher has to be told about. */
+export function onActivityChanged(listener: (settings: ActivitySettings) => void): () => void {
+  activityListeners.add(listener);
+  return () => {
+    activityListeners.delete(listener);
+  };
+}
+
+export function writeActivity(patch: Partial<ActivitySettings>): ActivitySettings {
+  const updated: ActivitySettings = { ...readActivity(), ...patch };
+  try {
+    localStorage.setItem(ACTIVITY_KEY, JSON.stringify(updated));
+  } catch {
+    // Storage is unavailable. The change still applies to this session.
+  }
+  for (const listener of activityListeners) listener(updated);
+  return updated;
+}
+
 /**
  * The servers whose `idle` this client guessed rather than their owner chose.
  *

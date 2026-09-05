@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { onNativeActivityState, readNativeActivityState } from "@/lib/activity";
 import { useTranslation } from "@/lib/i18n";
+import { nativeActivitySupported } from "@/lib/nativeActivity";
 import { describeError, type DMPrivacy } from "@/lib/protocol";
 import { useSession } from "@/store/session";
 import {
   AUTO_AWAY_MINUTES,
+  readActivity,
   readPresence,
+  writeActivity,
   writePresence,
 } from "@/lib/storage";
 
@@ -33,6 +37,38 @@ export function PrivacyPage() {
   const [telemetry, setTelemetry] = useState(false);
   const [embeds, setEmbeds] = useState(true);
   const [presence, setPresence] = useState(readPresence);
+  const [activity, setActivity] = useState(readActivity);
+
+  // What the shell says this machine can actually do. It changes underneath
+  // the page — the games socket frees up when Discord is closed, and is taken
+  // again when it starts — so it is subscribed to rather than read once.
+  const [machine, setMachine] = useState(readNativeActivityState);
+  useEffect(() => onNativeActivityState(setMachine), []);
+
+  const shellPresent = nativeActivitySupported();
+  const mediaSupported = machine?.mediaSupported ?? false;
+  const rpc = machine?.rpc.state ?? "off";
+
+  /**
+   * What to say about the games socket, and how loudly.
+   *
+   * The conflict is the case worth interrupting for: it is the one where
+   * everything is configured correctly and nothing will ever arrive, because
+   * another application on this computer is receiving it instead. Silence
+   * there would be indistinguishable from a bug in Aural.
+   */
+  const socketNotice =
+    !activity.share || !activity.games
+      ? null
+      : rpc === "conflict"
+        ? { tone: "alert alert--warning", text: t("dialogs.userSettings.privacy.activityConflict") }
+        : rpc === "unsupported"
+          ? { tone: "settings-card__subtitle", text: t("dialogs.userSettings.privacy.activityUnsupported") }
+          : rpc === "error"
+            ? { tone: "alert alert--danger", text: t("dialogs.userSettings.privacy.activityError") }
+            : rpc === "listening"
+              ? { tone: "settings-card__subtitle", text: t("dialogs.userSettings.privacy.activityListening") }
+              : null;
 
   function choose(next: DMPrivacy) {
     if (next === privacy) return;
@@ -165,6 +201,111 @@ export function PrivacyPage() {
               ))}
             </select>
           </div>
+        ) : null}
+      </div>
+
+      <div className="settings-card" style={{ marginTop: 16 }}>
+        <div className="settings-row">
+          <div className="settings-row__info">
+            <h3 className="settings-card__title">
+              {t("dialogs.userSettings.privacy.activityTitle")}
+            </h3>
+            <p className="settings-card__subtitle">
+              {shellPresent
+                ? t("dialogs.userSettings.privacy.activityDesc")
+                : t("dialogs.userSettings.privacy.activityBrowser")}
+            </p>
+          </div>
+          <label className="settings-switch">
+            <input
+              type="checkbox"
+              checked={activity.share}
+              disabled={!shellPresent}
+              onChange={(e) => setActivity(writeActivity({ share: e.target.checked }))}
+            />
+            <span className="settings-switch__slider" />
+          </label>
+        </div>
+
+        {/* The three below only mean anything once the one above is on, so
+            they are hidden rather than shown disabled: a switch that does
+            nothing is a worse answer than no switch. */}
+        {shellPresent && activity.share ? (
+          <>
+            <div
+              className="settings-row"
+              style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}
+            >
+              <div className="settings-row__info">
+                <h3 className="settings-card__title">
+                  {t("dialogs.userSettings.privacy.activityMediaTitle")}
+                </h3>
+                <p className="settings-card__subtitle">
+                  {mediaSupported
+                    ? t("dialogs.userSettings.privacy.activityMediaDesc")
+                    : t("dialogs.userSettings.privacy.activityMediaUnsupported")}
+                </p>
+              </div>
+              <label className="settings-switch">
+                <input
+                  type="checkbox"
+                  checked={activity.media && mediaSupported}
+                  disabled={!mediaSupported}
+                  onChange={(e) => setActivity(writeActivity({ media: e.target.checked }))}
+                />
+                <span className="settings-switch__slider" />
+              </label>
+            </div>
+
+            <div className="settings-row" style={{ marginTop: 16 }}>
+              <div className="settings-row__info">
+                <h3 className="settings-card__title">
+                  {t("dialogs.userSettings.privacy.activityGamesTitle")}
+                </h3>
+                <p className="settings-card__subtitle">
+                  {t("dialogs.userSettings.privacy.activityGamesDesc")}
+                </p>
+              </div>
+              <label className="settings-switch">
+                <input
+                  type="checkbox"
+                  checked={activity.games}
+                  onChange={(e) => setActivity(writeActivity({ games: e.target.checked }))}
+                />
+                <span className="settings-switch__slider" />
+              </label>
+            </div>
+
+            {socketNotice ? (
+              <div style={{ marginTop: 12 }}>
+                <span className="settings-card__label">
+                  {t("dialogs.userSettings.privacy.activityStatus")}
+                </span>
+                <div className={socketNotice.tone} style={{ marginTop: 6 }}>
+                  {socketNotice.text}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="settings-row" style={{ marginTop: 16 }}>
+              <div className="settings-row__info">
+                <h3 className="settings-card__title">
+                  {t("dialogs.userSettings.privacy.activityArtworkTitle")}
+                </h3>
+                <p className="settings-card__subtitle">
+                  {t("dialogs.userSettings.privacy.activityArtworkDesc")}
+                </p>
+              </div>
+              <label className="settings-switch">
+                <input
+                  type="checkbox"
+                  checked={activity.artwork}
+                  onChange={(e) => setActivity(writeActivity({ artwork: e.target.checked }))}
+                />
+                <span className="settings-switch__slider" />
+              </label>
+            </div>
+          </>
         ) : null}
       </div>
 

@@ -105,6 +105,7 @@ export const Op = {
   ServerMetrics: "server.metrics",
 
   UserUpdate: "user.update",
+  UserActivity: "user.activity",
   UserMove: "user.move",
   UserKick: "user.kick",
 
@@ -423,6 +424,64 @@ export function isDeafened(state: VoiceState): boolean {
 
 export type UserStatus = "online" | "idle" | "dnd" | "offline" | "invisible";
 
+/**
+ * The verb in front of an activity's name.
+ *
+ * A server only ever sends one it knows, but this client may be older than the
+ * server it is talking to, so the type is deliberately open: anything it does
+ * not recognise is rendered as `playing` rather than dropped, and a later
+ * revision can add a verb without this build losing the feature.
+ */
+export type ActivityType = "listening" | "playing" | (string & {});
+
+/**
+ * What somebody is doing outside Aural: the track they are playing, the game
+ * they are in.
+ *
+ * No part of Aural produces this. It is read off the machine a client runs on —
+ * the system's media session, or a game speaking a rich-presence protocol to a
+ * socket the client listens on — and it is never stored: it belongs to the
+ * connection that reported it and goes when that connection does.
+ *
+ * Everything but `type` and `name` is optional, and a renderer that draws only
+ * those two is a complete one.
+ */
+export interface Activity {
+  type: ActivityType;
+  /** The application: the game, the music player, the source. */
+  name: string;
+  /** The specific thing — a track title, a map. */
+  details?: string;
+  /** The context around it — the artist, the mode. */
+  state?: string;
+  /** Unix seconds. A timer the client runs; absent on most activities. */
+  startedAt?: number;
+  endsAt?: number;
+  /**
+   * The artwork, and the small badge over its corner.
+   *
+   * Three forms reach a client. A `data:` URL carries the picture itself,
+   * which is what a media session hands over; an `https:` URL names art
+   * already hosted somewhere, which is what a game usually gives; and a path
+   * beginning with `/` is served by the server this activity came from, which
+   * is how a game's own asset key is resolved without every client asking
+   * Discord about it. The last is resolved against the connection exactly as
+   * an avatar is. All three are somebody else's content and are treated as
+   * such, exactly like an embed.
+   */
+  image?: string;
+  icon?: string;
+  imageText?: string;
+  iconText?: string;
+  /** "3 of 8", when the source reports a group. */
+  party?: ActivityParty;
+}
+
+export interface ActivityParty {
+  size: number;
+  max: number;
+}
+
 export interface User {
   id: number;
   /**
@@ -451,6 +510,13 @@ export interface User {
    * sending one is for.
    */
   dmPrivacy?: DMPrivacy;
+  /**
+   * What they are doing outside Aural, or absent. Never present on somebody
+   * who is offline or hiding: the server drops it with the rest of a masked
+   * presence, because an activity changes on its own and would otherwise keep
+   * announcing somebody who chose not to be seen.
+   */
+  activity?: Activity | null;
 }
 
 /** Who may open a private conversation with somebody. */
@@ -975,6 +1041,18 @@ export interface UserUpdateRequest {
   banner?: string | null;
   /** Your own setting, and never anybody else's whatever you hold. */
   dmPrivacy?: DMPrivacy;
+}
+
+/**
+ * Reports what the caller is doing outside Aural. `null` clears it, which is
+ * what a client sends when the music stops.
+ *
+ * Separate from `UserUpdateRequest` because it is a different kind of thing: a
+ * profile is stored and changed by a person, this is ephemeral and produced by
+ * a machine.
+ */
+export interface UserActivityRequest {
+  activity: Activity | null;
 }
 
 export interface UserMoveRequest {

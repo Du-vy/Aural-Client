@@ -700,3 +700,117 @@
   font-weight: 500;
 }
 
+
+/* --- Activity ---------------------------------------------------------------
+ *
+ * What somebody is doing outside Aural, on their profile card. It borrows the
+ * inner card's palette rather than introducing one: the activity is one more
+ * section of the profile, not a widget bolted onto it.
+ */
+
+.activity-card {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.activity-card__label {
+  font-size: var(--font-size-caption, 11px);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* The glyph that stands in for "playing" or "listening" wherever an activity
+   has one line and no room for the word. It sits inside lines that clip with
+   an ellipsis, so it must not stretch and must not be what gets cut: it is
+   first in the line, and fixed in size. */
+.activity-glyph {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-right: 5px;
+  vertical-align: -2px;
+  opacity: 0.9;
+}
+
+/* In the card it sits next to the word rather than in front of a sentence, so
+   the flex gap above is the spacing and its own margin would double it. */
+.activity-card__label .activity-glyph {
+  margin-right: 0;
+  vertical-align: baseline;
+}
+
+.activity-card__body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* The small badge sits over the artwork's corner and half outside it, which is
+   why the wrapper does not clip. */
+.activity-card__art {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.activity-card__image {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.activity-card__icon {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-main, #111214);
+  border: 2px solid var(--bg-main, #111214);
+}
+
+.activity-card__lines {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Every line is clamped rather than wrapped. The text came off somebody
+   else's media player and none of it is bounded by anything this client
+   controls, so a long album title must not be able to grow the card. */
+.activity-card__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-card__detail {
+  font-size: 12.5px;
+  color: var(--text-muted, #dbdee1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-card__timer {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}

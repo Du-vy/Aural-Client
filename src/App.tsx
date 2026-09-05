@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { CloseIcon } from "@/components/Icons";
 import { UpdateBanner } from "@/components/UpdateBanner";
+import { startActivityWatch } from "@/lib/activity";
 import { useTranslation } from "@/lib/i18n";
 import { startIdleWatch } from "@/lib/idle";
 import { preloadNotificationSound } from "@/lib/notificationSounds";
@@ -35,6 +36,12 @@ export function App() {
   // one more: one person is idle or is not, and two watchers deciding that
   // separately would fight over the answer.
   useEffect(() => startIdleWatch(), []);
+
+  // What somebody is doing outside Aural, reported to every server they are
+  // on — for the same reason again, and because the two readers behind it are
+  // machine-wide: there is one media session and one rich-presence socket, and
+  // a watcher per connection would be several clients fighting over both.
+  useEffect(() => startActivityWatch(), []);
 
   // Once, at startup, and only if the setting allows it. Deliberately not tied
   // to a connection: whether there is a newer Aural has nothing to do with
