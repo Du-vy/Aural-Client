@@ -18,6 +18,7 @@ import { join } from "node:path";
 
 import { parseAddress, fetchServerInfo } from "../src/lib/address";
 import { Gateway } from "../src/lib/gateway";
+import { mentionReach } from "../src/lib/mentions";
 import { Perm, has, resolve, resolveChannelPermissions } from "../src/lib/permissions";
 import { buildDirectory, buildSearchRequest, parseSearchInput } from "../src/lib/search";
 import {
@@ -550,6 +551,60 @@ async function main() {
   const removed = await other.log.wait<MessageDeletedEvent>(Ev.MessageDeleted);
   check(removed.messageId === posted.message.id, "the deletion is announced to everyone");
   check(removed.channelId === text!.id, "the deletion names its channel");
+
+  console.log("\nunread channels survive being away");
+  // The badge a client wakes up to, which is the one piece of state that used
+  // to live only in this client's memory. The count is the server's, taken
+  // from a marker it keeps; the colour is this client's, decided from the
+  // words. Both halves cross the wire, so both are checked here against a real
+  // server rather than against a mock that would agree with whatever changed.
+  const dana = await open(addressInput);
+  const danaReady = await dana.gateway.request<Ready>(Op.AuthGuest, { nickname: "Dana" });
+  check((danaReady.unread ?? []).length === 0, "somebody who has just arrived has nothing waiting");
+  dana.gateway.close();
+  await settle();
+
+  const quiet = `quietly ${Date.now()}`;
+  await bob.gateway.request<MessageEvent>(Op.MessageSend, {
+    channelId: text!.id,
+    content: quiet,
+  });
+  await bob.gateway.request<MessageEvent>(Op.MessageSend, {
+    channelId: text!.id,
+    content: `@Dana ${quiet}`,
+  });
+
+  const danaBack = await open(addressInput);
+  const waiting = await danaBack.gateway.request<Ready>(Op.AuthToken, {
+    token: danaReady.sessionToken,
+  });
+  const danaUnread = (waiting.unread ?? []).find((entry) => entry.channelId === text!.id);
+  check(danaUnread !== undefined, "what arrived while Dana was away is waiting for her");
+  check(danaUnread?.count === 2, "both messages are counted");
+
+  const sample = (waiting.unreadMentions ?? []).filter((entry) => entry.channelId === text!.id);
+  check(sample.length >= 2, "the words of what is waiting travel with the count");
+  const danaRoles = new Map(waiting.roles.map((role) => [role.id, role]));
+  const named = sample.filter(
+    (entry) => mentionReach(entry.content, waiting.user, danaRoles) !== "none",
+  );
+  check(named.length === 1, "exactly the one that spells her name reaches her");
+  check(named[0]!.content.includes(quiet), "and it is the message that named her");
+
+  await danaBack.gateway.request(Op.ChannelRead, { channelId: text!.id });
+  danaBack.gateway.close();
+  await settle();
+
+  const danaAgain = await open(addressInput);
+  const cleared = await danaAgain.gateway.request<Ready>(Op.AuthToken, {
+    token: danaReady.sessionToken,
+  });
+  check(
+    !(cleared.unread ?? []).some((entry) => entry.channelId === text!.id),
+    "a channel read to the end stays read across a restart",
+  );
+  danaAgain.gateway.close();
+  await settle();
 
   console.log("\nsearch");
   // The needle is unique to this run, so the counts below are exact however

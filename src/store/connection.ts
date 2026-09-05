@@ -214,6 +214,17 @@ function withoutMessage<T extends MessageBase>(messages: readonly T[], messageId
 export const IDLE_CHANNEL_WINDOW = 50;
 
 /**
+ * How often one channel's read marker is sent while it is being read.
+ *
+ * Sitting in a busy channel reads a message a second, and each one moves the
+ * marker; sending that is one round trip per message to say the same thing.
+ * The interval is what a burst collapses into. It is short enough that closing
+ * the client a moment after reading loses nothing worth a badge, and long
+ * enough that a lively channel costs one request rather than fifty.
+ */
+const READ_MARKER_INTERVAL_MS = 3_000;
+
+/**
  * How many channels of one connection keep any messages at all.
  *
  * The window bounds one channel; this bounds how many there are. An entry is
@@ -900,6 +911,13 @@ export function createConnection({
     /** When each held channel was last read, which is what the LRU cut sorts on. */
     const readAt = new Map<number, number>();
     /**
+     * The read markers owed to the server: when each channel's was last sent,
+     * which ones are waiting, and the timer that will send them.
+     */
+    const readSentAt = new Map<number, number>();
+    const readDue = new Set<number>();
+    let readTimer: ReturnType<typeof setTimeout> | null = null;
+    /**
      * What the media session would need, kept from the last snapshot so that
      * taking the microphone is one call rather than another handshake.
      */
@@ -1015,8 +1033,79 @@ export function createConnection({
       return icon && at ? `${serverOrigin(at)}${icon}` : "";
     }
 
-    /** Replaces everything the client knows, from a ready snapshot. */
-    function applySnapshot(ready: Ready): void {
+    /**
+     * Rebuilds the channel badges from what the server counted, which is what
+     * a badge that outlives the client is made of.
+     *
+     * The counts are the server's, taken from a read marker it keeps. The
+     * colour is not: whether a message names this user is decided here, from
+     * the words, exactly as it is decided for a message arriving live — see
+     * the header of `lib/mentions` for why that decision cannot live on the
+     * other side. The sample of words is capped by the server, so a channel
+     * with more waiting than the cap reaches keeps its count and loses only
+     * the highlight on its oldest end.
+     */
+    function restoreUnread(ready: Ready, channels: Map<number, Channel>): Map<number, Unread> {
+      const restored = new Map<number, Unread>();
+      const counts = ready.unread ?? [];
+      if (counts.length === 0) return restored;
+
+      const self = ready.user;
+      const roles = indexById(ready.roles);
+      const named = new Set<number>();
+      for (const message of ready.unreadMentions ?? []) {
+        if (named.has(message.channelId)) continue;
+        // Own words never name their writer, and the marker moved past them
+        // when they were sent; this only guards against counting them twice.
+        if (message.userId === self.id) continue;
+        const reach =
+          message.replyToUserId === self.id
+            ? "direct"
+            : mentionReach(message.content, self, roles);
+        if (reach !== "none") named.add(message.channelId);
+      }
+
+      for (const entry of counts) {
+        if (entry.count <= 0 || !channels.has(entry.channelId)) continue;
+        restored.set(entry.channelId, {
+          count: entry.count,
+          mention: named.has(entry.channelId),
+        });
+      }
+      return restored;
+    }
+
+    /**
+     * Carries the badges through a resync.
+     *
+     * What is already held wins, because this client has been watching all
+     * along: it has seen what is on screen being read, which the server learns
+     * a moment later, and taking the snapshot's word for it would light a
+     * badge back up on the channel somebody is reading.
+     *
+     * A channel that has just become visible is the exception. There is no
+     * memory of it to prefer — a permission change is what made it appear —
+     * so what the server counted is the only answer there is.
+     */
+    function mergeUnread(ready: Ready, channels: Map<number, Channel>): Map<number, Unread> {
+      const held = get().channels;
+      const merged = new Map([...get().unread].filter(([channelId]) => channels.has(channelId)));
+      for (const [channelId, entry] of restoreUnread(ready, channels)) {
+        if (!held.has(channelId)) merged.set(channelId, entry);
+      }
+      return merged;
+    }
+
+    /**
+     * Replaces everything the client knows, from a ready snapshot.
+     *
+     * `fresh` separates the two snapshots this receives. One is the first of a
+     * connection, where the server's count of what is waiting is the only
+     * answer there is. The other is a resync mid-session, where this client
+     * has been watching all along and knows better: it has seen what is on
+     * screen being read, which the server learns a moment later.
+     */
+    function applySnapshot(ready: Ready, fresh: boolean): void {
       const channels = indexById(ready.channels);
 
       // A snapshot can arrive mid-session as a resync, which is how the server
@@ -1027,7 +1116,7 @@ export function createConnection({
       const history = new Map(
         [...get().history].filter(([channelId]) => channels.has(channelId)),
       );
-      const unread = new Map([...get().unread].filter(([channelId]) => channels.has(channelId)));
+      const unread = fresh ? restoreUnread(ready, channels) : mergeUnread(ready, channels);
       for (const channelId of [...readAt.keys()]) {
         if (!channels.has(channelId)) readAt.delete(channelId);
       }
@@ -1188,6 +1277,68 @@ export function createConnection({
     }
 
     /**
+     * Tells the server a channel has been read, which is what makes clearing a
+     * badge outlive the client rather than only the session.
+     *
+     * The marker is the server's and only ever moves forwards, so a failed
+     * request costs nothing and a stale one cannot undo a newer read: the next
+     * one to be sent covers everything the lost one would have.
+     */
+    function sendChannelRead(channelId: number): void {
+      const gateway = get().gateway;
+      if (!gateway?.isOpen) return;
+      // A category or a voice channel holds no messages and carries no marker,
+      // so asking to read one is a round trip that can only be refused.
+      const channel = get().channels.get(channelId);
+      if (!channel || !(channel.type === "text" || isPostChannel(channel.type))) return;
+      readSentAt.set(channelId, Date.now());
+      void gateway.request(Op.ChannelRead, { channelId }).catch(() => {
+        // Also the answer for a server too old to know the op. The badge is
+        // clear on this client either way; only its survival is lost, which
+        // is what those servers did before this existed.
+      });
+    }
+
+    /**
+     * Records that a channel has been read, at most once every few seconds.
+     *
+     * Reading is not one event. Somebody sitting in a busy channel reads every
+     * message that lands in it, and a request per message would spend a round
+     * trip on saying the same thing over and over. So the first read of a
+     * channel goes immediately — that is the one that follows opening it — and
+     * the rest of a burst is collapsed into one that follows.
+     */
+    function noteChannelRead(channelId: number): void {
+      const since = Date.now() - (readSentAt.get(channelId) ?? 0);
+      if (since >= READ_MARKER_INTERVAL_MS) {
+        sendChannelRead(channelId);
+        return;
+      }
+      readDue.add(channelId);
+      if (readTimer !== null) return;
+      readTimer = setTimeout(() => {
+        readTimer = null;
+        const due = [...readDue];
+        readDue.clear();
+        for (const id of due) sendChannelRead(id);
+      }, READ_MARKER_INTERVAL_MS - since);
+    }
+
+    /** Clears a channel's badge here and records the read with the server. */
+    function markChannelRead(channelId: number): void {
+      clearUnread(channelId);
+      noteChannelRead(channelId);
+    }
+
+    /** Drops what is owed to a connection that is going away. */
+    function forgetReadMarkers(): void {
+      if (readTimer !== null) clearTimeout(readTimer);
+      readTimer = null;
+      readDue.clear();
+      readSentAt.clear();
+    }
+
+    /**
      * Counts an arriving message against the channel it landed in.
      *
      * A message is read only where somebody could have read it: the channel
@@ -1204,7 +1355,13 @@ export function createConnection({
       }
       const watching =
         host.foreground() && state.activeChannelId === message.channelId && !windowHidden();
-      if (watching) return;
+      if (watching) {
+        // Read as it lands, which the marker has to be told about: without it
+        // an evening spent watching one channel would be waiting unread the
+        // next time the client starts.
+        noteChannelRead(message.channelId);
+        return;
+      }
 
       // Roles are passed as well as the user, so a message that names a group
       // this member is in counts as naming them. Answering somebody names them
@@ -1255,7 +1412,10 @@ export function createConnection({
       }
       const watching =
         host.foreground() && state.activeChannelId === post.channelId && !windowHidden();
-      if (watching) return;
+      if (watching) {
+        noteChannelRead(post.channelId);
+        return;
+      }
 
       const bodyText = post.body?.content ?? "";
       const content = bodyText ? `${post.title}: ${bodyText}` : post.title;
@@ -1364,7 +1524,7 @@ export function createConnection({
 
       switch (op) {
         case Ev.Ready:
-          applySnapshot(payload as Ready);
+          applySnapshot(payload as Ready, false);
           return;
 
         case Ev.UserConnected:
@@ -1940,6 +2100,7 @@ export function createConnection({
       cancelReconnect();
       resumeChannelId = null;
       readAt.clear();
+      forgetReadMarkers();
       abandonVoice();
       set({
         status: "idle",
@@ -2249,7 +2410,7 @@ export function createConnection({
           gateway,
           token: ready.sessionToken ?? token ?? null,
         });
-        applySnapshot(ready);
+        applySnapshot(ready, true);
 
         // Walk back into the channel the dropped connection was in. The server
         // holds membership only for the life of a connection, so a reconnected
@@ -2268,6 +2429,7 @@ export function createConnection({
         connectionEpoch += 1;
         abandonVoice();
         readAt.clear();
+        forgetReadMarkers();
         get().gateway?.close("disconnected by the user");
         set({
           status: "idle",
@@ -2330,6 +2492,7 @@ export function createConnection({
         // request away, stale by the time somebody looks at them, and the only
         // part of a connection whose size has no bound of its own.
         readAt.clear();
+        forgetReadMarkers();
         set({
           history: new Map(),
           posts: new Map(),
@@ -2696,7 +2859,7 @@ export function createConnection({
       setActiveChannel(channelId) {
         const previous = get().activeChannelId;
         if (previous === channelId) {
-          if (channelId !== null) clearUnread(channelId);
+          if (channelId !== null) markChannelRead(channelId);
           return;
         }
         set({ activeChannelId: channelId });
@@ -2706,13 +2869,13 @@ export function createConnection({
         if (previous !== null) trimIdle(previous);
         if (channelId !== null) {
           touch(channelId);
-          clearUnread(channelId);
+          markChannelRead(channelId);
         }
         pruneChannels();
       },
 
       markRead(channelId) {
-        clearUnread(channelId);
+        markChannelRead(channelId);
       },
 
       async jumpToMessage(channelId, messageId) {

@@ -128,6 +128,7 @@ export const Op = {
   ChannelCreate: "channel.create",
   ChannelUpdate: "channel.update",
   ChannelDelete: "channel.delete",
+  ChannelRead: "channel.read",
 
   PostCreate: "post.create",
   PostList: "post.list",
@@ -895,6 +896,41 @@ export interface Conversation {
 }
 
 /**
+ * What is waiting in one channel, as the server counts it.
+ *
+ * The same idea as the badge on a `Conversation`, and it travels for the same
+ * reason: without it a client that has just connected cannot tell a channel
+ * somebody read last night from one that has been busy since.
+ */
+export interface ChannelUnread {
+  channelId: number;
+  /** How many messages sit past this member's read marker. */
+  count: number;
+  /** The marker itself: the newest message they have seen here. */
+  lastReadId: number;
+}
+
+/**
+ * One unread message, reduced to the words a badge's colour is decided from.
+ *
+ * The server has no notion of a mention — see the header of `lib/mentions` for
+ * why one is the name it names rather than a field — so it ships the text and
+ * this client decides whether that text names the person reading it. That is
+ * the same decision `mentionReach` makes on every message that arrives live;
+ * this is only how the messages that arrived while nothing was running get put
+ * through it.
+ */
+export interface UnreadMention {
+  channelId: number;
+  /** The words to scan. The body of a post carries its title in front. */
+  content: string;
+  /** The author, absent for a webhook. */
+  userId?: number;
+  /** Who this message answers, absent when it answers nobody. */
+  replyToUserId?: number;
+}
+
+/**
  * One file carried by a message.
  *
  * `url` is relative to the server root, so it is resolved against the address
@@ -961,6 +997,18 @@ export interface Ready {
    * before opening it. Absent from a server that carries none.
    */
   conversations?: Conversation[];
+  /**
+   * Every visible channel with something waiting in it. Channels with nothing
+   * waiting are left out rather than sent as zero, and the whole field is
+   * absent from a server older than channel read markers — which is a server
+   * that cannot answer the question, not one answering "nothing".
+   */
+  unread?: ChannelUnread[];
+  /**
+   * The newest of those unread messages, capped by the server. It is what the
+   * mention flag on a restored badge is worked out from; see `UnreadMention`.
+   */
+  unreadMentions?: UnreadMention[];
   /**
    * Every custom emoji and sticker this server carries. It is in the snapshot
    * rather than fetched because a message cannot be rendered without it:
@@ -1296,6 +1344,18 @@ export interface DMDeleteRequest {
 export interface DMReadRequest {
   userId: number;
   messageId: number;
+}
+
+/**
+ * Moves your own read marker in one channel, which is what clears its badge
+ * everywhere you are signed in. It never moves backwards.
+ *
+ * `messageId` is left out to mean everything in the channel, which is what a
+ * client that cleared a badge because somebody is looking at it means.
+ */
+export interface ChannelReadRequest {
+  channelId: number;
+  messageId?: number;
 }
 
 export interface RoleCreateRequest {
