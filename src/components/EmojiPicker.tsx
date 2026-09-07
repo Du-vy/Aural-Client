@@ -27,12 +27,28 @@ import {
   type KlipyCategory,
   type KlipyMediaItem,
 } from "@/lib/klipy";
+import {
+  favoritesOf,
+  isFavorited,
+  readFavorites,
+  toggleFavorite,
+  type FavoriteKind,
+  type FavoriteMedia,
+} from "@/lib/favoriteMedia";
 import { expressionUrl } from "@/lib/customEmoji";
 import { AnimatedImage } from "./AnimatedImage";
 import { useSession } from "@/store/session";
 import { useMyPermissions } from "@/store/selectors";
 import { Perm, has } from "@/lib/permissions";
-import { CloseIcon, SearchIcon, TrendingIcon, HeartIcon, GifIcon } from "./Icons";
+import {
+  CloseIcon,
+  SearchIcon,
+  TrendingIcon,
+  HeartIcon,
+  GifIcon,
+  StarIcon,
+  ChevronLeftIcon,
+} from "./Icons";
 
 export type PickerTab = "gifs" | "stickers" | "emojis";
 
@@ -96,6 +112,12 @@ export function EmojiPicker({
   const [gifs, setGifs] = useState<KlipyMediaItem[]>([]);
   const [stickers, setStickers] = useState<KlipyMediaItem[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
+
+  // Starred GIFs and stickers. Held as state rather than read per draw so the
+  // star flips the moment it is clicked, without a trip through storage.
+  const [favorites, setFavorites] = useState<FavoriteMedia[]>(() => readFavorites());
+  // Whether the GIF tab is showing the favourites shelf instead of categories.
+  const [showingFavorites, setShowingFavorites] = useState(false);
 
   const panel = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -319,6 +341,56 @@ export function EmojiPicker({
     onClose();
   }
 
+  /**
+   * Stars or unstars one Klipy item.
+   *
+   * The whole item is stored, not its id: see the note in `favoriteMedia`.
+   */
+  function toggleMediaFavorite(item: KlipyMediaItem, kind: FavoriteKind) {
+    const url = getMediaSendUrl(item);
+    if (!url) return;
+    setFavorites(
+      toggleFavorite({
+        id: String(item.id),
+        kind,
+        title: item.title,
+        preview: getMediaPreviewUrl(item) || url,
+        url,
+      }),
+    );
+  }
+
+  /** Sends a starred item, which already carries the URL it was saved with. */
+  function sendFavorite(item: FavoriteMedia) {
+    if (onSendMedia) onSendMedia(item.url);
+    else onPick(item.url);
+    onClose();
+  }
+
+  function removeFavorite(item: FavoriteMedia) {
+    setFavorites(toggleFavorite(item));
+  }
+
+  const favoriteGifs = useMemo(() => favoritesOf(favorites, "gif"), [favorites]);
+  const favoriteStickers = useMemo(() => favoritesOf(favorites, "sticker"), [favorites]);
+
+  /** The star drawn over a tile, in the state it is in for that item. */
+  function favoriteStar(starred: boolean, onToggle: () => void) {
+    const label = starred ? t("emoji.favorites.remove") : t("emoji.favorites.add");
+    return (
+      <button
+        type="button"
+        className={starred ? "picker__fav-star picker__fav-star--on" : "picker__fav-star"}
+        onClick={onToggle}
+        title={label}
+        aria-label={label}
+        aria-pressed={starred}
+      >
+        <StarIcon size={14} />
+      </button>
+    );
+  }
+
   function jumpTo(id: string) {
     setActiveCategory(id);
     const target = scroller.current?.querySelector<HTMLElement>(`[data-section="${CSS.escape(id)}"]`);
@@ -350,6 +422,7 @@ export function EmojiPicker({
               setTab("gifs");
               setQuery("");
               setHoveredInfo(null);
+              setShowingFavorites(false);
             }}
           >
             {t("emoji.tabs.gifs")}
@@ -365,6 +438,7 @@ export function EmojiPicker({
               setTab("stickers");
               setQuery("");
               setHoveredInfo(null);
+              setShowingFavorites(false);
             }}
           >
             {t("emoji.tabs.stickers")}
@@ -380,6 +454,7 @@ export function EmojiPicker({
               setTab("emojis");
               setQuery("");
               setHoveredInfo(null);
+              setShowingFavorites(false);
             }}
           >
             {t("emoji.tabs.emojis")}
@@ -397,7 +472,11 @@ export function EmojiPicker({
             value={query}
             placeholder={getSearchPlaceholder()}
             aria-label={getSearchPlaceholder()}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              // A search is a different shelf from the favourites one.
+              if (event.target.value.trim()) setShowingFavorites(false);
+            }}
             onKeyDown={(event) => {
               if (tab === "emojis" && event.key === "Enter" && results[0]) {
                 event.preventDefault();
@@ -502,13 +581,47 @@ export function EmojiPicker({
                   </button>
                 )}
               </div>
+            ) : showingFavorites ? (
+              <>
+                <div className="picker__shelf-head">
+                  <button
+                    type="button"
+                    className="picker__shelf-back"
+                    onClick={() => setShowingFavorites(false)}
+                    aria-label={t("emoji.favorites.back")}
+                    title={t("emoji.favorites.back")}
+                  >
+                    <ChevronLeftIcon size={15} />
+                  </button>
+                  <h3 className="picker__shelf-title">{t("emoji.gifs.favorites")}</h3>
+                </div>
+                {favoriteGifs.length === 0 ? (
+                  <p className="picker__empty">{t("emoji.favorites.empty")}</p>
+                ) : (
+                  <div className="picker__media-grid">
+                    {favoriteGifs.map((item) => (
+                      <div key={`${item.kind}:${item.id}`} className="picker__media-item">
+                        <button
+                          type="button"
+                          className="picker__media-pick"
+                          onClick={() => sendFavorite(item)}
+                          title={item.title}
+                        >
+                          <AnimatedImage src={item.preview} alt={item.title} loading="lazy" />
+                        </button>
+                        {favoriteStar(true, () => removeFavorite(item))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : query.trim() === "" ? (
               <div className="picker__categories-grid">
                 {/* Favorites Card */}
                 <button
                   type="button"
                   className="picker__category-card picker__category-card--fav"
-                  onClick={() => setQuery("favorites")}
+                  onClick={() => setShowingFavorites(true)}
                 >
                   <span className="picker__category-icon">
                     <HeartIcon size={18} />
@@ -550,16 +663,19 @@ export function EmojiPicker({
               <div className="picker__media-grid">
                 {gifs.map((item) => {
                   const preview = getMediaPreviewUrl(item);
+                  const starred = isFavorited(favorites, "gif", String(item.id));
                   return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className="picker__media-item"
-                      onClick={() => handleSendMediaItem(item)}
-                      title={item.title}
-                    >
-                      <AnimatedImage src={preview} alt={item.title} loading="lazy" />
-                    </button>
+                    <div key={item.id} className="picker__media-item">
+                      <button
+                        type="button"
+                        className="picker__media-pick"
+                        onClick={() => handleSendMediaItem(item)}
+                        title={item.title}
+                      >
+                        <AnimatedImage src={preview} alt={item.title} loading="lazy" />
+                      </button>
+                      {favoriteStar(starred, () => toggleMediaFavorite(item, "gif"))}
+                    </div>
                   );
                 })}
               </div>
@@ -570,36 +686,67 @@ export function EmojiPicker({
         {/* STICKERS TAB */}
         {tab === "stickers" && (
           <div className="picker__body picker__body--stickers" ref={scroller}>
+            {/* Starred stickers sit above the rest, and only when nothing is
+                being searched: a search is asking for something else. */}
+            {!searching && favoriteStickers.length > 0 ? (
+              <section data-section="favorite-stickers">
+                <h3 className="picker__label">{t("emoji.gifs.favorites")}</h3>
+                <div className="picker__stickers-grid">
+                  {favoriteStickers.map((item) => (
+                    <div key={`${item.kind}:${item.id}`} className="picker__sticker-item">
+                      <button
+                        type="button"
+                        className="picker__sticker-pick"
+                        onClick={() => sendFavorite(item)}
+                        onMouseEnter={() =>
+                          setHoveredInfo({ name: item.title, imgUrl: item.preview })
+                        }
+                        onMouseLeave={() => setHoveredInfo(null)}
+                        title={item.title}
+                      >
+                        <AnimatedImage src={item.preview} alt={item.title} loading="lazy" />
+                      </button>
+                      {favoriteStar(true, () => removeFavorite(item))}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
             {serverStickers.length > 0 ? (
               <section data-section="server-stickers">
                 <h3 className="picker__label">{t("emoji.stickers.serverSection")}</h3>
                 <div className="picker__stickers-grid">
                   {serverStickers.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className="picker__sticker-item"
-                      onClick={() => chooseServerSticker(expressionUrl(address, item))}
-                      onMouseEnter={() =>
-                        setHoveredInfo({
-                          name: item.name,
-                          subtext: server?.name ?? "",
-                          imgUrl: expressionUrl(address, item),
-                        })
-                      }
-                      onMouseLeave={() => setHoveredInfo(null)}
-                      title={item.name}
-                    >
-                      <AnimatedImage src={expressionUrl(address, item)} alt={item.name} loading="lazy" />
-                    </button>
+                    <div key={item.id} className="picker__sticker-item">
+                      <button
+                        type="button"
+                        className="picker__sticker-pick"
+                        onClick={() => chooseServerSticker(expressionUrl(address, item))}
+                        onMouseEnter={() =>
+                          setHoveredInfo({
+                            name: item.name,
+                            subtext: server?.name ?? "",
+                            imgUrl: expressionUrl(address, item),
+                          })
+                        }
+                        onMouseLeave={() => setHoveredInfo(null)}
+                        title={item.name}
+                      >
+                        <AnimatedImage
+                          src={expressionUrl(address, item)}
+                          alt={item.name}
+                          loading="lazy"
+                        />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </section>
             ) : null}
             {/* The notice about a missing Klipy key is only worth showing when
                 there is nothing else in this tab: a server carrying its own
-                stickers is not missing anything. */}
-            {!klipyEnabled && serverStickers.length > 0 ? null : !klipyEnabled ? (
+                stickers, or a shelf of starred ones, is not missing anything. */}
+            {!klipyEnabled && (serverStickers.length > 0 || favoriteStickers.length > 0) ? null : !klipyEnabled ? (
               <div className="picker__notice">
                 <div className="picker__notice-icon">
                   <GifIcon size={32} />
@@ -627,24 +774,27 @@ export function EmojiPicker({
               <div className="picker__stickers-grid">
                 {stickers.map((item) => {
                   const preview = getMediaPreviewUrl(item);
+                  const starred = isFavorited(favorites, "sticker", String(item.id));
                   return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className="picker__sticker-item"
-                      onClick={() => handleSendMediaItem(item)}
-                      onMouseEnter={() =>
-                        setHoveredInfo({
-                          name: item.title,
-                          subtext: item.slug,
-                          imgUrl: preview,
-                        })
-                      }
-                      onMouseLeave={() => setHoveredInfo(null)}
-                      title={item.title}
-                    >
-                      <AnimatedImage src={preview} alt={item.title} loading="lazy" />
-                    </button>
+                    <div key={item.id} className="picker__sticker-item">
+                      <button
+                        type="button"
+                        className="picker__sticker-pick"
+                        onClick={() => handleSendMediaItem(item)}
+                        onMouseEnter={() =>
+                          setHoveredInfo({
+                            name: item.title,
+                            subtext: item.slug,
+                            imgUrl: preview,
+                          })
+                        }
+                        onMouseLeave={() => setHoveredInfo(null)}
+                        title={item.title}
+                      >
+                        <AnimatedImage src={preview} alt={item.title} loading="lazy" />
+                      </button>
+                      {favoriteStar(starred, () => toggleMediaFavorite(item, "sticker"))}
+                    </div>
                   );
                 })}
               </div>

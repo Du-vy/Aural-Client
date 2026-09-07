@@ -194,6 +194,12 @@ export const zh: DeepPartial<TranslationSchema> = {
       stickers: "贴纸",
       emojis: "表情",
     },
+    favorites: {
+      add: "添加到收藏夹",
+      remove: "从收藏夹移除",
+      back: "返回分类",
+      empty: "还没有收藏。将鼠标移到 GIF 或贴纸上，点击星标即可保存到这里。",
+    },
     gifs: {
       searchPlaceholder: "在 KLIPY 搜索",
       favorites: "收藏夹",

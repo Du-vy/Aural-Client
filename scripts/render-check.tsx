@@ -27,6 +27,9 @@ const { DeleteMessageDialog } = await import("@/components/dialogs/DeleteMessage
 const { MemberDialog } = await import("@/components/dialogs/MemberDialog");
 const { defaultAutoMod } = await import("@/lib/protocol");
 const { emojiDirectory } = await import("@/lib/customEmoji");
+const { favoritesOf, isFavorited, readFavorites, toggleFavorite } = await import(
+  "@/lib/favoriteMedia"
+);
 const { BanUserDialog } = await import("@/components/dialogs/BanUserDialog");
 const { SoundboardPanel } = await import("@/components/SoundboardPanel");
 const { KickUserDialog } = await import("@/components/dialogs/KickUserDialog");
@@ -1083,6 +1086,117 @@ function checkThat(name: string, condition: boolean): void {
     root.unmount();
   });
   container.remove();
+}
+
+{
+  // Starring is a toggle over storage, and the picker draws from what it
+  // returns rather than reading storage back, so the return is what matters.
+  localStorage.removeItem("aural.media.favorites.v1");
+
+  const gif = {
+    id: "42",
+    kind: "gif" as const,
+    title: "a lizard waving",
+    preview: "https://klipy.test/42-sm.webp",
+    url: "https://klipy.test/42-hd.gif",
+  };
+
+  const starred = toggleFavorite(gif);
+  checkThat("starring returns the item", starred.length === 1 && starred[0]?.id === "42");
+  checkThat("and reports itself starred", isFavorited(starred, "gif", "42"));
+  checkThat("and survives a read back", readFavorites().length === 1);
+
+  const withSticker = toggleFavorite({ ...gif, kind: "sticker" });
+  checkThat("the same id under another kind is its own favourite", withSticker.length === 2);
+  checkThat(
+    "and each tab sees only its own",
+    favoritesOf(withSticker, "gif").length === 1 && favoritesOf(withSticker, "sticker").length === 1,
+  );
+
+  const unstarred = toggleFavorite(gif);
+  checkThat("starring again unstars", !isFavorited(unstarred, "gif", "42"));
+  checkThat("without touching the other kind", isFavorited(unstarred, "sticker", "42"));
+
+  toggleFavorite({ ...gif, kind: "sticker" });
+  checkThat("and an emptied list stays empty", readFavorites().length === 0);
+}
+
+{
+  // The shelf of starred stickers is drawn above the rest of the tab.
+  localStorage.setItem(
+    "aural.media.favorites.v1",
+    JSON.stringify([
+      {
+        id: "7",
+        kind: "sticker",
+        title: "a starred sticker",
+        preview: "https://klipy.test/7-sm.webp",
+        url: "https://klipy.test/7-hd.webp",
+        addedAt: 1,
+      },
+    ]),
+  );
+
+  const markup = htmlOf(<EmojiPicker initialTab="stickers" onPick={noop} onClose={noop} />);
+  checkThat("the stickers tab draws a shelf of starred stickers", markup.includes("favorite-stickers"));
+  checkThat("with the star already lit", markup.includes("picker__fav-star--on"));
+
+  localStorage.removeItem("aural.media.favorites.v1");
+}
+
+{
+  // The GIF tab's favourites card opens a shelf rather than searching Klipy
+  // for the word "favorites", which is what it used to do.
+  localStorage.setItem(
+    "aural.media.favorites.v1",
+    JSON.stringify([
+      {
+        id: "9",
+        kind: "gif",
+        title: "a starred gif",
+        preview: "https://klipy.test/9-sm.webp",
+        url: "https://klipy.test/9-hd.gif",
+        addedAt: 1,
+      },
+    ]),
+  );
+  seed({ server: { ...server, klipyEnabled: true } });
+
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(<EmojiPicker initialTab="gifs" onPick={noop} onClose={noop} />);
+  });
+
+  const card = container.querySelector<HTMLButtonElement>(".picker__category-card--fav");
+  checkThat("the GIF tab offers a favourites card", card !== null);
+  act(() => {
+    card?.click();
+  });
+
+  checkThat(
+    "and opens the shelf of starred GIFs",
+    container.querySelector(".picker__shelf-title") !== null &&
+      container.querySelectorAll(".picker__media-item").length === 1,
+  );
+
+  const star = container.querySelector<HTMLButtonElement>(".picker__fav-star--on");
+  act(() => {
+    star?.click();
+  });
+  checkThat("and unstarring there empties it", readFavorites().length === 0);
+  checkThat(
+    "leaving the shelf saying so",
+    container.querySelector(".picker__empty") !== null,
+  );
+
+  act(() => {
+    root.unmount();
+  });
+  container.remove();
+  localStorage.removeItem("aural.media.favorites.v1");
+  seed();
 }
 
 {

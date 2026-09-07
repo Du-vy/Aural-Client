@@ -194,6 +194,12 @@ export const hi: DeepPartial<TranslationSchema> = {
       stickers: "स्टिकर",
       emojis: "इमोजी",
     },
+    favorites: {
+      add: "पसंदीदा में जोड़ें",
+      remove: "पसंदीदा से हटाएँ",
+      back: "श्रेणियों पर वापस जाएँ",
+      empty: "अभी कोई पसंदीदा नहीं है। किसी GIF या स्टिकर पर कर्सर ले जाएँ और उसे यहाँ रखने के लिए तारे पर टैप करें।",
+    },
     gifs: {
       searchPlaceholder: "KLIPY खोजें",
       favorites: "पसंदीदा",

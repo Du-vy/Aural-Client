@@ -197,6 +197,12 @@ export const en = {
       stickers: "Stickers",
       emojis: "Emojis",
     },
+    favorites: {
+      add: "Add to favorites",
+      remove: "Remove from favorites",
+      back: "Back to categories",
+      empty: "Nothing starred yet. Point at a GIF or sticker and tap the star to keep it here.",
+    },
     gifs: {
       searchPlaceholder: "Search KLIPY",
       favorites: "Favorites",

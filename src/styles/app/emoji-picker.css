@@ -401,15 +401,22 @@
 }
 
 .picker__media-item {
-  border: 0;
-  padding: 0;
+  position: relative;
   border-radius: var(--radius-sm);
   overflow: hidden;
   background: rgba(0, 0, 0, 0.2);
-  cursor: pointer;
   height: 110px;
-  position: relative;
   transition: transform var(--speed), filter var(--speed);
+}
+
+.picker__media-pick {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
 }
 
 .picker__media-item img {
@@ -434,15 +441,23 @@
 }
 
 .picker__sticker-item {
-  border: 0;
-  padding: 8px;
+  position: relative;
   border-radius: var(--radius-sm);
   background: transparent;
-  cursor: pointer;
   aspect-ratio: 1;
+  transition: background var(--speed), transform var(--speed);
+}
+
+.picker__sticker-pick {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 8px;
+  background: none;
+  border-radius: inherit;
+  cursor: pointer;
   display: grid;
   place-items: center;
-  transition: background var(--speed), transform var(--speed);
 }
 
 .picker__sticker-item img {
@@ -454,6 +469,96 @@
 .picker__sticker-item:hover {
   background: var(--hover);
   transform: scale(1.08);
+}
+
+/* Favourites: the star over a tile, and the shelf the starred ones sit on */
+
+.picker__fav-star {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  /* Invisible and untouchable together, so a hidden star cannot swallow a
+     click aimed at the corner of the tile behind it. */
+  pointer-events: none;
+  transition: opacity var(--speed), color var(--speed), background var(--speed);
+}
+
+/* Hidden until the tile is pointed at, unless it is already starred: the star
+   is then part of what the tile says, not an action offered on hover. */
+.picker__media-item:hover .picker__fav-star,
+.picker__sticker-item:hover .picker__fav-star,
+.picker__fav-star:focus-visible,
+.picker__fav-star--on {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Nothing hovers on a touch screen, so there the star is always out. */
+@media (hover: none) {
+  .picker__fav-star {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.picker__fav-star:hover {
+  background: rgba(0, 0, 0, 0.78);
+  color: var(--warning);
+}
+
+.picker__fav-star--on {
+  color: var(--warning);
+}
+
+.picker__fav-star--on svg {
+  fill: currentColor;
+}
+
+.picker__shelf-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 8px;
+}
+
+.picker__shelf-back {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color var(--speed), background var(--speed);
+}
+
+.picker__shelf-back:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.picker__shelf-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 
 /* Empty / Notice States */

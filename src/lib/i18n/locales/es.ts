@@ -194,6 +194,12 @@ export const es: TranslationSchema = {
       stickers: "Stickers",
       emojis: "Emojis",
     },
+    favorites: {
+      add: "Añadir a favoritos",
+      remove: "Quitar de favoritos",
+      back: "Volver a las categorías",
+      empty: "Aún no hay favoritos. Pasa el cursor sobre un GIF o sticker y pulsa la estrella para guardarlo aquí.",
+    },
     gifs: {
       searchPlaceholder: "Buscar en KLIPY",
       favorites: "Favoritos",

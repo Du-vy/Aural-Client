@@ -194,6 +194,12 @@ export const pt: DeepPartial<TranslationSchema> = {
       stickers: "Figurinhas",
       emojis: "Emojis",
     },
+    favorites: {
+      add: "Adicionar aos favoritos",
+      remove: "Remover dos favoritos",
+      back: "Voltar às categorias",
+      empty: "Nada nos favoritos ainda. Passe o cursor sobre um GIF ou sticker e toque na estrela para guardá-lo aqui.",
+    },
     gifs: {
       searchPlaceholder: "Pesquisar no KLIPY",
       favorites: "Favoritos",

@@ -539,6 +539,10 @@ export const StickerIcon = icon(
   </>,
 );
 
+export const StarIcon = icon(
+  <polygon points="12 2.6 15.09 8.86 22 9.87 17 14.74 18.18 21.62 12 18.37 5.82 21.62 7 14.74 2 9.87 8.91 8.86" />,
+);
+
 export const TrendingIcon = icon(
   <>
     <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
