@@ -156,7 +156,6 @@ export function MessageList({
 }: MessageListProps) {
   const { t } = useTranslation();
   const scroller = useRef<HTMLDivElement>(null);
-  const bottom = useRef<HTMLDivElement>(null);
   /** Whether the reader is at the bottom, and so wants to follow along. */
   const following = useRef(true);
   /**
@@ -217,11 +216,22 @@ export function MessageList({
     }
   }
 
+  /**
+   * Puts the view at the very end of the list. Scrolling a marker at the end of
+   * the rows into view stops one padding's worth short of it, since that
+   * padding is content too and sits below the marker; asking the scroller for
+   * its own end has no such gap and no element to keep around for it.
+   */
+  function stickToBottom() {
+    const node = scroller.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }
+
   // Following the conversation means staying pinned to the bottom as messages
   // arrive, but never yanking a reader away from older messages they scrolled
   // back to. A window jumped into is never the present, so it never follows.
   useEffect(() => {
-    if (following.current && !hasMoreAfter) bottom.current?.scrollIntoView({ block: "end" });
+    if (following.current && !hasMoreAfter) stickToBottom();
   }, [newest, hasMoreAfter]);
 
   // The list shares its column with the composer, so the composer growing
@@ -234,7 +244,7 @@ export function MessageList({
     const node = scroller.current;
     if (!node || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
-      if (following.current && !hasMoreAfter) bottom.current?.scrollIntoView({ block: "end" });
+      if (following.current && !hasMoreAfter) stickToBottom();
     });
     observer.observe(node);
     return () => observer.disconnect();
@@ -513,8 +523,6 @@ export function MessageList({
           />
         </div>
       ))}
-
-      <div ref={bottom} />
 
       {hasMoreAfter ? (
         <div className="chat__present">
