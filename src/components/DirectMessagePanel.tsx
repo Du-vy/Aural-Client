@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { buildMentions } from "@/lib/mentions";
 import { Perm, has } from "@/lib/permissions";
+import { conversationPositionKey } from "@/lib/readingPosition";
 import type { MessageBase, User } from "@/lib/protocol";
 import { EMPTY_DIRECT_HISTORY, useSession } from "@/store/session";
 import { useMyPermissions } from "@/store/selectors";
@@ -35,6 +36,7 @@ export function DirectMessagePanel({
   const roles = useSession((state) => state.roles);
   const self = useSession((state) => state.self);
   const server = useSession((state) => state.server);
+  const serverId = useSession((state) => state.serverId);
   const history = useSession((state) => state.directHistory.get(userId)) ?? EMPTY_DIRECT_HISTORY;
 
   const openConversation = useSession((state) => state.openConversation);
@@ -98,6 +100,7 @@ export function DirectMessagePanel({
         // remove.
         canManageMessages={false}
         jump={jump}
+        positionKey={conversationPositionKey(serverId, userId)}
         startIcon={peer ? <Avatar user={peer} size="lg" /> : null}
         startTitle={t("dm.startTitle", { name })}
         startBody={t("dm.startBody")}

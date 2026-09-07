@@ -23,6 +23,12 @@ import { mentionReach, mentionsSelf, repliesToSelf, type MentionReach } from "@/
 import { shouldNotifyHere } from "@/lib/muting";
 import { announce } from "@/lib/notifications";
 import {
+  channelPositionKey,
+  conversationPositionKey,
+  forgetReadingPosition,
+  recallReadingPosition,
+} from "@/lib/readingPosition";
+import {
   AuralError,
   Ev,
   Op,
@@ -1354,12 +1360,31 @@ export function createConnection({
       set({ history: next });
     }
 
-    /** Cuts a channel nobody is reading back to the page under its composer. */
+    /**
+     * Cuts a channel nobody is reading back to the page under its composer.
+     *
+     * A reader who left partway up the window is put back there when they
+     * return, and the message that says where "there" is has to still be held
+     * for that to be possible: cutting to the page under the composer would
+     * throw away the very row being kept for them. So the cut stops at their
+     * place, with a page above it left to scroll into — a channel restored to
+     * its own first row has nothing above it to scroll towards, and so no way
+     * to ask for more.
+     */
     function trimIdle(channelId: number): void {
       const current = get().history.get(channelId);
       if (!current || current.loading) return;
       if (current.messages.length <= IDLE_CHANNEL_WINDOW) return;
-      patchHistory(channelId, clampWindow(current.messages, "newest", IDLE_CHANNEL_WINDOW));
+
+      const held = recallReadingPosition(channelPositionKey(id, channelId));
+      const at =
+        held === null ? -1 : current.messages.findIndex((message) => message.id === held.anchorId);
+      const keep =
+        at < 0
+          ? IDLE_CHANNEL_WINDOW
+          : Math.max(IDLE_CHANNEL_WINDOW, current.messages.length - at + IDLE_CHANNEL_WINDOW);
+      if (current.messages.length <= keep) return;
+      patchHistory(channelId, clampWindow(current.messages, "newest", keep));
     }
 
     /** Clears the badge of one channel. */
@@ -1764,6 +1789,7 @@ export function createConnection({
             posts.delete(channelId);
             unread.delete(channelId);
             readAt.delete(channelId);
+            forgetReadingPosition(channelPositionKey(id, channelId));
           }
           set({
             channels,
@@ -2961,6 +2987,9 @@ export function createConnection({
       },
 
       async returnToPresent(channelId) {
+        // Asking for the present is asking not to be put back where you were,
+        // so the place goes with the window it pointed into.
+        forgetReadingPosition(channelPositionKey(id, channelId));
         // The window being held is dropped rather than paged forward through:
         // the present is one request away, and everything between is history the
         // reader can scroll back into.
@@ -3219,6 +3248,7 @@ export function createConnection({
       },
 
       async returnToPresentDirect(userId) {
+        forgetReadingPosition(conversationPositionKey(id, userId));
         // The window being held is dropped rather than paged forward through:
         // the present is one request away, and everything between is history
         // the reader can scroll back into.

@@ -11,6 +11,7 @@ import {
   type MentionDirectory,
 } from "@/lib/mentions";
 import { openExternalUrl } from "@/lib/open";
+import { recallReadingPosition, rememberReadingPosition } from "@/lib/readingPosition";
 import { isDomainTrusted } from "@/lib/storage";
 import { GROUPING_WINDOW_SECONDS, formatDay, formatFull, formatTime, sameDay } from "@/lib/time";
 import type { MessageBase, ReferencedMessage, Role, User } from "@/lib/protocol";
@@ -106,6 +107,12 @@ interface MessageListProps {
    */
   jump: Pick<JumpTarget, "messageId" | "nonce"> | null;
   /**
+   * What this list's place is filed under, so that leaving it and coming back
+   * lands where the reader was rather than at the bottom. A list given none
+   * remembers nothing, which is what a preview or a one-off window wants.
+   */
+  positionKey?: string | null;
+  /**
    * What stands above the first message ever written here. A channel says so
    * in the words a channel uses; a private conversation has its own, which is
    * the only thing about drawing one that differs.
@@ -140,6 +147,7 @@ export function MessageList({
   error,
   canManageMessages,
   jump,
+  positionKey = null,
   startIcon,
   startTitle,
   startBody,
@@ -156,13 +164,35 @@ export function MessageList({
 }: MessageListProps) {
   const { t } = useTranslation();
   const scroller = useRef<HTMLDivElement>(null);
+  /**
+   * Where this list was left the last time it was open, read once: a list is
+   * mounted afresh for every channel, so this is the arrival, and reading it
+   * again later would fight the reader's own scrolling.
+   */
+  const remembered = useRef(positionKey === null ? null : recallReadingPosition(positionKey));
   /** Whether the reader is at the bottom, and so wants to follow along. */
-  const following = useRef(true);
+  const following = useRef(remembered.current === null);
   /**
    * The row the view is held against while the reader is away from the bottom,
    * and how far below the top of the scroller it sits.
+   *
+   * A remembered place is one of these already, so putting the reader back is
+   * not a separate mechanism: it is starting out held against the row they
+   * were looking at, and letting the effect below do what it does after every
+   * other change to the window.
    */
-  const anchor = useRef<{ id: number; offset: number } | null>(null);
+  const anchor = useRef<{ id: number; offset: number } | null>(
+    remembered.current === null
+      ? null
+      : { id: remembered.current.anchorId, offset: remembered.current.offset },
+  );
+  /**
+   * Whether that place is still waiting for the window it points into.
+   *
+   * A list renders before its history arrives, and an anchor that finds no row
+   * in an empty list has not been outlived — it has not been looked for yet.
+   */
+  const restoring = useRef(remembered.current !== null);
   /** The row a jump landed on, marked until the reader looks somewhere else. */
   const [landed, setLanded] = useState<number | null>(null);
   /** The timer clearing that mark, held so leaving the view cancels it. */
@@ -260,6 +290,7 @@ export function MessageList({
     if (!row) return;
     following.current = false;
     anchor.current = null;
+    restoring.current = false;
     row.scrollIntoView({ block: "center" });
     setLanded(jump.messageId);
     onJumpDone(jump.nonce);
@@ -279,6 +310,7 @@ export function MessageList({
     }
     following.current = false;
     anchor.current = null;
+    restoring.current = false;
     row.scrollIntoView({ block: "center", behavior: "smooth" });
     setLanded(targetId);
     if (landedTimer.current !== null) clearTimeout(landedTimer.current);
@@ -302,14 +334,21 @@ export function MessageList({
 
     const row = node.querySelector<HTMLElement>(`[data-message="${held.id}"]`);
     if (row === null) {
+      // A place being restored into a list with nothing in it yet is waiting
+      // for its window, not outliving it: the history is still on its way.
+      if (restoring.current && messages.length === 0) return;
       // The row itself is gone, so there is nothing to hold to. Only a jump or
       // a return to the present replaces the window wholesale, and both mean
-      // to move the view anyway.
+      // to move the view anyway. A remembered place whose message the window no
+      // longer reaches ends the same way, and the list follows along instead.
+      if (restoring.current) following.current = true;
       anchor.current = null;
+      restoring.current = false;
       return;
     }
     const now = row.getBoundingClientRect().top - node.getBoundingClientRect().top;
     node.scrollTop += now - held.offset;
+    restoring.current = false;
   }, [messages]);
 
   /**
@@ -356,6 +395,20 @@ export function MessageList({
     // is the one the effect above keeps them on.
     if (following.current) anchor.current = null;
     else takeAnchor();
+    // Scrolling is the reader saying where they are, which is also the answer
+    // to where they should be put back. It is written on the way past rather
+    // than on the way out: a list is unmounted without warning — the channel
+    // list changing under it, the connection dropping — and a place only
+    // written on the way out is the one place that never gets written.
+    if (positionKey !== null) {
+      restoring.current = false;
+      rememberReadingPosition(
+        positionKey,
+        anchor.current === null
+          ? null
+          : { anchorId: anchor.current.id, offset: anchor.current.offset },
+      );
+    }
 
     if (node.scrollTop < 120 && hasMore && !loading) {
       onLoadOlder();

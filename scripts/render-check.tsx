@@ -3630,6 +3630,163 @@ console.log("\nreporting what somebody is doing outside Aural");
   seed();
 }
 
+console.log("\nwhere the reader was left off");
+{
+  const {
+    channelPositionKey,
+    conversationPositionKey,
+    forgetReadingPosition,
+    forgetReadingPositions,
+    recallReadingPosition,
+    rememberReadingPosition,
+  } = await import("@/lib/readingPosition");
+
+  const one = "one.example:9871";
+  const two = "two.example:9871";
+
+  checkThat("a place nobody has been is no place", recallReadingPosition(channelPositionKey(one, 4)) === null);
+
+  rememberReadingPosition(channelPositionKey(one, 4), { anchorId: 120, offset: 36 });
+  checkThat(
+    "a place is given back as it was left",
+    recallReadingPosition(channelPositionKey(one, 4))?.anchorId === 120,
+  );
+
+  // The same channel number on two servers is two different channels, and
+  // restoring one into the other would put a reader somewhere they have never
+  // been.
+  checkThat(
+    "the same channel number on another server is another place",
+    recallReadingPosition(channelPositionKey(two, 4)) === null,
+  );
+  // As are a channel and a conversation that happen to share a number.
+  checkThat(
+    "a conversation is not the channel of the same number",
+    recallReadingPosition(conversationPositionKey(one, 4)) === null,
+  );
+
+  // Catching up is not a place to be put back to: it is the absence of one, and
+  // it has to clear the place that was there before.
+  rememberReadingPosition(channelPositionKey(one, 4), null);
+  checkThat(
+    "reaching the bottom forgets where you were",
+    recallReadingPosition(channelPositionKey(one, 4)) === null,
+  );
+
+  rememberReadingPosition(channelPositionKey(one, 4), { anchorId: 9, offset: 0 });
+  rememberReadingPosition(conversationPositionKey(one, 7), { anchorId: 8, offset: 0 });
+  rememberReadingPosition(channelPositionKey(two, 4), { anchorId: 7, offset: 0 });
+
+  forgetReadingPosition(channelPositionKey(one, 4));
+  checkThat(
+    "a deleted channel takes its place with it",
+    recallReadingPosition(channelPositionKey(one, 4)) === null,
+  );
+  checkThat(
+    "and leaves the conversation on the same server alone",
+    recallReadingPosition(conversationPositionKey(one, 7))?.anchorId === 8,
+  );
+
+  forgetReadingPositions(one);
+  checkThat(
+    "a connection going away takes everything it held",
+    recallReadingPosition(conversationPositionKey(one, 7)) === null,
+  );
+  checkThat(
+    "and nothing another connection held",
+    recallReadingPosition(channelPositionKey(two, 4))?.anchorId === 7,
+  );
+  forgetReadingPositions(two);
+
+  // Being put back is geometry, and there is none in a DOM with no layout, so
+  // the rows are given one: a fixed height each, measured against a scroller
+  // whose own top is the origin. That is all the restore reads, and stubbing it
+  // is what lets the arithmetic it does be checked at all.
+  const ROW_HEIGHT = 40;
+  const realRect = Element.prototype.getBoundingClientRect;
+
+  function mountList(messages: { id: number }[], positionKey: string): HTMLElement {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    Element.prototype.getBoundingClientRect = function (this: Element): DOMRect {
+      const scrollerEl = container.querySelector(".chat");
+      if (!scrollerEl) return realRect.call(this);
+      const top =
+        this === scrollerEl
+          ? 0
+          : ROW_HEIGHT * [...container.querySelectorAll("[data-message]")].indexOf(this) -
+            scrollerEl.scrollTop;
+      return { top, bottom: top + ROW_HEIGHT, left: 0, right: 0, width: 0, height: ROW_HEIGHT } as DOMRect;
+    };
+
+    try {
+      act(() => {
+        root.render(
+          <MessageList
+            channelName="general"
+            messages={messages.map((message) => ({
+              id: message.id,
+              userId: admin.id,
+              author: admin.username ?? "admin",
+              content: `line ${message.id}`,
+              createdAt: nowSeconds - 1000 + message.id,
+              editedAt: null,
+            }))}
+            users={seededUsers}
+            roles={seededRoles}
+            self={admin}
+            hasMore={false}
+            hasMoreAfter={false}
+            loading={false}
+            error={null}
+            canManageMessages={false}
+            jump={null}
+            positionKey={positionKey}
+            onJumpDone={noop}
+            onLoadOlder={noop}
+            onLoadNewer={noop}
+            onReturnToPresent={noop}
+            onEdit={noop}
+            onDelete={noop}
+          />,
+        );
+      });
+      return container.querySelector(".chat") as HTMLElement;
+    } finally {
+      Element.prototype.getBoundingClientRect = realRect;
+    }
+  }
+
+  const window10 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((id) => ({ id }));
+
+  // The fourth row is 120px down the list, and it was sitting 12px below the top
+  // of the viewport, so the view belongs 108px down.
+  rememberReadingPosition(channelPositionKey(one, 11), { anchorId: 4, offset: 12 });
+  checkThat(
+    "coming back puts the row that was on top back on top",
+    mountList(window10, channelPositionKey(one, 11)).scrollTop === ROW_HEIGHT * 3 - 12,
+  );
+
+  // A place pointing at a message this window no longer reaches is not a place
+  // to be held at: the list follows along instead, which is the bottom.
+  rememberReadingPosition(channelPositionKey(one, 12), { anchorId: 999, offset: 12 });
+  checkThat(
+    "a place the window no longer reaches falls back to the bottom",
+    mountList(window10, channelPositionKey(one, 12)).scrollTop === 0,
+  );
+
+  // Nothing remembered is the ordinary arrival, and it must stay the bottom
+  // rather than becoming wherever the last channel happened to be.
+  checkThat(
+    "a channel never scrolled in still opens at the bottom",
+    mountList(window10, channelPositionKey(one, 13)).scrollTop === 0,
+  );
+
+  forgetReadingPositions(one);
+}
+
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);
 
 await GlobalRegistrator.unregister();

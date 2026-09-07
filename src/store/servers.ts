@@ -19,6 +19,7 @@ import { useStore } from "zustand";
 import { parseAddress } from "@/lib/address";
 import { describeError, type DirectMessage, type User } from "@/lib/protocol";
 import { forgetServerMuting } from "@/lib/muting";
+import { forgetReadingPositions } from "@/lib/readingPosition";
 import { listServers, removeServer, type SavedServer } from "@/lib/storage";
 import {
   createConnection,
@@ -241,6 +242,9 @@ export const useServers = createStore<ServersState>((set, get) => ({
     const previous = get().foregroundId;
     const connections = new Map(get().connections);
     connections.delete(id);
+    // Nothing of this connection's is held any more, so neither are the places
+    // its reader had in it: the ids they name belong to a server that is gone.
+    forgetReadingPositions(id);
     const order = get().order.filter((open) => open !== id);
 
     let foregroundId = previous;

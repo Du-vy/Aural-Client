@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 
 import { emojiDirectory } from "@/lib/customEmoji";
 import { buildMentions } from "@/lib/mentions";
+import { channelPositionKey } from "@/lib/readingPosition";
 import { Perm, has } from "@/lib/permissions";
 import type { Channel, MessageBase, User } from "@/lib/protocol";
 import { EMPTY_HISTORY, useSession } from "@/store/session";
@@ -43,6 +44,7 @@ export function ChatPanel({
   const deleteMessage = useSession((state) => state.deleteMessage);
 
   const server = useSession((state) => state.server);
+  const serverId = useSession((state) => state.serverId);
   const address = useSession((state) => state.address);
   const expressions = useSession((state) => state.expressions);
   const uploadAttachment = useSession((state) => state.uploadAttachment);
@@ -161,6 +163,7 @@ export function ChatPanel({
         error={history.error}
         canManageMessages={canManageMessages}
         jump={jump?.channelId === channel.id ? jump : null}
+        positionKey={channelPositionKey(serverId, channel.id)}
         onJumpDone={clearJump}
         onLoadOlder={() => void loadOlder(channel.id)}
         onLoadNewer={() => void loadNewer(channel.id)}
