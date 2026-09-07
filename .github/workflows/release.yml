@@ -45,7 +45,7 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Nothing is built, tagged or published until the checks pass. `npm run smoke`
+  # Nothing is built, tagged or published until the checks pass. `pnpm run smoke`
   # is deliberately absent: it drives a live server, so it belongs to a person
   # with a server running, not to CI.
   # ---------------------------------------------------------------------------
@@ -58,10 +58,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Before setup-node: its pnpm cache needs a pnpm to ask for the store
+      # path. The version comes from `packageManager` in package.json, so CI and
+      # a developer's machine install with the same pnpm.
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
       - name: Install Linux build dependencies
         run: |
@@ -76,17 +81,17 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Resolve the version, and refuse a mismatch
         id: version
         run: node .github/scripts/resolve-version.mjs >> "$GITHUB_OUTPUT"
 
       - name: Type check
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Render check
-        run: npm run render-check
+        run: pnpm run render-check
 
       # The rule that decides whose page may take a microphone without being
       # asked. A build that gets this wrong is a security problem rather than a
@@ -193,10 +198,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Before setup-node: its pnpm cache needs a pnpm to ask for the store
+      # path. The version comes from `packageManager` in package.json, so CI and
+      # a developer's machine install with the same pnpm.
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
       - name: Install Linux build dependencies
         if: matrix.runner == 'ubuntu-22.04'
@@ -215,7 +225,7 @@ jobs:
           workspaces: src-tauri -> target
           key: ${{ matrix.runner }}
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       # Tauri decides whether to codesign by asking whether APPLE_CERTIFICATE
       # is *set*, and an empty string counts as set: passing the secrets

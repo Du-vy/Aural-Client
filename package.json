@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Client for Aural, an open source voice and chat platform with self-hosted servers",
   "license": "AGPL-3.0-or-later",
+  "packageManager": "pnpm@12.3.4",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -42,8 +43,5 @@
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vite": "^8.2.2"
-  },
-  "allowScripts": {
-    "esbuild@0.28.2": true
   }
 }

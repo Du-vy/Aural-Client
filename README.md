@@ -17,9 +17,15 @@ Node 20.19+ is all you need for the web app; the desktop and Android builds add
 Rust and a per-platform toolchain on top. [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 lists every prerequisite, what each one is actually for, and how to verify it.
 
+Dependencies are managed with pnpm rather than npm, mostly because pnpm does not
+run a dependency's install scripts unless this repo names it in
+[`pnpm-workspace.yaml`](pnpm-workspace.yaml). Node ships Corepack, which picks up
+the pnpm version pinned in `package.json`:
+
 ```sh
-npm install
-npm run dev
+corepack enable
+pnpm install
+pnpm run dev
 ```
 
 On Windows, `run.bat` does both in one double-click, and `run-desktop.bat` does
@@ -37,27 +43,27 @@ on.
 
 | Script | What it does |
 | --- | --- |
-| `npm run dev` | Vite dev server on port 5173. |
-| `npm run build` | Type check, then build to `dist/`. |
-| `npm run typecheck` | Type check only. |
-| `npm run render-check` | Mounts every screen and dialog in a DOM against seeded state. |
-| `npm run smoke` | Drives the real client modules against a live server. |
-| `npm run icons` | Redraws the app icon and derives every platform variant. |
-| `npm run emoji` | Regenerates the emoji catalogue from the Unicode list. |
-| `npm run tauri:dev` | Runs the desktop shell. Needs Rust. |
-| `npm run tauri:build` | Builds desktop installers. Needs Rust. |
-| `npm run tauri:android` | Runs the Android app. Needs Rust and the Android SDK/NDK. |
+| `pnpm run dev` | Vite dev server on port 5173. |
+| `pnpm run build` | Type check, then build to `dist/`. |
+| `pnpm run typecheck` | Type check only. |
+| `pnpm run render-check` | Mounts every screen and dialog in a DOM against seeded state. |
+| `pnpm run smoke` | Drives the real client modules against a live server. |
+| `pnpm run icons` | Redraws the app icon and derives every platform variant. |
+| `pnpm run emoji` | Regenerates the emoji catalogue from the Unicode list. |
+| `pnpm run tauri:dev` | Runs the desktop shell. Needs Rust. |
+| `pnpm run tauri:build` | Builds desktop installers. Needs Rust. |
+| `pnpm run tauri:android` | Runs the Android app. Needs Rust and the Android SDK/NDK. |
 
 ## Testing
 
 Two checks cover the two ways this client can break.
 
-**`npm run render-check`** mounts every screen and dialog in a real DOM against
+**`pnpm run render-check`** mounts every screen and dialog in a real DOM against
 seeded state, as an administrator, as a plain guest, and with empty state, then
 asserts the rendered HTML actually contains what it should. A type check proves
 the props line up; this proves the components render the state they are given.
 
-**`npm run smoke`** is the one that matters most. It drives the real address
+**`pnpm run smoke`** is the one that matters most. It drives the real address
 parser, the real gateway, the real permission resolver and the real store
 against a running server, and asserts among other things that **the client
 resolves the same permission mask the server sent**. It is what catches the two
@@ -72,7 +78,7 @@ component reads.
 ./aural-server                       # note the owner token it prints
 
 # here
-npm run smoke -- --address 127.0.0.1:9871 --owner-token PASTE-TOKEN-HERE
+pnpm run smoke --address 127.0.0.1:9871 --owner-token PASTE-TOKEN-HERE
 ```
 
 The owner token is optional; without it the administration checks are skipped.
@@ -248,7 +254,7 @@ and is not there yet.
 The catalogue in `src/lib/emoji-data.ts` is generated, not written:
 
 ```sh
-npm run emoji
+pnpm run emoji
 ```
 
 [`scripts/make-emoji.mjs`](scripts/make-emoji.mjs) derives it from the official
@@ -395,19 +401,19 @@ scripts/                 the two checks, and the icon and emoji generators
 run** on Windows; the Android build is configured but has not been attempted yet.
 
 ```sh
-npm run tauri info      # audits the toolchain and names what is missing
-npm run tauri:dev
+pnpm run tauri info      # audits the toolchain and names what is missing
+pnpm run tauri:dev
 ```
 
 Both need Rust and a per-platform C toolchain.
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) has the setup, including the two
 things that reliably go wrong on Windows: the Git Bash `link.exe` collision, and
-needing `npm run icons` before the very first build.
+needing `pnpm run icons` before the very first build.
 
 ### Icons
 
 ```sh
-npm run icons
+pnpm run icons
 ```
 
 [`scripts/make-icon.mjs`](scripts/make-icon.mjs) draws `src-tauri/app-icon.png`

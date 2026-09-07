@@ -1,0 +1,22 @@
+# pnpm settings for this repo. They live here rather than in .npmrc because
+# pnpm reads its own settings from this file.
+
+# Dependency lifecycle scripts do not run. pnpm blocks every one of them by
+# default, and this map is the list of exceptions: a package only gets to
+# execute code at install time if it is named here with `true`, deliberately.
+#
+# esbuild's postinstall picks the right platform binary out of its optional
+# packages. Nothing else in the tree needs to build, fsevents included: it
+# ships a prebuilt binary and works fine with its script blocked.
+allowBuilds:
+  esbuild: true
+
+# Refuse to install rather than quietly skipping a build a package asked for,
+# so a new dependency with a postinstall is a decision somebody makes here
+# instead of something that silently half-installs.
+strictDepBuilds: true
+
+# Do not install a version published in the last 24 hours. Compromised releases
+# are usually pulled within hours of going up, so this is what keeps a freshly
+# malicious version out of an install run on the morning it lands.
+minimumReleaseAge: 1440

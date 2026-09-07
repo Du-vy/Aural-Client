@@ -62,8 +62,8 @@ checks ──▶ prepare ──▶ build (windows | macos | linux) ──▶ fin
                             └── any failure ───────────▶ cleanup
 ```
 
-- **checks** — `npm run typecheck`, `npm run render-check`, and
-  `cargo test` for the shell. `npm run smoke` is not here: it drives a live
+- **checks** — `pnpm run typecheck`, `pnpm run render-check`, and
+  `cargo test` for the shell. `pnpm run smoke` is not here: it drives a live
   server, so it belongs to a person with one running.
 - **prepare** — refuses a tag that already exists, then creates the release as a
   draft so the three build jobs have one place to upload to instead of racing to
@@ -134,7 +134,7 @@ One repository secret drives it:
 
 | Secret | What it is |
 | --- | --- |
-| `TAURI_SIGNING_PRIVATE_KEY` | the private key file's contents — one base64 line, from `npm run tauri signer generate` |
+| `TAURI_SIGNING_PRIVATE_KEY` | the private key file's contents — one base64 line, from `pnpm run tauri signer generate` |
 
 **`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is deliberately not a secret**, because
 the key was generated without a password and GitHub will not store an empty

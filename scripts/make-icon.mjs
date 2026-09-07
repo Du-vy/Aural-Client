@@ -7,7 +7,7 @@
  *   node scripts/make-icon.mjs
  *
  * A release build additionally needs the .ico and .icns bundles, which come
- * from `npm run tauri icon src-tauri/app-icon.png` once Rust is installed.
+ * from `pnpm run tauri icon src-tauri/app-icon.png` once Rust is installed.
  */
 
 import { deflateSync } from "node:zlib";

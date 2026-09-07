@@ -29,20 +29,42 @@ Download: <https://nodejs.org> (LTS build).
 
 ```sh
 node --version      # v24.20.0 known good
-npm --version       # 11.19.0 known good
 ```
+
+### pnpm
+
+The package manager for this repo is pnpm, not npm. The reason is install-time
+code: npm runs every dependency's lifecycle scripts by default, so a single
+compromised package in the tree gets to execute on your machine the moment you
+install. pnpm runs none of them unless the package is named in
+`pnpm-workspace.yaml`, where the only entry is esbuild.
+
+Node ships Corepack, which reads the `packageManager` field in `package.json`
+and uses exactly the pnpm version this repo was locked with:
+
+```sh
+corepack enable
+pnpm --version      # 12.3.4 known good
+```
+
+If `corepack enable` is not available, `npm install -g pnpm` works too.
 
 ### Install the dependencies
 
 ```sh
 cd Aural-Client
-npm install
+pnpm install
 ```
+
+`pnpm install` reads `pnpm-lock.yaml` and refuses versions published in the last
+24 hours, which is the window most compromised releases are caught and pulled
+in. In CI, use `pnpm install --frozen-lockfile` so a lockfile that disagrees
+with `package.json` fails the run instead of being rewritten.
 
 ### Verify tier 1 works
 
 ```sh
-npm run dev
+pnpm run dev
 ```
 
 Open <http://localhost:5173>. You should get the connect screen. That is the
@@ -53,7 +75,7 @@ without installing anything else.
 
 ## Tier 2 — Desktop (Tauri)
 
-Needed only for `npm run tauri:dev` and `npm run tauri:build`.
+Needed only for `pnpm run tauri:dev` and `pnpm run tauri:build`.
 
 ### Rust
 
@@ -104,7 +126,7 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
 ### Generate the icons before the first build
 
 ```sh
-npm run icons
+pnpm run icons
 ```
 
 A Windows build **fails without `src-tauri/icons/icon.ico`** even in debug,
@@ -118,8 +140,8 @@ The generated icons are not committed, so this is a per-clone step.
 ### Verify tier 2 works
 
 ```sh
-npm run tauri info      # audits the whole toolchain and names what is missing
-npm run tauri:dev
+pnpm run tauri info      # audits the whole toolchain and names what is missing
+pnpm run tauri:dev
 ```
 
 The first `cargo` build compiles 400+ crates and takes several minutes. Later
@@ -137,7 +159,7 @@ Confirm you are hitting it:
 link --version      # "link (GNU coreutils)" means the wrong link is first
 ```
 
-Fix: run `cargo` and `npm run tauri:*` from **PowerShell** or a Developer
+Fix: run `cargo` and `pnpm run tauri:*` from **PowerShell** or a Developer
 Command Prompt. Everything else in this repository is fine from Git Bash.
 
 ---
@@ -177,8 +199,8 @@ Needed:
    ignored by git):
 
    ```sh
-   npm run tauri android init
-   npm run tauri:android
+   pnpm run tauri android init
+   pnpm run tauri:android
    ```
 
 6. **Add the microphone permissions.** `android init` writes a manifest without
@@ -198,7 +220,7 @@ Needed:
 Check where you stand:
 
 ```sh
-npm run tauri info
+pnpm run tauri info
 ```
 
 ---
@@ -230,7 +252,7 @@ browser will hand over, and a second participant.
 
 **A secure origin.** A page served over plain HTTP from anything but
 `localhost` gets no microphone at all, whatever the person at the keyboard
-says. `npm run dev` binds every interface so a phone on the same network can
+says. `pnpm run dev` binds every interface so a phone on the same network can
 load the client, and that page will have no microphone. To test voice from
 another device, either reach the dev server through an SSH tunnel so it is
 `localhost` there too, or serve it over TLS.
@@ -263,13 +285,13 @@ for.
 not: `src-tauri/src/media.rs` answers the webview's own request and never shows
 it, so joining a call there is one click. The operating system's permission is
 untouched and still applies — see [Microphone access](../README.md#microphone-access).
-That path only exists in a `tauri:dev` or bundled build; `npm run dev` in a
+That path only exists in a `tauri:dev` or bundled build; `pnpm run dev` in a
 browser is unaffected, which is worth remembering before concluding it is
 broken.
 
 **Noise suppression.** The three choices are alternatives, and the one worth
 testing deliberately is RNNoise, because it is the only one with anything to
-load. `npm run smoke` runs the model over synthetic signals and checks it
+load. `pnpm run smoke` runs the model over synthetic signals and checks it
 discriminates speech from noise, which catches a broken or substituted binary;
 what it cannot check is the worklet around it, since that needs a browser. If
 RNNoise is selected and the settings page reports it unavailable, look for the
@@ -291,9 +313,9 @@ fastest way to tell a signalling problem from a NAT one.
 Run these before pushing. None of the three needs Rust.
 
 ```sh
-npm run typecheck       # tsc, no emit
-npm run render-check    # mounts every screen and dialog in a real DOM
-npm run smoke           # drives the real modules against a live server
+pnpm run typecheck       # tsc, no emit
+pnpm run render-check    # mounts every screen and dialog in a real DOM
+pnpm run smoke           # drives the real modules against a live server
 ```
 
 The shell has a few tests of its own, which do need Rust. They cover the rule
@@ -305,11 +327,11 @@ honest:
 cd src-tauri && cargo test
 ```
 
-`npm run smoke` needs a server actually running, and takes its address and
+`pnpm run smoke` needs a server actually running, and takes its address and
 optionally the owner token:
 
 ```sh
-npm run smoke -- --address 127.0.0.1:9871 --owner-token PASTE-TOKEN-HERE
+pnpm run smoke --address 127.0.0.1:9871 --owner-token PASTE-TOKEN-HERE
 ```
 
 Without the token it still runs, but skips the administration checks.
@@ -346,9 +368,9 @@ watcher — if you see it again, that exclusion has been lost.
 The Git Bash `link.exe` problem. Build from PowerShell. See tier 2 above.
 
 **`icons/icon.ico not found`**
-Run `npm run icons`.
+Run `pnpm run icons`.
 
-**`npm run dev` says the port is taken**
+**`pnpm run dev` says the port is taken**
 `strictPort` is deliberate: the Tauri config expects port 5173 exactly, so
 failing is better than silently moving and leaving the desktop shell pointing at
 nothing. Free the port rather than changing it.
@@ -371,7 +393,7 @@ actually been verified here.
 | | |
 | --- | --- |
 | Node | 24.20.0 |
-| npm | 11.19.0 |
+| pnpm | 12.3.4 |
 | Rust | 1.98.0 (`stable-x86_64-pc-windows-msvc`) |
 | Go (server) | 1.26.6 |
 | Git | 2.55.0 |

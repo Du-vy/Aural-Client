@@ -29,7 +29,7 @@
 /// Whether a URI is the client's own page rather than something embedded in it.
 ///
 /// Tauri serves the application from `tauri.localhost` in a bundle and from
-/// `localhost` under `npm run tauri dev`, and nothing else is ever the client.
+/// `localhost` under `pnpm run tauri dev`, and nothing else is ever the client.
 #[allow(dead_code)]
 fn is_own_page(uri: &str) -> bool {
     let Some((scheme, rest)) = uri.split_once("://") else {
