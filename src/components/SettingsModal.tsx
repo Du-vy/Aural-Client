@@ -131,7 +131,7 @@ export function SettingsModal({
             <div className="settings-sidebar__footer">{sidebarFooter}</div>
           ) : (
             <div className="settings-sidebar__footer">
-              <span className="settings-sidebar__version">Aural Client v0.8.8</span>
+              <span className="settings-sidebar__version">Aural Client v0.8.9</span>
             </div>
           )}
         </aside>
