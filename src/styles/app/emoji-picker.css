@@ -344,8 +344,7 @@
   border-radius: var(--radius-sm);
   overflow: hidden;
   border: 0;
-  background-size: cover;
-  background-position: center;
+  background-color: var(--bg-base);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -366,6 +365,19 @@
 .picker__category-card--trending {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   gap: 6px;
+}
+
+/* The category preview itself, laid under the gradient overlay and the label. */
+.picker__category-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .picker__category-overlay {

@@ -68,6 +68,41 @@ const GROUP_ICONS: Readonly<Record<string, string>> = {
 
 const RECENT = "Recent";
 
+/**
+ * One GIF category tile from Klipy.
+ *
+ * The preview is drawn as a real <img> instead of a CSS background so that an
+ * animated one goes through AnimatedImage and freezes with the rest of the
+ * client when the window is in the background — a background-image keeps
+ * decoding frames whatever the window is doing. Hover is held by the tile
+ * rather than the image, since the label sits on top and crossing it should
+ * not stutter the animation.
+ */
+function CategoryCard({ category, onPick }: { category: KlipyCategory; onPick(): void }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <button
+      type="button"
+      className="picker__category-card"
+      onClick={onPick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <AnimatedImage
+        src={category.preview_url}
+        alt=""
+        className="picker__category-media"
+        hovered={hovered}
+        aria-hidden="true"
+        loading="lazy"
+      />
+      <span className="picker__category-overlay" />
+      <span className="picker__category-name">{category.category}</span>
+    </button>
+  );
+}
+
 interface EmojiPickerProps {
   initialTab?: PickerTab;
   onPick(emoji: string): void;
@@ -643,16 +678,11 @@ export function EmojiPicker({
 
                 {/* Category Cards from Klipy */}
                 {categories.map((cat) => (
-                  <button
+                  <CategoryCard
                     key={cat.category}
-                    type="button"
-                    className="picker__category-card"
-                    style={{ backgroundImage: `url(${cat.preview_url})` }}
-                    onClick={() => setQuery(cat.query || cat.category)}
-                  >
-                    <span className="picker__category-overlay" />
-                    <span className="picker__category-name">{cat.category}</span>
-                  </button>
+                    category={cat}
+                    onPick={() => setQuery(cat.query || cat.category)}
+                  />
                 ))}
               </div>
             ) : loadingMedia ? (
