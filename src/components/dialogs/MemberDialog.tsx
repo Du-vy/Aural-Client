@@ -9,6 +9,7 @@ import { useVoice } from "@/store/voice";
 import { ActivityCard } from "../ActivityCard";
 import { Avatar, avatarColor, resolveAvatarUrl } from "../Avatar";
 import { CheckIcon, CloseIcon, CopyIcon, CrownIcon, PlusIcon } from "../Icons";
+import { ProfileBanner } from "../ProfileBanner";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 interface MemberDialogProps {
@@ -184,15 +185,12 @@ export function MemberDialog({
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Banner with frosted glass close button */}
-        <div
+        <ProfileBanner
           className="profile-card__banner"
-          style={
-            bannerSrc
-              ? { backgroundImage: `url("${bannerSrc}")` }
-              : {
-                  background: `linear-gradient(135deg, ${avatarColor(user.id)}cc 0%, #18191c 100%)`,
-                }
-          }
+          src={bannerSrc}
+          fallbackStyle={{
+            background: `linear-gradient(135deg, ${avatarColor(user.id)}cc 0%, #18191c 100%)`,
+          }}
         >
           <button
             type="button"
@@ -202,7 +200,7 @@ export function MemberDialog({
           >
             <CloseIcon size={16} />
           </button>
-        </div>
+        </ProfileBanner>
 
         {/* Avatar & Badges row */}
         <div className="profile-card__avatar-row">

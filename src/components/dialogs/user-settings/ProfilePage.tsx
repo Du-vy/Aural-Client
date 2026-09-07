@@ -7,6 +7,7 @@ import { useMyPermissions } from "@/store/selectors";
 import { formatBytes, parseBytes } from "@/lib/uploads";
 import { Avatar, resolveAvatarUrl } from "@/components/Avatar";
 import { ImageCropDialog } from "@/components/dialogs/ImageCropDialog";
+import { ProfileBanner } from "@/components/ProfileBanner";
 import {
   CameraIcon,
   CheckIcon,
@@ -579,8 +580,9 @@ export function ProfilePage() {
 
           <div className="profile-card-preview">
             {/* Clickable Banner */}
-            <div
+            <ProfileBanner
               className="profile-card-preview__banner profile-card-preview__banner--editable"
+              src={bannerSrc}
               role="button"
               tabIndex={0}
               title={t("profile.changeBanner")}
@@ -592,13 +594,9 @@ export function ProfilePage() {
                   bannerInputRef.current?.click();
                 }
               }}
-              style={
-                bannerSrc
-                  ? { backgroundImage: `url("${bannerSrc}")` }
-                  : {
-                      background: `linear-gradient(135deg, var(--accent, #5865F2) 0%, #0b5c51 100%)`,
-                    }
-              }
+              fallbackStyle={{
+                background: `linear-gradient(135deg, var(--accent, #5865F2) 0%, #0b5c51 100%)`,
+              }}
             >
               <div className="profile-card-preview__banner-overlay">
                 <span className="profile-card-preview__banner-badge">
@@ -622,7 +620,7 @@ export function ProfilePage() {
                   <TrashIcon size={13} />
                 </button>
               ) : null}
-            </div>
+            </ProfileBanner>
 
             {/* Avatar Row with Clickable Avatar */}
             <div className="profile-card-preview__avatar-row">

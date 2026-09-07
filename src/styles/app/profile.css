@@ -453,6 +453,20 @@
   background-color: var(--bg-rail, #18191c);
 }
 
+/* The banner image itself: laid under the close button and the edit overlay
+   so those keep their own stacking, and clipped to the card's rounded top. */
+.profile-banner__media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+
 .profile-card__close-btn {
   position: absolute;
   top: 12px;
