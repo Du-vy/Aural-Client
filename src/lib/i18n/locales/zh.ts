@@ -162,6 +162,7 @@ export const zh: DeepPartial<TranslationSchema> = {
     send: "发送消息",
   },
   mentions: {
+    discord: "Discord",
     title: "提及",
     hint: "回车插入",
     role: "身份组",
@@ -282,6 +283,11 @@ export const zh: DeepPartial<TranslationSchema> = {
     deletedChannel: "未知频道",
   },
   members: {
+    discord: "Discord",
+    discordOn: "Discord · {name} — {count}",
+    discordOnline: "Discord — {count}",
+    discordMore: "Discord 上还有 {count} 人",
+    bot: "BOT",
     title: "成员 — {count}",
     online: "在线 — {count}",
     offline: "离线 — {count}",
@@ -1114,6 +1120,12 @@ export const zh: DeepPartial<TranslationSchema> = {
     connection_failed: "无法连接到服务器。",
     unknown: "发生未知错误。",
   },
+  latency: {
+    value: "{ms} 毫秒",
+    server: "到服务器的延迟",
+    voice: "本次通话的延迟",
+  },
+
   voice: {
     connected: "语音已连接",
     connecting: "正在连接…",
@@ -1247,6 +1259,8 @@ export const zh: DeepPartial<TranslationSchema> = {
     lastActive: "活跃于 {time}",
     postedAt: "发布于 {time}",
     mediaFilesCount: "{count} 个文件",
+    mediaUnseen: "新",
+    mediaUnseenHint: "你还没有打开过",
     addFilesPrompt: "添加文件到你的帖子",
     mediaRequired: "媒体帖子至少需要上传一个文件。",
     dragDropFiles: "将文件拖放到此处，或点击浏览",

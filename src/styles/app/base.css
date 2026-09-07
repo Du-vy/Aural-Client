@@ -177,3 +177,75 @@
   }
 }
 
+
+/* --- Round-trip readout ---------------------------------------------------
+ *
+ * Three bars and a figure, drawn wherever a latency is worth showing: the
+ * sidebar header for the server, the voice panel for a call. The colour is the
+ * whole of the reading at a glance, so it is the same three tokens everything
+ * else in the client uses for good, warning and bad.
+ */
+
+.latency {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.latency__bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 10px;
+}
+
+/* Each bar is a step taller than the last, so the shape says "more" even
+ * before the colour is read. */
+.latency__bar {
+  width: 2.5px;
+  border-radius: 1px;
+  background: var(--border-strong);
+}
+
+.latency__bar:nth-child(1) {
+  height: 4px;
+}
+
+.latency__bar:nth-child(2) {
+  height: 7px;
+}
+
+.latency__bar:nth-child(3) {
+  height: 10px;
+}
+
+.latency--good .latency__bar--on {
+  background: var(--online, #23a55a);
+}
+
+.latency--fair .latency__bar--on {
+  background: var(--warning, #f0b232);
+}
+
+.latency--poor .latency__bar--on {
+  background: var(--danger);
+}
+
+.latency--good .latency__value {
+  color: var(--online, #23a55a);
+}
+
+.latency--fair .latency__value {
+  color: var(--warning, #f0b232);
+}
+
+.latency--poor .latency__value {
+  color: var(--danger);
+}

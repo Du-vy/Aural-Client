@@ -162,6 +162,7 @@ export const es: TranslationSchema = {
     send: "Enviar mensaje",
   },
   mentions: {
+    discord: "Discord",
     title: "Mencionar",
     hint: "enter para insertar",
     role: "Rol",
@@ -284,6 +285,11 @@ export const es: TranslationSchema = {
     deletedChannel: "un canal desconocido",
   },
   members: {
+    discord: "Discord",
+    discordOn: "Discord · {name} — {count}",
+    discordOnline: "Discord — {count}",
+    discordMore: "y {count} más en Discord",
+    bot: "BOT",
     title: "Miembros — {count}",
     online: "En línea — {count}",
     offline: "Desconectados — {count}",
@@ -1381,6 +1387,12 @@ export const es: TranslationSchema = {
     empty: "Este servidor todavía no tiene sonidos.",
     notAllowed: "No tienes permiso para reproducir sonidos en este canal.",
   },
+  latency: {
+    value: "{ms} ms",
+    server: "Latencia con el servidor",
+    voice: "Latencia en esta llamada",
+  },
+
   voice: {
     connected: "Voz conectada",
     connecting: "Conectando\u2026",
@@ -1514,6 +1526,8 @@ export const es: TranslationSchema = {
     lastActive: "Activo {time}",
     postedAt: "Publicado {time}",
     mediaFilesCount: "{count} archivos",
+    mediaUnseen: "Nuevo",
+    mediaUnseenHint: "Todavía no abriste esto",
     addFilesPrompt: "Añadir archivos a tu publicación",
     mediaRequired: "Se requiere al menos un archivo para una publicación de media.",
     dragDropFiles: "Arrastra y suelta archivos aquí, o haz clic para explorar",

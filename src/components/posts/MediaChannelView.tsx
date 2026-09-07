@@ -42,6 +42,7 @@ export function MediaChannelView({
   const users = useSession((state) => state.users);
   const roles = useSession((state) => state.roles);
   const deletePost = useSession((state) => state.deletePost);
+  const markPostsViewed = useSession((state) => state.markPostsViewed);
   const permissions = useMyPermissions();
 
   const mentions = useMemo(() => buildMentions(users, roles), [users, roles]);
@@ -94,6 +95,19 @@ export function MediaChannelView({
     currentAttachments.length,
     posts,
   ]);
+
+  /**
+   * Opening an entry is what marks it seen.
+   *
+   * On opening rather than on scrolling past: a thumbnail is not the picture,
+   * and a gallery that cleared itself as it went by would leave nothing to
+   * come back to. The store drops ids that are already marked, so walking back
+   * along a row with the arrow keys sends nothing.
+   */
+  useEffect(() => {
+    if (!activeMediaPost || activeMediaPost.viewed) return;
+    void markPostsViewed(channel.id, [activeMediaPost.id]);
+  }, [activeMediaPost, channel.id, markPostsViewed]);
 
   // Keyboard navigation for ArrowLeft, ArrowRight, and Escape
   useEffect(() => {
@@ -160,10 +174,15 @@ export function MediaChannelView({
           const url = primary ? attachmentUrl(address, primary) : "";
           const authorUser = post.userId !== null ? users.get(post.userId) : undefined;
 
+          // `viewed` is absent, rather than false, from a server too old to
+          // have an opinion. Treating that as seen is what keeps a gallery on
+          // one from being a wall of "new" that nothing can ever clear.
+          const unseen = post.viewed === false;
+
           return (
             <div
               key={post.id}
-              className="media-card"
+              className={unseen ? "media-card media-card--unseen" : "media-card"}
               onClick={() => openMediaModal(post)}
               role="button"
               tabIndex={0}
@@ -191,6 +210,12 @@ export function MediaChannelView({
                 {attachments.length > 1 ? (
                   <span className="media-card__count-badge">
                     {t("posts.mediaFilesCount", { count: attachments.length })}
+                  </span>
+                ) : null}
+
+                {unseen ? (
+                  <span className="media-card__unseen" title={t("posts.mediaUnseenHint")}>
+                    {t("posts.mediaUnseen")}
                   </span>
                 ) : null}
 

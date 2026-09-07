@@ -26,7 +26,11 @@ const BASE_TITLE = "Aural";
 export interface UnreadSummary {
   /** Every unread message, across servers, channels and conversations. */
   count: number;
-  /** How many of those named this user. Decides the colour of the badge. */
+  /**
+   * How many of those named this user. The taskbar badge no longer colours
+   * itself by this — see `OVERLAY_COLOUR` — but the rail still separates the
+   * two, and the sum is cheap to carry alongside.
+   */
   mentions: number;
 }
 
@@ -113,17 +117,25 @@ function drawOverlay(label: string, colour: string): Promise<Uint8Array | null> 
   });
 }
 
-async function overlayFor(summary: UnreadSummary): Promise<Uint8Array | null> {
-  const label = summary.count > 99 ? "" : String(summary.count);
-  // Mentions use danger red, general unreads use brand accent teal.
-  const colour = summary.mentions > 0 ? "#e5534b" : "#12b8a0";
-  const key = `${label}:${colour}`;
+/**
+ * The badge is always red.
+ *
+ * It used to be the brand teal for a plain unread and red only for a mention,
+ * which read well in isolation and badly in place: the app's own icon is that
+ * same teal, so the dot in its corner disappeared into it and the thing meant
+ * to be noticed was the thing hardest to see. Red is not a severity here, it
+ * is contrast against the icon it sits on.
+ */
+const OVERLAY_COLOUR = "#e5534b";
 
-  const cached = overlayCache.get(key);
+async function overlayFor(count: number): Promise<Uint8Array | null> {
+  const label = count > 99 ? "" : String(count);
+
+  const cached = overlayCache.get(label);
   if (cached) return cached;
 
-  const drawn = await drawOverlay(label, colour);
-  if (drawn) overlayCache.set(key, drawn);
+  const drawn = await drawOverlay(label, OVERLAY_COLOUR);
+  if (drawn) overlayCache.set(label, drawn);
   return drawn;
 }
 
@@ -134,32 +146,32 @@ function onWindows(): boolean {
 }
 
 /**
- * Puts the count on the icon.
+ * Puts the count on the icon, and says whether the shell took it.
  *
  * Three platforms, three mechanisms, none of which exists on the other two:
  * Windows draws an overlay image, macOS and Linux take a number, and a browser
  * has the badging API once the client has been installed. All of them are
  * best-effort — a badge that cannot be drawn is not worth surfacing as an
- * error, because the title still carries the count.
+ * error, because the title still carries the count — but a refused write is
+ * still reported back, so that the caller does not go on believing the shell
+ * is showing something it never accepted.
  */
-async function applyIconBadge(summary: UnreadSummary): Promise<void> {
-  const enabled = readNotifications().taskbarBadge;
-  const count = enabled ? summary.count : 0;
-
+async function applyIconBadge(count: number): Promise<boolean> {
   if (isTauri()) {
     try {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       const window = getCurrentWindow();
       if (onWindows()) {
-        const overlay = count > 0 ? await overlayFor(summary) : null;
+        const overlay = count > 0 ? await overlayFor(count) : null;
         await window.setOverlayIcon(overlay ?? undefined);
       } else {
         await window.setBadgeCount(count > 0 ? count : undefined);
       }
+      return true;
     } catch {
       // An older shell, or a platform with neither. The title still says it.
+      return false;
     }
-    return;
   }
 
   try {
@@ -169,9 +181,53 @@ async function applyIconBadge(summary: UnreadSummary): Promise<void> {
     };
     if (count > 0) await badging.setAppBadge?.(count);
     else await badging.clearAppBadge?.();
+    return true;
   } catch {
     // Not installed, or a browser without the badging API.
+    return false;
   }
+}
+
+/**
+ * The badge writes, one at a time.
+ *
+ * `applyIconBadge` awaits three things — the dynamic import, the PNG encode,
+ * and the IPC call into the window — and two calls that overlap can finish in
+ * whichever order they please. That is the whole of the stuck-badge bug: the
+ * last message of a burst gets read, the count drops to zero, and the clearing
+ * write lands *before* the drawing write it was meant to undo. The shell is
+ * then holding a badge nothing will take away again until the client restarts,
+ * which is exactly the symptom.
+ *
+ * So the writes are a queue of one. Whatever is asked for while a write is in
+ * flight replaces what is waiting rather than racing it, and the state the
+ * shell is left in is always the state asked for last.
+ *
+ * `shown` is what the shell is believed to be holding, and is the dedupe: a
+ * burst that does not change the count costs nothing. A write that was refused
+ * sets it back to `null` — unknown — so the next change writes again instead of
+ * being skipped as already applied.
+ */
+let wanted: number | null = null;
+let writing = false;
+let shown: number | null = null;
+
+function requestIconBadge(count: number): void {
+  wanted = count;
+  if (writing) return;
+  writing = true;
+  void (async () => {
+    try {
+      while (wanted !== null) {
+        const next = wanted;
+        wanted = null;
+        if (next === shown) continue;
+        shown = (await applyIconBadge(next)) ? next : null;
+      }
+    } finally {
+      writing = false;
+    }
+  })();
 }
 
 function applyTitle(summary: UnreadSummary): void {
@@ -197,14 +253,14 @@ export function startUnreadBadgeSync(): () => void {
   const apply = () => {
     scheduled = false;
     const summary = totalUnread();
-    // Most store writes change neither number — a message in a channel that is
-    // already unread, somebody going idle — and re-encoding an overlay icon
-    // for an unchanged count is work with no result.
-    const signature = `${summary.count}:${summary.mentions}`;
+    // Most store writes change nothing the shell is showing — a message in a
+    // channel that is already unread, somebody going idle — and re-encoding an
+    // overlay icon for an unchanged count is work with no result.
+    const signature = String(summary.count);
     if (signature === last) return;
     last = signature;
     applyTitle(summary);
-    void applyIconBadge(summary);
+    requestIconBadge(readNotifications().taskbarBadge ? summary.count : 0);
   };
 
   /** Coalesces the burst of store writes one arriving message causes. */

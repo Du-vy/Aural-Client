@@ -94,6 +94,16 @@ export const OP_ERROR = "error";
 
 /** Request ops, sent by the client. */
 export const Op = {
+  /**
+   * The round trip a client times to know its latency to a server.
+   *
+   * The socket already carries ping frames and they are the wrong ones to
+   * use: the server sends those, and the browser answers them below the layer
+   * script can see. This is the same question asked in the direction that can
+   * be measured.
+   */
+  Ping: "ping",
+
   AuthGuest: "auth.guest",
   AuthToken: "auth.token",
   AuthLogin: "auth.login",
@@ -135,6 +145,7 @@ export const Op = {
   PostUpdate: "post.update",
   PostDelete: "post.delete",
   PostRSVP: "post.rsvp",
+  PostView: "post.view",
 
   MessageSend: "message.send",
   MessageHistory: "message.history",
@@ -174,6 +185,53 @@ export const Op = {
   VoiceModerate: "voice.moderate",
   VoiceSpeaking: "voice.speaking",
 } as const;
+
+/** What `ping` answers with. The round trip is the measurement; this is spare. */
+export interface PongResponse {
+  /** The server's wall clock, in milliseconds since the epoch. */
+  serverTime: number;
+}
+
+/**
+ * One person on the Discord side of a bridged channel.
+ *
+ * Nothing here is an Aural identity, and that is why it is its own shape
+ * rather than a `User`. A Discord account has no row on this server: no roles,
+ * no permissions, no profile to open, no private thread. The member list draws
+ * them in a section of their own for exactly that reason.
+ */
+export interface RelayMember {
+  /** A Discord snowflake, and a string because it does not fit a number. */
+  id: string;
+  /** The per-guild nickname, else the display name, else the handle. */
+  name: string;
+  /** The unique @handle, which is what a mention has to be spelled as. */
+  handle?: string;
+  /** An absolute URL on Discord's CDN. */
+  avatar?: string;
+  bot?: boolean;
+  /** "online", "idle", "dnd" or "offline". Invisible reads as offline. */
+  status: string;
+}
+
+/** The Discord side of one bridged channel. */
+export interface RelayRoster {
+  /** The channel here, which is what the member list is keyed by. */
+  channelId: number;
+  guildName?: string;
+  members: RelayMember[];
+  /** How many that Discord server has in all, when the list has been trimmed. */
+  total: number;
+  /**
+   * Why there is nobody in the list, when the reason is worth showing —
+   * usually the privileged intents the bot was never granted.
+   */
+  unavailable?: string;
+}
+
+export interface RelayRosterEvent {
+  roster: RelayRoster;
+}
 
 /** Event ops, pushed by the server. */
 export const Ev = {
@@ -224,6 +282,15 @@ export const Ev = {
   RoleDeleted: "role.deleted",
 
   ServerUpdated: "server.updated",
+
+  /**
+   * Who is on the Discord side of one bridged channel.
+   *
+   * Unlike `relay.updated` this names no credential, so it reaches everybody
+   * who can see the channel: it is drawn in the member list beside the people
+   * who are actually here.
+   */
+  RelayRoster: "relay.roster",
 
   /**
    * The whole relay state after any change to it. It only reaches sessions
@@ -722,6 +789,14 @@ export interface RelayState {
   botId?: string;
   /** Why the relay is not connected, in the words the failure came in. */
   error?: string;
+  /**
+   * Why the member list has no Discord side, while the bridge itself is fine.
+   *
+   * Separate from `error` because the two are different severities: this one
+   * means everything works except a sidebar, and it is almost always the two
+   * privileged intents not being switched on for the bot.
+   */
+  rosterError?: string;
   guilds: RelayGuild[];
   links: RelayLink[];
 }
@@ -846,6 +921,15 @@ export interface Post {
   comments: number;
   /** When the thread was last added to, or creation time if no comments. */
   lastCommentAt: number;
+  /**
+   * Whether this client's own identity has opened this entry.
+   *
+   * The one field on a post that differs per reader, along with `rsvp.own`. A
+   * gallery is what it is for: pictures are not looked at in the order they
+   * were posted, so a channel read marker — a frontier — cannot say which of
+   * them are still new, and the set has to be kept per entry instead.
+   */
+  viewed?: boolean;
   /** Set on, and only on, a post in a calendar channel. */
   event?: PostEventDetails;
   /** Travels with a calendar post: tallies and current user's RSVP. */
@@ -1017,6 +1101,12 @@ export interface Ready {
   expressions?: Expression[];
   /** The soundboard, which the panel in a call is drawn from. */
   sounds?: Sound[];
+  /**
+   * Who is on the Discord side of each bridged channel this session can see.
+   * Absent on a server with no relay, and on one whose bot was never granted
+   * the privileged intents a member list needs.
+   */
+  relayRosters?: RelayRoster[];
 }
 
 // --- request payloads --------------------------------------------------------

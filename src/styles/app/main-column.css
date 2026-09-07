@@ -167,6 +167,40 @@
   opacity: 0.42;
 }
 
+/* --- The Discord side of a bridged channel -------------------------------
+ *
+ * Drawn in the same rows as the members above it so the sidebar reads as one
+ * list, and not as a button, because there is nowhere for a click to go: these
+ * are not identities on this server. The heading in Discord's own blurple is
+ * what says the section is somewhere else.
+ */
+
+.member--relay {
+  cursor: default;
+}
+
+.members__label--discord {
+  color: #5865f2;
+}
+
+.member__tag {
+  flex-shrink: 0;
+  border-radius: var(--radius-xs);
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: #5865f2;
+}
+
+.members__notice {
+  padding: 2px 8px 4px;
+  font-size: var(--font-size-caption, 11px);
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
 .member--offline:hover {
   opacity: 1;
 }

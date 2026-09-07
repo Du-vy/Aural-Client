@@ -66,8 +66,11 @@ import {
   type PostListResult,
   type PostRSVPEvent,
   type PostUpdateRequest,
+  type PongResponse,
   type Ready,
   type RelayDirection,
+  type RelayRoster,
+  type RelayRosterEvent,
   type RelayState,
   type Role,
   type RoleDeletedEvent,
@@ -389,6 +392,17 @@ export interface ConnectionState {
    */
   token: string | null;
 
+  /**
+   * The round trip to this server in milliseconds, or null when it has not
+   * been measured — before the first reply, and on a server too old to answer
+   * `ping` at all.
+   *
+   * It is the connection's own number rather than the call's: a client sitting
+   * in a text channel still wants to know whether the server is far away, and
+   * the two can differ sharply when audio is going peer to peer.
+   */
+  latencyMs: number | null;
+
   server: ServerInfo | null;
   self: User | null;
   users: Map<number, User>;
@@ -458,6 +472,21 @@ export interface ConnectionState {
    * stays null for the whole session.
    */
   relay: RelayState | null;
+  /**
+   * Who is on the Discord side of each bridged channel, keyed by the channel
+   * here.
+   *
+   * Kept apart from `users` on purpose. A Discord account has no row on this
+   * server — no roles, no permissions, no profile to open, no private thread —
+   * so folding one into the member list proper would mean every action that
+   * takes a user id having to answer what it means for somebody who is not
+   * here. The member list draws them in a section of their own instead.
+   *
+   * Empty on a server with no relay, and on one whose bot was never granted
+   * the privileged intents a roster needs. A channel whose roster is empty for
+   * that second reason still has an entry, carrying the reason.
+   */
+  relayRosters: Map<number, RelayRoster>;
 
   voiceStates: Map<number, VoiceState>;
   /** Who is transmitting on this server right now. */
@@ -662,6 +691,15 @@ export interface ConnectionState {
   updatePost(input: PostUpdateRequest): Promise<void>;
   deletePost(postId: number): Promise<void>;
   rsvpPost(postId: number, response: string): Promise<void>;
+  /**
+   * Marks entries as opened, here and on the server.
+   *
+   * Batched because a gallery is looked through in runs — the arrow key walks
+   * from one picture to the next — and a round trip per picture would be a
+   * round trip per keypress. Ids already marked are dropped before anything is
+   * sent, so walking back through a row costs nothing.
+   */
+  markPostsViewed(channelId: number, postIds: number[]): Promise<void>;
   openPostComments(channelId: number, postId: number): Promise<void>;
   loadOlderPostComments(channelId: number, postId: number): Promise<void>;
   sendPostComment(
@@ -945,6 +983,61 @@ export function createConnection({
       scheduledEpoch = 0;
     }
 
+    /**
+     * The latency probe.
+     *
+     * A measurement every ten seconds is often enough that the number on
+     * screen is about now rather than about a minute ago, and rare enough that
+     * it is nothing next to what a connection carries anyway. It is one frame
+     * out and one frame back, on the read loop, so what it times is the delay
+     * a message would actually meet.
+     *
+     * `pingSupported` is what keeps an old server from being asked forever.
+     * `ping` carries no payload, so the only way it can come back a bad
+     * request is a server that has never heard of the op — and the honest
+     * thing to show for that is no number at all.
+     */
+    const PING_INTERVAL_MS = 10_000;
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let pingInFlight = false;
+    let pingSupported = true;
+
+    async function measureLatency(epoch: number): Promise<void> {
+      // One at a time. A round trip that outlasts the interval means a
+      // connection in trouble, and stacking requests on it would not help.
+      if (pingInFlight || !pingSupported) return;
+      const { gateway } = get();
+      if (!gateway?.isOpen) return;
+
+      pingInFlight = true;
+      const sent = performance.now();
+      try {
+        await gateway.request<PongResponse>(Op.Ping);
+        if (epoch === connectionEpoch) set({ latencyMs: Math.round(performance.now() - sent) });
+      } catch (error) {
+        if (error instanceof AuralError && error.code === "bad_request") {
+          pingSupported = false;
+          stopPinging();
+        }
+        if (epoch === connectionEpoch) set({ latencyMs: null });
+      } finally {
+        pingInFlight = false;
+      }
+    }
+
+    function startPinging(epoch: number): void {
+      stopPinging();
+      if (!pingSupported) return;
+      void measureLatency(epoch);
+      pingTimer = setInterval(() => void measureLatency(epoch), PING_INTERVAL_MS);
+    }
+
+    function stopPinging(): void {
+      if (pingTimer === null) return;
+      clearInterval(pingTimer);
+      pingTimer = null;
+    }
+
     /** The gateway of a live connection, or a thrown error explaining why not. */
     function requireGateway(): Gateway {
       const { gateway } = get();
@@ -1144,6 +1237,7 @@ export function createConnection({
         ),
         expressions: indexById(ready.expressions ?? []),
         sounds: indexById(ready.sounds ?? []),
+        relayRosters: new Map((ready.relayRosters ?? []).map((r) => [r.channelId, r])),
         voiceStates,
         speaking,
       });
@@ -2010,6 +2104,16 @@ export function createConnection({
           return;
         }
 
+        case Ev.RelayRoster: {
+          // Unlike the state above, this reaches everybody who can see the
+          // channel: it names no credential, only who is on the other side.
+          const { roster } = payload as RelayRosterEvent;
+          const rosters = new Map(get().relayRosters);
+          rosters.set(roster.channelId, roster);
+          set({ relayRosters: rosters });
+          return;
+        }
+
         case Ev.RelayUpdated: {
           // Only sessions that may manage the server are sent this at all, so
           // arriving is the whole of the authorisation check.
@@ -2098,6 +2202,7 @@ export function createConnection({
      */
     function endSession(message: string, wasConnected: boolean): void {
       cancelReconnect();
+      stopPinging();
       resumeChannelId = null;
       readAt.clear();
       forgetReadMarkers();
@@ -2108,6 +2213,7 @@ export function createConnection({
         error: wasConnected ? null : message,
         gateway: null,
         token: null,
+        latencyMs: null,
         server: null,
         self: null,
         users: new Map(),
@@ -2184,6 +2290,7 @@ export function createConnection({
     function handleClose(epoch: number, info: CloseInfo): void {
       if (epoch !== connectionEpoch) return;
 
+      stopPinging();
       const state = get();
       const wasConnected = state.status === "connected";
       // Where to come back to. It is read before the teardown, because the
@@ -2237,6 +2344,7 @@ export function createConnection({
       address: null,
       gateway: null,
       token: null,
+      latencyMs: null,
       server: null,
       self: null,
       users: new Map(),
@@ -2256,6 +2364,7 @@ export function createConnection({
       audit: { entries: [], hasMore: false, loading: false, error: null },
       automod: null,
       relay: null,
+      relayRosters: new Map(),
       voiceStates: new Map(),
       speaking: new Set(),
       search: EMPTY_SEARCH,
@@ -2409,8 +2518,10 @@ export function createConnection({
           address,
           gateway,
           token: ready.sessionToken ?? token ?? null,
+          latencyMs: null,
         });
         applySnapshot(ready, true);
+        startPinging(epoch);
 
         // Walk back into the channel the dropped connection was in. The server
         // holds membership only for the life of a connection, so a reconnected
@@ -2424,6 +2535,7 @@ export function createConnection({
 
       disconnect() {
         cancelReconnect();
+        stopPinging();
         resumeChannelId = null;
         lastOptions = null;
         connectionEpoch += 1;
@@ -2438,6 +2550,7 @@ export function createConnection({
           gateway: null,
           address: null,
           token: null,
+          latencyMs: null,
           server: null,
           self: null,
           users: new Map(),
@@ -2457,6 +2570,7 @@ export function createConnection({
           audit: { entries: [], hasMore: false, loading: false, error: null },
           automod: null,
           relay: null,
+          relayRosters: new Map(),
           voiceStates: new Map(),
           speaking: new Set(),
           search: EMPTY_SEARCH,
@@ -3341,6 +3455,33 @@ export function createConnection({
             }),
           });
           set({ posts: postsMap });
+        }
+      },
+
+      async markPostsViewed(channelId, postIds) {
+        const current = get().posts.get(channelId);
+        if (!current) return;
+        const pending = postIds.filter((id) => current.posts.some((p) => p.id === id && !p.viewed));
+        if (pending.length === 0) return;
+
+        // Optimistic, and deliberately not rolled back on failure. The mark is
+        // a convenience, not a record: showing a picture as seen when the
+        // server did not hear about it is a far smaller wrong than making the
+        // dot flicker back on under somebody's cursor. The next listing tells
+        // the truth either way.
+        const marked = new Set(pending);
+        const postsMap = new Map(get().posts);
+        postsMap.set(channelId, {
+          ...current,
+          posts: current.posts.map((p) => (marked.has(p.id) ? { ...p, viewed: true } : p)),
+        });
+        set({ posts: postsMap });
+
+        try {
+          await requireGateway().request(Op.PostView, { channelId, postIds: pending });
+        } catch {
+          // An older server that has never heard of the op, or one that went
+          // while this was in flight.
         }
       },
 

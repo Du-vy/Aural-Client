@@ -39,6 +39,7 @@ import { MemberList } from "@/components/MemberList";
 import { notificationMenuEntries } from "@/components/NotificationMenu";
 import { SearchBar } from "@/components/SearchBar";
 import { SearchResults } from "@/components/SearchResults";
+import { LatencyBadge } from "@/components/LatencyBadge";
 import { UserPanel } from "@/components/UserPanel";
 import { VoicePanel } from "@/components/VoicePanel";
 import { useVoice } from "@/store/voice";
@@ -146,6 +147,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
   const self = useSession((state) => state.self);
   const serverId = useSession((state) => state.serverId);
   const status = useSession((state) => state.status);
+  const latencyMs = useSession((state) => state.latencyMs);
   const notice = useSession((state) => state.notice);
   const dismissNotice = useSession((state) => state.dismissNotice);
   const address = useSession((state) => state.address);
@@ -840,7 +842,8 @@ export function ServerView({ onAddServer }: ServerViewProps) {
               <span className="sidebar__name" title={server.description || server.name}>
                 {server.name}
               </span>
-              <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <LatencyBadge latencyMs={latencyMs} kind="server" />
                 <ChevronIcon size={14} />
               </span>
             </header>

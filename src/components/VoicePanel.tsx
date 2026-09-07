@@ -4,6 +4,7 @@ import { canOpenPrivacySettings, openPrivacySettings } from "@/lib/open";
 import { readAccessibility } from "@/lib/storage";
 import { playMuteCue } from "@/lib/audioCues";
 import { ConfirmDialog } from "./dialogs/ConfirmDialog";
+import { LatencyBadge } from "./LatencyBadge";
 import { SoundboardPanel } from "./SoundboardPanel";
 import { useCall, useServerRegistry, useServers } from "@/store/servers";
 import { useVoice } from "@/store/voice";
@@ -56,6 +57,7 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
   const carriesAudio = useVoice((state) => state.config?.enabled ?? false);
   const mode = useVoice((state) => state.mode);
   const hostUserId = useVoice((state) => state.hostUserId);
+  const latencyMs = useVoice((state) => state.latencyMs);
   const toggleMute = useVoice((state) => state.toggleMute);
   const toggleDeafen = useVoice((state) => state.toggleDeafen);
   const retryMicrophone = useVoice((state) => state.retryMicrophone);
@@ -109,7 +111,10 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
       <div className="voicepanel__head">
         <span className="voicepanel__dot" aria-hidden="true" />
         <span className="voicepanel__body">
-          <span className="voicepanel__status">{statusLabel}</span>
+          <span className="voicepanel__status">
+            {statusLabel}
+            {status === "connected" ? <LatencyBadge latencyMs={latencyMs} kind="voice" /> : null}
+          </span>
           <span className="voicepanel__channel">
             <VoiceIcon size={12} />
             {channel.name}

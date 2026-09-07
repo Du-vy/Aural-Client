@@ -19,7 +19,7 @@
  * and the raw text of a message stays something a person can read.
  */
 
-import type { ReferencedMessage, Role, User } from "./protocol";
+import type { ReferencedMessage, RelayMember, Role, User } from "./protocol";
 
 /** The two keyword mentions: everybody, and everybody who is here. */
 export const EVERYONE = "everyone";
@@ -48,12 +48,27 @@ const MAX_MENTION_ID_DIGITS = 24;
  */
 const WORDISH = /[\p{L}\p{N}_-]/u;
 
-export type MentionKind = "user" | "role" | "keyword";
+/**
+ * What a mention can name.
+ *
+ * "discord" is somebody on the other side of a relayed channel. They are named
+ * the same way anybody else is — the picker inserts `@handle`, the text stays
+ * text — and the difference is entirely in what happens to the message
+ * afterwards: the server rewrites that name into the id Discord resolves on
+ * the way across, and lists it as the one account the message may ping. On
+ * this side it draws as a mention that opens no profile, because there is no
+ * profile here to open.
+ */
+export type MentionKind = "user" | "role" | "keyword" | "discord";
 
 /** Somebody, or something, that can be named. */
 export interface MentionTarget {
   kind: MentionKind;
-  /** The user or role id. 0 for a keyword, which names no record. */
+  /**
+   * The user or role id. 0 for a keyword, which names no record, and for
+   * somebody on Discord, whose id is a snowflake that does not survive being
+   * made a number — and which nothing on this side would do anything with.
+   */
   id: number;
   /** What is written after the `@`, and what is drawn in place of it. */
   name: string;
@@ -63,6 +78,8 @@ export interface MentionTarget {
   color: string | null;
   /** The live record, so a picker can draw a face and a presence. */
   user: User | null;
+  /** The same, for somebody on the Discord side. Set only on "discord". */
+  relay?: RelayMember;
 }
 
 /**
@@ -128,6 +145,7 @@ export function buildMentions(
   users: ReadonlyMap<number, User>,
   roles: ReadonlyMap<number, Role>,
   keywords = true,
+  relay: readonly RelayMember[] = [],
 ): MentionDirectory {
   const targets: MentionTarget[] = [];
 
@@ -161,6 +179,27 @@ export function buildMentions(
     });
   }
 
+  // Whoever is on the Discord side of this channel, when it is bridged.
+  //
+  // Named by handle rather than by display name, because the handle is the one
+  // spelling of a Discord account that is unique and can never contain a
+  // space: a mention is a run of word characters after an @, so "Ada Lovelace"
+  // is not writable as one on either side. The display name is kept as the
+  // second spelling, so typing it still resolves when it happens to be one
+  // word and unambiguous.
+  for (const member of relay) {
+    const handle = member.handle || member.name;
+    targets.push({
+      kind: "discord",
+      id: 0,
+      name: handle,
+      alias: member.name !== handle ? member.name : null,
+      color: null,
+      user: null,
+      relay: member,
+    });
+  }
+
   const everyone: MentionTarget = {
     kind: "keyword",
     id: 0,
@@ -178,8 +217,12 @@ export function buildMentions(
   const byId = new Map<string, MentionTarget>();
   let longest = 0;
   for (const target of targets) {
-    // A keyword names no record, so there is no id that could reach it.
-    if (target.kind !== "keyword") byId.set(idKey(target.kind, target.id), target);
+    // A keyword names no record, so there is no id that could reach it, and
+    // somebody on Discord has no id on this side either — theirs is a
+    // snowflake that never becomes one of these numbers.
+    if (target.kind === "user" || target.kind === "role") {
+      byId.set(idKey(target.kind, target.id), target);
+    }
     for (const spelling of [target.name, target.alias]) {
       if (!spelling) continue;
       const key = spelling.toLowerCase();

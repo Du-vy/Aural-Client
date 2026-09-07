@@ -100,6 +100,18 @@ export interface VoiceHandlers {
    * got another deserves to be told, so this is reported rather than assumed.
    */
   onDenoising(active: boolean): void;
+  /**
+   * The round trip on the slowest link of the call, in milliseconds, or null
+   * when there is nothing to measure yet.
+   *
+   * The slowest rather than an average because a call is only as good as its
+   * worst leg. In the two topologies where this client has one link — the
+   * relay carrying it, or the host carrying it — the slowest link is that one
+   * link and the number is simply "my ping". On the client that is itself the
+   * host, it is the furthest person in the call, which is the number that
+   * client can actually do something about.
+   */
+  onLatency(latencyMs: number | null): void;
 }
 
 export interface EngineOptions {
@@ -273,6 +285,7 @@ export class VoiceEngine {
   private generation = 0;
   private reconnects = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private latencyTimer: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
 
   constructor(options: EngineOptions, settings: EngineSettings) {
@@ -594,6 +607,7 @@ export class VoiceEngine {
     if (generation !== this.generation || this.disposed) return;
     this.reconnects = 0;
     this.setStatus("connected", null);
+    this.startLatencySampling();
   }
 
   private async openServerHosted(generation: number, channelId: number): Promise<void> {
@@ -1081,6 +1095,7 @@ export class VoiceEngine {
   }
 
   private teardownMedia(): void {
+    this.stopLatencySampling();
     for (const link of this.links.values()) link.close();
     this.links.clear();
     this.held.clear();
@@ -1125,6 +1140,91 @@ export class VoiceEngine {
     this.status = status;
     this.handlers.onStatus(status, error);
   }
+
+  // --- latency ---------------------------------------------------------------
+
+  /**
+   * Starts sampling the round trip on the peer connections.
+   *
+   * ICE measures this for free — every connection keeps the round trip of the
+   * candidate pair it settled on — so nothing has to be sent to find it out.
+   * All this does is read the number the transport already has, which is why
+   * it can afford to do so every two seconds: the figure is about the call
+   * happening now, and one that lagged half a minute behind would be worse
+   * than none.
+   */
+  private startLatencySampling(): void {
+    this.stopLatencySampling();
+    void this.sampleLatency();
+    this.latencyTimer = setInterval(() => void this.sampleLatency(), LATENCY_SAMPLE_MS);
+  }
+
+  private stopLatencySampling(): void {
+    if (this.latencyTimer !== null) {
+      clearInterval(this.latencyTimer);
+      this.latencyTimer = null;
+    }
+    this.handlers.onLatency(null);
+  }
+
+  private async sampleLatency(): Promise<void> {
+    const generation = this.generation;
+    const links = [...this.links.values()];
+    if (links.length === 0) {
+      this.handlers.onLatency(null);
+      return;
+    }
+
+    let worst: number | null = null;
+    for (const link of links) {
+      const rtt = await roundTripOf(link.pc);
+      // The session may have been torn down and rebuilt while these were
+      // being read, and reporting the old one's numbers over the new one's
+      // would be worse than skipping a sample.
+      if (generation !== this.generation || this.disposed) return;
+      if (rtt !== null && (worst === null || rtt > worst)) worst = rtt;
+    }
+    this.handlers.onLatency(worst);
+  }
+}
+
+/** How often the peer connections are asked what their round trip is. */
+const LATENCY_SAMPLE_MS = 2_000;
+
+/**
+ * The round trip of one peer connection in milliseconds, or null.
+ *
+ * The candidate pair in use is the authority: it is the path the audio takes,
+ * and its round trip is measured by ICE's own checks rather than inferred.
+ * `remote-inbound-rtp` is the fallback, because a pair reports nothing until
+ * enough checks have gone by, while RTCP reports as soon as media flows.
+ */
+async function roundTripOf(pc: RTCPeerConnection): Promise<number | null> {
+  let report: RTCStatsReport;
+  try {
+    report = await pc.getStats();
+  } catch {
+    // A connection closed underneath the call.
+    return null;
+  }
+
+  let pairSeconds: number | null = null;
+  let rtcpSeconds: number | null = null;
+  report.forEach((entry) => {
+    const stat = entry as { type?: string; state?: string; currentRoundTripTime?: number; roundTripTime?: number };
+    if (stat.type === "candidate-pair" && stat.state === "succeeded" && typeof stat.currentRoundTripTime === "number") {
+      // Several pairs can read as succeeded after a route change; the live one
+      // is whichever is answering fastest.
+      if (pairSeconds === null || stat.currentRoundTripTime < pairSeconds) {
+        pairSeconds = stat.currentRoundTripTime;
+      }
+    } else if (stat.type === "remote-inbound-rtp" && typeof stat.roundTripTime === "number") {
+      rtcpSeconds = stat.roundTripTime;
+    }
+  });
+
+  const seconds: number | null = pairSeconds ?? rtcpSeconds;
+  return seconds === null ? null : Math.round(seconds * 1000);
 }
 
 function sameCapture(a: CaptureOptions, b: CaptureOptions): boolean {

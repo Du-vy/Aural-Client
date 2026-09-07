@@ -950,6 +950,34 @@
   color: var(--text);
 }
 
+/* --- "New" in a gallery ----------------------------------------------------
+ *
+ * Two marks for one state, because a wall of thumbnails is scanned rather than
+ * read: the pill says which entry, and the ring is what makes it findable
+ * without looking at each card in turn. Both go the moment it is opened.
+ */
+
+.media-card__unseen {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--danger);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+.media-card--unseen .media-card__thumb-wrapper {
+  outline: 2px solid var(--danger);
+  outline-offset: -2px;
+  border-radius: inherit;
+}
+
 .media-card__audio-thumb,
 .media-card__file-thumb {
   color: var(--text-dim);

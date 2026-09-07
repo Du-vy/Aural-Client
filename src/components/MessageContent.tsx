@@ -63,6 +63,10 @@ function namesReader(target: MentionTarget, self: User | null | undefined): bool
   if (!self) return false;
   if (target.kind === "keyword") return true;
   if (target.kind === "role") return self.roles.includes(target.id);
+  // Somebody on the other side of a bridge is never the reader — they are not
+  // on this server — and their id is zero, which is why this is checked rather
+  // than left to the comparison below.
+  if (target.kind === "discord") return false;
   return target.id === self.id;
 }
 
@@ -205,8 +209,9 @@ export function MessageContent({
             const className = mine ? "mention mention--self" : "mention";
 
             // A member is a button because there is somewhere to go: their
-            // profile. A role or a keyword names nobody in particular, so it
-            // is drawn rather than offered.
+            // profile. A role or a keyword names nobody in particular, and
+            // somebody on the Discord side of a bridge has no profile on this
+            // server, so all three are drawn rather than offered.
             if (target.kind === "user" && onOpenMember) {
               return (
                 <button

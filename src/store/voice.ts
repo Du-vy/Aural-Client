@@ -75,6 +75,16 @@ interface VoiceStoreState {
   denoising: boolean | null;
   mode: VoiceConfig["mode"] | null;
   hostUserId: number | null;
+  /**
+   * The round trip on the slowest link of the call, in milliseconds, or null
+   * before there is anything to measure.
+   *
+   * It is kept apart from the connection's own latency because the two are
+   * genuinely different distances: audio in `client_host` mode never touches
+   * the server, so a call can be quick on a server that is far away, or slow
+   * on one that is next door.
+   */
+  latencyMs: number | null;
 
   /**
    * This client's own voice state on the server carrying the call.
@@ -226,6 +236,9 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
           onAudio: (userId, present) => markAudible(userId, present),
           onMicrophone: (micError) => set({ micError }),
           onDenoising: (denoising) => set({ denoising }),
+          onLatency: (latencyMs) => {
+            if (get().latencyMs !== latencyMs) set({ latencyMs });
+          },
         },
       },
       settings(prefs, config),
@@ -304,6 +317,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
     denoising: null,
     mode: null,
     hostUserId: null,
+    latencyMs: null,
     own: null,
     audible: new Set(),
     level: 0,
@@ -376,6 +390,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
         denoising: null,
         mode: null,
         hostUserId: null,
+        latencyMs: null,
         own: null,
         audible: new Set(),
         level: 0,
@@ -417,7 +432,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
     },
 
     exit() {
-      set({ channelId: null, hostUserId: null, level: 0 });
+      set({ channelId: null, hostUserId: null, latencyMs: null, level: 0 });
       void engine?.leave();
     },
 

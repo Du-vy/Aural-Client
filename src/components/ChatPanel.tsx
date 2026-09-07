@@ -58,7 +58,14 @@ export function ChatPanel({
 
   // Built once per change to the member list rather than once per message:
   // both the picker and every message in the window resolve against it.
-  const mentions = useMemo(() => buildMentions(users, roles), [users, roles]);
+  // Whoever is on the Discord side of this channel joins the picker, which is
+  // what makes tagging them possible: a name has to be offerable before it can
+  // be typed. The server does the rest on the way across.
+  const relayRoster = useSession((state) => state.relayRosters.get(channel.id));
+  const mentions = useMemo(
+    () => buildMentions(users, roles, true, relayRoster?.members ?? []),
+    [users, roles, relayRoster],
+  );
   // The same reasoning: one lookup per change to the server's emoji, rather
   // than one per message rendered.
   const emojis = useMemo(() => emojiDirectory(expressions.values()), [expressions]);

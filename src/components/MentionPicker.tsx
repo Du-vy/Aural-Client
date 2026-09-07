@@ -62,6 +62,17 @@ export function MentionPicker({ targets, active, onHover, onPick }: MentionPicke
               <span className="mention-option__face">
                 {target.user ? (
                   <Avatar user={target.user} size="sm" status={target.user.status} showStatus />
+                ) : target.relay ? (
+                  <Avatar
+                    user={{
+                      id: 0,
+                      nickname: target.relay.name,
+                      avatar: target.relay.avatar ?? null,
+                    }}
+                    size="sm"
+                    status={target.relay.status}
+                    showStatus
+                  />
                 ) : (
                   <span
                     className="mention-option__dot"
@@ -96,6 +107,12 @@ function detailOf(
     return target.name === EVERYONE ? t("mentions.everyone") : t("mentions.here");
   }
   if (target.kind === "role") return t("mentions.role");
+  // Somebody on the other side of a bridge. The label says where rather than
+  // whether they are around: their presence is already the colour of the dot,
+  // and "online" beside a name in this list would read as online here.
+  if (target.kind === "discord") {
+    return target.alias ? `${t("mentions.discord")} · ${target.alias}` : t("mentions.discord");
+  }
   if (target.alias) return `@${target.alias}`;
   return target.user?.online ? t("common.online") : t("common.offline");
 }

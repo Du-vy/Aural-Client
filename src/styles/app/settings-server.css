@@ -443,6 +443,19 @@
 /* Whatever the last connection failed with. It is a whole paragraph rather
    than a line because the message that matters most — the message content
    intent being off — is a sentence, not a code. */
+/* The bridge works and the sidebar does not: a warning rather than a failure,
+   and coloured as one so the two are not read as the same news. */
+.relay-card__warning {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--warning, #f0b232);
+  border-radius: var(--radius-xs);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .relay-card__failure {
   margin: 12px 0 0;
   padding: 8px 10px;

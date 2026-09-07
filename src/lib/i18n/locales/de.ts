@@ -162,6 +162,7 @@ export const de: DeepPartial<TranslationSchema> = {
     send: "Nachricht senden",
   },
   mentions: {
+    discord: "Discord",
     title: "Erwähnen",
     hint: "Enter zum Einfügen",
     role: "Rolle",
@@ -282,6 +283,11 @@ export const de: DeepPartial<TranslationSchema> = {
     deletedChannel: "ein unbekannter Kanal",
   },
   members: {
+    discord: "Discord",
+    discordOn: "Discord · {name} — {count}",
+    discordOnline: "Discord — {count}",
+    discordMore: "und {count} weitere auf Discord",
+    bot: "BOT",
     title: "Mitglieder — {count}",
     online: "Online — {count}",
     offline: "Offline — {count}",
@@ -1114,6 +1120,12 @@ export const de: DeepPartial<TranslationSchema> = {
     connection_failed: "Verbindung zum Server konnte nicht hergestellt werden.",
     unknown: "Ein unerwarteter Fehler ist aufgetreten.",
   },
+  latency: {
+    value: "{ms} ms",
+    server: "Latenz zum Server",
+    voice: "Latenz in diesem Anruf",
+  },
+
   voice: {
     connected: "Sprachverbindung hergestellt",
     connecting: "Verbindung wird hergestellt…",
@@ -1247,6 +1259,8 @@ export const de: DeepPartial<TranslationSchema> = {
     lastActive: "Aktiv {time}",
     postedAt: "Gepostet {time}",
     mediaFilesCount: "{count} Dateien",
+    mediaUnseen: "Neu",
+    mediaUnseenHint: "Du hast das noch nicht geöffnet",
     addFilesPrompt: "Dateien zum Beitrag hinzufügen",
     mediaRequired: "Für einen Medienbeitrag wird mindestens eine Datei benötigt.",
     dragDropFiles: "Dateien hierher ziehen oder klicken zum Durchsuchen",

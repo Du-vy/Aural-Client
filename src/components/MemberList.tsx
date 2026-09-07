@@ -4,7 +4,7 @@ import { CrownIcon } from "@/components/Icons";
 import { useTranslation } from "@/lib/i18n";
 import { useSession } from "@/store/session";
 import { colorRoleOf, groupMembers, isOnline } from "@/store/selectors";
-import type { User } from "@/lib/protocol";
+import type { RelayMember, User } from "@/lib/protocol";
 import { Avatar } from "./Avatar";
 import { ActivityGlyph, activityText, activityTooltip } from "./ActivityCard";
 
@@ -22,8 +22,16 @@ export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProp
   const users = useSession((state) => state.users);
   const roles = useSession((state) => state.roles);
   const channels = useSession((state) => state.channels);
+  const activeChannelId = useSession((state) => state.activeChannelId);
+  const relayRosters = useSession((state) => state.relayRosters);
 
   const groups = useMemo(() => groupMembers(users, roles), [users, roles]);
+
+  // The Discord side of this channel, when it is bridged to one. It hangs off
+  // the channel rather than the server because a link is a pair of channels:
+  // two channels here can be bridged to two different Discord servers, and one
+  // list of "the people on Discord" would be a list of two rooms at once.
+  const roster = activeChannelId === null ? undefined : relayRosters.get(activeChannelId);
 
   return (
     <aside className="members">
@@ -105,7 +113,79 @@ export function MemberList({ onOpenMember, onContextMenuMember }: MemberListProp
             </section>
           );
         })}
+
+        {roster ? <RelayGroup roster={roster} /> : null}
       </div>
     </aside>
   );
+}
+
+/**
+ * The people on the Discord side of a bridged channel.
+ *
+ * A section of its own, below the members, and deliberately not clickable.
+ * These are not identities on this server: there is no profile to open, no
+ * private thread to start, nothing to moderate. Drawing them as buttons would
+ * promise all of that. What they are for is the question a bridged channel
+ * actually raises — is anyone over there to answer — and, once a name is on
+ * screen, being able to type it.
+ */
+function RelayGroup({ roster }: { roster: import("@/lib/protocol").RelayRoster }) {
+  const { t } = useTranslation();
+
+  if (roster.unavailable) {
+    return (
+      <section className="members__group">
+        <h3 className="members__label">{t("members.discord")}</h3>
+        <p className="members__notice">{roster.unavailable}</p>
+      </section>
+    );
+  }
+  if (roster.members.length === 0) return null;
+
+  const online = roster.members.filter((m) => m.status !== "offline").length;
+  const hidden = Math.max(0, roster.total - roster.members.length);
+
+  return (
+    <section className="members__group">
+      <h3 className="members__label members__label--discord">
+        {roster.guildName
+          ? t("members.discordOn", { name: roster.guildName, count: online })
+          : t("members.discordOnline", { count: online })}
+      </h3>
+      {roster.members.map((member) => (
+        <div
+          key={member.id}
+          className={member.status === "offline" ? "member member--offline member--relay" : "member member--relay"}
+          title={member.handle ? `@${member.handle}` : member.name}
+        >
+          <Avatar user={relayAvatar(member)} size="md" status={member.status} showStatus />
+          <span className="member__body">
+            <span className="member__title">
+              <span className="member__name">{member.name}</span>
+              {member.bot ? <span className="member__tag">{t("members.bot")}</span> : null}
+            </span>
+            <span className="member__meta">{member.handle ? `@${member.handle}` : t("members.discord")}</span>
+          </span>
+        </div>
+      ))}
+      {hidden > 0 ? <p className="members__notice">{t("members.discordMore", { count: hidden })}</p> : null}
+    </section>
+  );
+}
+
+/**
+ * A Discord member in the shape the avatar draws.
+ *
+ * The id is only ever used to pick a fallback colour, and a snowflake does not
+ * survive being made a number — so it is folded into one rather than parsed,
+ * which keeps the same person the same colour without pretending the value
+ * means anything.
+ */
+function relayAvatar(member: RelayMember) {
+  let hash = 0;
+  for (let i = 0; i < member.id.length; i += 1) {
+    hash = (hash * 31 + member.id.charCodeAt(i)) | 0;
+  }
+  return { id: hash, nickname: member.name, avatar: member.avatar ?? null, status: member.status };
 }

@@ -165,6 +165,7 @@ export const en = {
     send: "Send message",
   },
   mentions: {
+    discord: "Discord",
     title: "Mention",
     hint: "enter to insert",
     role: "Role",
@@ -287,6 +288,11 @@ export const en = {
     deletedChannel: "an unknown channel",
   },
   members: {
+    discord: "Discord",
+    discordOn: "Discord · {name} — {count}",
+    discordOnline: "Discord — {count}",
+    discordMore: "and {count} more on Discord",
+    bot: "BOT",
     title: "Members — {count}",
     online: "Online — {count}",
     offline: "Offline — {count}",
@@ -1386,6 +1392,13 @@ export const en = {
     empty: "This server has no sounds yet.",
     notAllowed: "You are not allowed to play sounds in this channel.",
   },
+  /** The round-trip readout, drawn beside the server name and in a call. */
+  latency: {
+    value: "{ms} ms",
+    server: "Round trip to the server",
+    voice: "Round trip on this call",
+  },
+
   voice: {
     connected: "Voice connected",
     connecting: "Connecting\u2026",
@@ -1519,6 +1532,8 @@ export const en = {
     lastActive: "Active {time}",
     postedAt: "Posted {time}",
     mediaFilesCount: "{count} files",
+    mediaUnseen: "New",
+    mediaUnseenHint: "You have not opened this yet",
     addFilesPrompt: "Add files to your post",
     mediaRequired: "At least one file upload is required for a media post.",
     dragDropFiles: "Drag and drop files here, or click to browse",

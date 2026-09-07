@@ -159,6 +159,14 @@ function RelayConnectionCard() {
           difference between a five-minute fix and an afternoon. */}
       {relay?.error && enabled ? <p className="relay-card__failure">{relay.error}</p> : null}
 
+      {/* And the softer one beside it: the bridge is up, but the member list
+          has no Discord side because the two intents it needs were never
+          switched on. A warning rather than a failure, because everything the
+          relay exists for is working. */}
+      {relay?.rosterError && enabled ? (
+        <p className="relay-card__warning">{relay.rosterError}</p>
+      ) : null}
+
       <button
         type="button"
         className="relay-steps__toggle"

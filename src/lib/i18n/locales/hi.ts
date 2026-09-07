@@ -162,6 +162,7 @@ export const hi: DeepPartial<TranslationSchema> = {
     send: "संदेश भेजें",
   },
   mentions: {
+    discord: "Discord",
     title: "उल्लेख करें",
     hint: "जोड़ने के लिए एंटर",
     role: "भूमिका",
@@ -282,6 +283,11 @@ export const hi: DeepPartial<TranslationSchema> = {
     deletedChannel: "एक अज्ञात चैनल",
   },
   members: {
+    discord: "Discord",
+    discordOn: "Discord · {name} — {count}",
+    discordOnline: "Discord — {count}",
+    discordMore: "और Discord पर {count} और",
+    bot: "BOT",
     title: "सदस्य — {count}",
     online: "ऑनलाइन — {count}",
     offline: "ऑफ़लाइन — {count}",
@@ -1114,6 +1120,12 @@ export const hi: DeepPartial<TranslationSchema> = {
     connection_failed: "सर्वर से कनेक्ट नहीं हो सका।",
     unknown: "एक अप्रत्याशित त्रुटि उत्पन्न हुई।",
   },
+  latency: {
+    value: "{ms} ms",
+    server: "सर्वर तक की लेटेंसी",
+    voice: "इस कॉल में लेटेंसी",
+  },
+
   voice: {
     connected: "वॉइस कनेक्टेड",
     connecting: "कनेक्ट हो रहा है…",
@@ -1247,6 +1259,8 @@ export const hi: DeepPartial<TranslationSchema> = {
     lastActive: "सक्रिय {time}",
     postedAt: "पोस्ट किया {time}",
     mediaFilesCount: "{count} फ़ाइलें",
+    mediaUnseen: "नया",
+    mediaUnseenHint: "आपने इसे अभी तक नहीं खोला है",
     addFilesPrompt: "अपनी पोस्ट में फ़ाइलें जोड़ें",
     mediaRequired: "मीडिया पोस्ट के लिए कम से कम एक फ़ाइल आवश्यक है।",
     dragDropFiles: "फ़ाइलें यहाँ खींचें या ब्राउज़ करने के लिए क्लिक करें",
