@@ -5,8 +5,7 @@
 .voicepanel {
   flex-shrink: 0;
   padding: 8px 10px 6px;
-  background: var(--bg-rail);
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
 .voicepanel__head {

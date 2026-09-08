@@ -34,7 +34,8 @@
   background: transparent !important;
 }
 
-[data-has-custom-bg="true"] .rail {
+[data-has-custom-bg="true"] .rail,
+[data-has-custom-bg="true"] .dock {
   background: rgba(14, 16, 22, 0.8) !important;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);

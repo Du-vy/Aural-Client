@@ -6,8 +6,6 @@ import { formatTime, formatDay } from "@/lib/time";
 import { useAllConversations } from "@/store/servers";
 import { Avatar } from "./Avatar";
 import { CloseIcon, FolderIcon, MessageSquareIcon, SearchIcon } from "./Icons";
-import { UserPanel } from "./UserPanel";
-import { VoicePanel } from "./VoicePanel";
 
 export interface DirectMessagesSidebarProps {
   activeServerId: string | null;
@@ -15,9 +13,6 @@ export interface DirectMessagesSidebarProps {
   onSelectConversation(serverId: string, userId: number): void;
   onCloseConversation(serverId: string, userId: number): void;
   onContextMenuMember?(event: React.MouseEvent, user: User, serverId: string): void;
-  onOpenAccount(): void;
-  onOpenStatus(): void;
-  onOpenVoiceSettings(): void;
 }
 
 function formatRelativeTime(seconds: number): string {
@@ -42,9 +37,6 @@ export function DirectMessagesSidebar({
   onSelectConversation,
   onCloseConversation,
   onContextMenuMember,
-  onOpenAccount,
-  onOpenStatus,
-  onOpenVoiceSettings,
 }: DirectMessagesSidebarProps) {
   const { t } = useTranslation();
   const conversations = useAllConversations();
@@ -250,9 +242,6 @@ export function DirectMessagesSidebar({
           })
         )}
       </div>
-
-      <VoicePanel onOpenVoiceSettings={onOpenVoiceSettings} />
-      <UserPanel onOpenAccount={onOpenAccount} onOpenStatus={onOpenStatus} />
     </div>
   );
 }

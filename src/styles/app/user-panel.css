@@ -1,4 +1,4 @@
-/* The user panel at the foot of the sidebar, and avatars wherever they appear. */
+/* The user panel at the foot of the dock, and avatars wherever they appear. */
 
 /* --- user panel ----------------------------------------------------------- */
 
@@ -9,7 +9,6 @@
   flex-shrink: 0;
   height: 54px;
   padding: 0 10px;
-  background: var(--bg-rail);
 }
 
 .userpanel__identity {

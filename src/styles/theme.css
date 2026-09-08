@@ -54,6 +54,10 @@
 
   --rail-width: 72px;
   --sidebar-width: 248px;
+  /* The rail and the sidebar side by side: the width the dock at their foot
+     spans, and the width the left pane takes out of the shell. The sidebar
+     half is resizable, so this is resolved where it is used. */
+  --left-width: calc(var(--rail-width) + var(--sidebar-width));
   --members-width: 236px;
   --search-width: 400px;
 

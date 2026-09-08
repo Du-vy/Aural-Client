@@ -755,149 +755,149 @@ export function ServerView({ onAddServer }: ServerViewProps) {
       className={shellClasses.join(" ")}
       style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
     >
-      <nav className="rail" aria-label={t("connect.savedServers")}>
-        <button
-          type="button"
-          className={`rail__item rail__item--dms ${activeSection === "dms" ? "rail__item--active" : ""}`}
-          onClick={() => setActiveSection("dms")}
-          title={t("dm.directMessages")}
-          aria-label={t("dm.directMessages")}
-          aria-current={activeSection === "dms" ? "true" : undefined}
-        >
-          <AuralMark size={24} />
-          {totalDmUnread > 0 && activeSection !== "dms" ? (
-            <span className="rail__badge rail__badge--mention">
-              {totalDmUnread > 99 ? "99+" : totalDmUnread}
-            </span>
-          ) : null}
-        </button>
+      <div className="leftpane">
+        <nav className="rail" aria-label={t("connect.savedServers")}>
+          <button
+            type="button"
+            className={`rail__item rail__item--dms ${activeSection === "dms" ? "rail__item--active" : ""}`}
+            onClick={() => setActiveSection("dms")}
+            title={t("dm.directMessages")}
+            aria-label={t("dm.directMessages")}
+            aria-current={activeSection === "dms" ? "true" : undefined}
+          >
+            <AuralMark size={24} />
+            {totalDmUnread > 0 && activeSection !== "dms" ? (
+              <span className="rail__badge rail__badge--mention">
+                {totalDmUnread > 99 ? "99+" : totalDmUnread}
+              </span>
+            ) : null}
+          </button>
 
-        <div className="rail__separator" role="separator" aria-hidden="true" />
+          <div className="rail__separator" role="separator" aria-hidden="true" />
 
-        {saved.map((entry) => (
-          <RailServer
-            key={entry.id}
-            entry={entry}
-            active={activeSection === "server" && entry.id === serverId}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              setContextMenu({ kind: "rail", x: event.clientX, y: event.clientY, entry });
-            }}
+          {saved.map((entry) => (
+            <RailServer
+              key={entry.id}
+              entry={entry}
+              active={activeSection === "server" && entry.id === serverId}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setContextMenu({ kind: "rail", x: event.clientX, y: event.clientY, entry });
+              }}
+            />
+          ))}
+
+          <button
+            className="rail__item rail__item--add"
+            onClick={onAddServer}
+            title={t("server.addServer")}
+            aria-label={t("server.addServer")}
+          >
+            <PlusIcon size={18} />
+          </button>
+        </nav>
+
+        <aside className="sidebar">
+          {activeSection === "dms" ? (
+            <DirectMessagesSidebar
+              activeServerId={serverId}
+              activeUserId={activeConversationId}
+              onSelectConversation={(targetServerId, userId) => {
+                useServers.getState().focus(targetServerId);
+                const store = useServers.getState().connections.get(targetServerId);
+                if (store) {
+                  store.getState().setActiveChannel(null);
+                  void store.getState().openConversation(userId).then(() => {
+                    store.getState().setActiveConversation(userId);
+                  });
+                }
+                setDrawerOpen(false);
+              }}
+              onCloseConversation={(targetServerId, userId) => {
+                const store = useServers.getState().connections.get(targetServerId);
+                store?.getState().closeConversation(userId);
+                if (targetServerId === serverId && userId === activeConversationId) {
+                  setActiveConversation(null);
+                }
+              }}
+              onContextMenuMember={(e, u, targetServerId) => {
+                setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user: u, serverId: targetServerId });
+              }}
+            />
+          ) : (
+            <>
+              <header
+                className="sidebar__header"
+                style={{ cursor: "pointer" }}
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setContextMenu({ kind: "server", x: rect.left, y: rect.bottom + 4 });
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
+                }}
+              >
+                <span className="sidebar__name" title={server.description || server.name}>
+                  {server.name}
+                </span>
+                <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <LatencyBadge latencyMs={latencyMs} kind="server" />
+                  <ChevronIcon size={14} />
+                </span>
+              </header>
+
+              <ChannelSidebar
+                selectedChannelId={selectedChannelId}
+                onSelectChannel={(id) => {
+                  setActiveConversation(null);
+                  setSelectedChannelId(id);
+                  setDrawerOpen(false);
+                }}
+                activeConversationId={activeConversationId}
+                onSelectConversation={(userId) => {
+                  setSelectedChannelId(null);
+                  setActiveConversation(userId);
+                  setDrawerOpen(false);
+                }}
+                onCloseConversation={(userId) => {
+                  closeConversation(userId);
+                }}
+                onJoinVoice={joinVoice}
+                onCreateChannel={(parentId) => setDialog({ kind: "channel", parentId })}
+                onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
+                onDeleteChannel={(channel) => setDialog({ kind: "confirmDeleteChannel", channel })}
+                onContextMenuChannel={(e, channel) => {
+                  setContextMenu({ kind: "channel", x: e.clientX, y: e.clientY, channel });
+                }}
+                onContextMenuMember={(e, user) => {
+                  setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
+                }}
+                onContextMenuServer={(e) => {
+                  setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
+                }}
+              />
+            </>
+          )}
+
+          <div
+            className="sidebar__resizer"
+            onPointerDown={startResize}
+            onDoubleClick={resetSidebarWidth}
+            title="Drag to resize (double click to reset)"
+            role="separator"
+            aria-orientation="vertical"
           />
-        ))}
+        </aside>
 
-        <button
-          className="rail__item rail__item--add"
-          onClick={onAddServer}
-          title={t("server.addServer")}
-          aria-label={t("server.addServer")}
-        >
-          <PlusIcon size={18} />
-        </button>
-      </nav>
-
-      <aside className="sidebar">
-        {activeSection === "dms" ? (
-          <DirectMessagesSidebar
-            activeServerId={serverId}
-            activeUserId={activeConversationId}
-            onSelectConversation={(targetServerId, userId) => {
-              useServers.getState().focus(targetServerId);
-              const store = useServers.getState().connections.get(targetServerId);
-              if (store) {
-                store.getState().setActiveChannel(null);
-                void store.getState().openConversation(userId).then(() => {
-                  store.getState().setActiveConversation(userId);
-                });
-              }
-              setDrawerOpen(false);
-            }}
-            onCloseConversation={(targetServerId, userId) => {
-              const store = useServers.getState().connections.get(targetServerId);
-              store?.getState().closeConversation(userId);
-              if (targetServerId === serverId && userId === activeConversationId) {
-                setActiveConversation(null);
-              }
-            }}
-            onContextMenuMember={(e, u, targetServerId) => {
-              setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user: u, serverId: targetServerId });
-            }}
+        <footer className="dock">
+          <VoicePanel onOpenVoiceSettings={() => setDialog({ kind: "account", tab: "voice" })} />
+          <UserPanel
             onOpenAccount={() => setDialog({ kind: "account" })}
             onOpenStatus={() => setStatusOpen(true)}
-            onOpenVoiceSettings={() => setDialog({ kind: "account", tab: "voice" })}
           />
-        ) : (
-          <>
-            <header
-              className="sidebar__header"
-              style={{ cursor: "pointer" }}
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                setContextMenu({ kind: "server", x: rect.left, y: rect.bottom + 4 });
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
-              }}
-            >
-              <span className="sidebar__name" title={server.description || server.name}>
-                {server.name}
-              </span>
-              <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <LatencyBadge latencyMs={latencyMs} kind="server" />
-                <ChevronIcon size={14} />
-              </span>
-            </header>
-
-            <ChannelSidebar
-              selectedChannelId={selectedChannelId}
-              onSelectChannel={(id) => {
-                setActiveConversation(null);
-                setSelectedChannelId(id);
-                setDrawerOpen(false);
-              }}
-              activeConversationId={activeConversationId}
-              onSelectConversation={(userId) => {
-                setSelectedChannelId(null);
-                setActiveConversation(userId);
-                setDrawerOpen(false);
-              }}
-              onCloseConversation={(userId) => {
-                closeConversation(userId);
-              }}
-              onJoinVoice={joinVoice}
-              onCreateChannel={(parentId) => setDialog({ kind: "channel", parentId })}
-              onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
-              onDeleteChannel={(channel) => setDialog({ kind: "confirmDeleteChannel", channel })}
-              onContextMenuChannel={(e, channel) => {
-                setContextMenu({ kind: "channel", x: e.clientX, y: e.clientY, channel });
-              }}
-              onContextMenuMember={(e, user) => {
-                setContextMenu({ kind: "user", x: e.clientX, y: e.clientY, user });
-              }}
-              onContextMenuServer={(e) => {
-                setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
-              }}
-            />
-
-            <VoicePanel onOpenVoiceSettings={() => setDialog({ kind: "account", tab: "voice" })} />
-
-            <UserPanel
-              onOpenAccount={() => setDialog({ kind: "account" })}
-              onOpenStatus={() => setStatusOpen(true)}
-            />
-          </>
-        )}
-
-        <div
-          className="sidebar__resizer"
-          onPointerDown={startResize}
-          onDoubleClick={resetSidebarWidth}
-          title="Drag to resize (double click to reset)"
-          role="separator"
-          aria-orientation="vertical"
-        />
-      </aside>
+        </footer>
+      </div>
 
       <main className="main">
         {activeSection === "dms" ? (

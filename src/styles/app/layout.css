@@ -4,19 +4,50 @@
 
 .app {
   display: grid;
-  grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr);
+  grid-template-columns: var(--left-width) minmax(0, 1fr);
   height: 100%;
   background: var(--bg-main);
 }
 
 .app--with-members {
-  grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr) var(--members-width);
+  grid-template-columns: var(--left-width) minmax(0, 1fr) var(--members-width);
 }
 
 /* Search takes the same column the member list does, and takes more of it:
    a result carries three messages where a member carries a name. */
 .app--with-search {
-  grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr) var(--search-width);
+  grid-template-columns: var(--left-width) minmax(0, 1fr) var(--search-width);
+}
+
+/*
+ * The rail and the sidebar are one column of the shell, not two, because the
+ * dock underneath them spans both: the foot of the rail has nothing to say,
+ * and the voice and account controls need the width more than it does.
+ */
+.leftpane {
+  display: grid;
+  grid-template-columns: var(--rail-width) minmax(0, var(--sidebar-width));
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+/*
+ * The strip along the foot of the window: the voice panel and the account row,
+ * both of them as wide as the rail and the sidebar together.
+ */
+.dock {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg-rail);
+  border-top: 1px solid var(--border);
+}
+
+/* Both panels bow out when there is nobody to be: a hairline across the foot
+   of the window is worse than no dock at all. */
+.dock:empty {
+  display: none;
 }
 
 /* --- server rail ---------------------------------------------------------- */
@@ -312,6 +343,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
   background: var(--bg-sidebar);
 }
