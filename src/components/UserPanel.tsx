@@ -1,5 +1,7 @@
+import { useState, useEffect } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { useSession } from "@/store/session";
+import { readProfileCosmetics, onProfileCosmeticsChanged, type ProfileCosmetics } from "@/lib/storage";
 import { Avatar } from "./Avatar";
 import { ActivityGlyph, activityText, activityTooltip } from "./ActivityCard";
 import { GearIcon, LogOutIcon } from "./Icons";
@@ -23,6 +25,11 @@ export function UserPanel({ onOpenAccount, onOpenStatus }: UserPanelProps) {
   const channels = useSession((state) => state.channels);
   const status = useSession((state) => state.status);
   const disconnect = useSession((state) => state.disconnect);
+  const [cosmetics, setCosmetics] = useState<ProfileCosmetics>(readProfileCosmetics);
+
+  useEffect(() => {
+    return onProfileCosmeticsChanged(setCosmetics);
+  }, []);
 
   if (!self) return null;
 
@@ -58,6 +65,7 @@ export function UserPanel({ onOpenAccount, onOpenStatus }: UserPanelProps) {
         className="userpanel__identity"
         onClick={onOpenStatus ?? onOpenAccount}
         title={t("status.changeStatus")}
+        style={cosmetics.themeColor ? ({ "--user-profile-accent": cosmetics.themeColor } as React.CSSProperties) : undefined}
       >
         <Avatar user={self} size="md" status={self.status || (status === "connected" ? "online" : "offline")} showStatus />
         <span className="userpanel__body">

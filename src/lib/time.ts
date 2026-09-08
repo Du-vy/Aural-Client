@@ -6,6 +6,7 @@
  */
 
 import { getLanguage, t } from "./i18n";
+import { readTimeFormat } from "./storage";
 
 const MS = 1000;
 
@@ -16,20 +17,25 @@ function startOfDay(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
-/** The clock time a message was sent, in the viewer's locale. */
+/** The clock time a message was sent, in the viewer's locale and custom format. */
 export function formatTime(seconds: number): string {
   const lang = getLanguage();
+  const format = readTimeFormat();
+  const hour12 = format === "12h" ? true : format === "24h" ? false : undefined;
   return new Date(seconds * MS).toLocaleTimeString(lang, {
     hour: "2-digit",
     minute: "2-digit",
+    hour12,
   });
 }
 
 /** A compact date and time formatted in viewer's locale (e.g., 28/08/2026 10:13). */
 export function formatDateTime(seconds: number): string {
   const lang = getLanguage();
+  const format = readTimeFormat();
+  const hour12 = format === "12h" ? true : format === "24h" ? false : undefined;
   const date = new Date(seconds * MS);
-  return `${date.toLocaleDateString(lang, { day: "2-digit", month: "2-digit", year: "numeric" })} ${date.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })}`;
+  return `${date.toLocaleDateString(lang, { day: "2-digit", month: "2-digit", year: "numeric" })} ${date.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit", hour12 })}`;
 }
 
 /**

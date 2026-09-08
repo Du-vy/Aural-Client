@@ -20,14 +20,16 @@
   height: 42px;
   padding: 2px 6px;
   border-radius: var(--radius-sm);
+  border-left: 2.5px solid transparent;
   text-align: left;
   cursor: pointer;
   overflow: hidden;
-  transition: background var(--speed) ease;
+  transition: background var(--speed) ease, border-color var(--speed) ease;
 }
 
 .userpanel__identity:hover {
   background: var(--hover);
+  border-left-color: var(--user-profile-accent, var(--accent));
 }
 
 .userpanel__body {
@@ -173,7 +175,7 @@
   border-radius: 50%;
   background: var(--bg-sidebar, #1e1f22);
   padding: 2px;
-  z-index: 2;
+  z-index: 4;
   box-shadow: 0 0 0 2px var(--bg-sidebar, #1e1f22);
 }
 
@@ -212,4 +214,264 @@
   height: 100%;
   display: block;
 }
+
+/* --- Avatar Frames (Pure CSS Modular Builder & Gradient Engine) ----------- */
+
+.avatar--has-frame {
+  box-sizing: content-box;
+}
+
+.avatar__frame-layer {
+  position: absolute;
+  inset: -3.5px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+  box-sizing: border-box;
+}
+
+.avatar--xs .avatar__frame-layer {
+  inset: -2px;
+}
+
+.avatar--sm .avatar__frame-layer {
+  inset: -2.5px;
+}
+
+.avatar--md .avatar__frame-layer {
+  inset: -3px;
+}
+
+.avatar--lg .avatar__frame-layer {
+  inset: -4px;
+}
+
+.avatar--xl .avatar__frame-layer {
+  inset: -5px;
+}
+
+/* 1. Ring (Anillo Clásico / Degradado) */
+.avatar--frame-ring,
+.avatar--frame-accent-ring {
+  background: conic-gradient(
+    from 0deg,
+    var(--avatar-frame-color, #12b8a0) 0%,
+    var(--avatar-frame-color-2, var(--avatar-frame-color, #12b8a0)) 50%,
+    var(--avatar-frame-color, #12b8a0) 100%
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #fff calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #fff calc(100% - 2.5px));
+  filter: drop-shadow(0 0 4px var(--avatar-frame-glow, rgba(18, 184, 160, 0.4)));
+}
+
+.avatar--xs .avatar--frame-ring,
+.avatar--xs .avatar--frame-accent-ring,
+.avatar--sm .avatar--frame-ring,
+.avatar--sm .avatar--frame-accent-ring {
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #fff calc(100% - 1.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #fff calc(100% - 1.5px));
+}
+
+.avatar--xl .avatar--frame-ring,
+.avatar--xl .avatar--frame-accent-ring {
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #fff calc(100% - 3.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #fff calc(100% - 3.5px));
+}
+
+/* 2. Glow (Resplandor Aura / Degradado) */
+.avatar--frame-glow,
+.avatar--frame-gradient-glow {
+  background: conic-gradient(
+    from 0deg,
+    var(--avatar-frame-color, #8b5cf6) 0%,
+    var(--avatar-frame-color-2, #00f2fe) 50%,
+    var(--avatar-frame-color, #8b5cf6) 100%
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #fff calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #fff calc(100% - 3px));
+  filter: drop-shadow(0 0 8px var(--avatar-frame-glow, rgba(139, 92, 246, 0.7)))
+    drop-shadow(0 0 16px var(--avatar-frame-glow-2, rgba(0, 242, 254, 0.5)));
+}
+
+.avatar--xs .avatar--frame-glow,
+.avatar--xs .avatar--frame-gradient-glow,
+.avatar--sm .avatar--frame-glow,
+.avatar--sm .avatar--frame-gradient-glow {
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #fff calc(100% - 1.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #fff calc(100% - 1.5px));
+}
+
+.avatar--xl .avatar--frame-glow,
+.avatar--xl .avatar--frame-gradient-glow {
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4.5px), #fff calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4.5px), #fff calc(100% - 4px));
+}
+
+/* 3. Neon (Neón Halo) */
+.avatar--frame-neon,
+.avatar--frame-neon-pulse {
+  background: conic-gradient(
+    from 0deg,
+    var(--avatar-frame-color, #00f2fe) 0%,
+    var(--avatar-frame-color-2, var(--avatar-frame-color, #00f2fe)) 50%,
+    var(--avatar-frame-color, #00f2fe) 100%
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #fff calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #fff calc(100% - 2.5px));
+  filter: drop-shadow(0 0 1.5px #ffffff)
+    drop-shadow(0 0 8px var(--avatar-frame-glow, rgba(0, 242, 254, 0.8)))
+    drop-shadow(0 0 16px var(--avatar-frame-glow-2, rgba(0, 242, 254, 0.6)));
+}
+
+.avatar--xs .avatar--frame-neon,
+.avatar--xs .avatar--frame-neon-pulse,
+.avatar--sm .avatar--frame-neon,
+.avatar--sm .avatar--frame-neon-pulse {
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #fff calc(100% - 1.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #fff calc(100% - 1.5px));
+}
+
+.avatar--xl .avatar--frame-neon,
+.avatar--xl .avatar--frame-neon-pulse {
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4.5px), #fff calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4.5px), #fff calc(100% - 4px));
+}
+
+/* 4. Cyber HUD (Tech Brackets) */
+.avatar--frame-cyber,
+.avatar--frame-cyber-bracket {
+  border: 2px dashed var(--avatar-frame-color, #f59e0b);
+  outline: 1.5px solid var(--avatar-frame-color-2, var(--avatar-frame-color, #f59e0b));
+  outline-offset: 1.5px;
+  filter: drop-shadow(0 0 6px var(--avatar-frame-glow, rgba(245, 158, 11, 0.4)));
+}
+
+.avatar--xs .avatar--frame-cyber,
+.avatar--xs .avatar--frame-cyber-bracket,
+.avatar--sm .avatar--frame-cyber,
+.avatar--sm .avatar--frame-cyber-bracket {
+  border-width: 1.5px;
+  outline-width: 1px;
+  outline-offset: 1px;
+}
+
+.avatar--xl .avatar--frame-cyber,
+.avatar--xl .avatar--frame-cyber-bracket {
+  border-width: 2.5px;
+  outline-width: 2px;
+  outline-offset: 2.5px;
+}
+
+/* 5. Double Ring (Concéntrico) */
+.avatar--frame-double,
+.avatar--frame-double-ring {
+  border: 2px solid var(--avatar-frame-color, #6366f1);
+  outline: 2px solid var(--avatar-frame-color-2, #cbd5e1);
+  outline-offset: 2px;
+  filter: drop-shadow(0 0 6px var(--avatar-frame-glow, rgba(99, 102, 241, 0.4)));
+}
+
+.avatar--xs .avatar--frame-double,
+.avatar--xs .avatar--frame-double-ring,
+.avatar--sm .avatar--frame-double,
+.avatar--sm .avatar--frame-double-ring {
+  border-width: 1.5px;
+  outline-width: 1.5px;
+  outline-offset: 1.5px;
+}
+
+.avatar--xl .avatar--frame-double,
+.avatar--xl .avatar--frame-double-ring {
+  border-width: 3px;
+  outline-width: 2.5px;
+  outline-offset: 3px;
+}
+
+/* 6. Crown (Corona Prestigio) */
+.avatar--frame-crown,
+.avatar--frame-golden-star {
+  border: 2.5px dotted var(--avatar-frame-color, #eab308);
+  outline: 1.5px solid var(--avatar-frame-color-2, var(--avatar-frame-color, #eab308));
+  outline-offset: 2px;
+  filter: drop-shadow(0 0 8px var(--avatar-frame-glow, rgba(234, 179, 8, 0.55)))
+    drop-shadow(0 0 14px var(--avatar-frame-glow-2, rgba(234, 179, 8, 0.35)));
+}
+
+.avatar--xs .avatar--frame-crown,
+.avatar--xs .avatar--frame-golden-star,
+.avatar--sm .avatar--frame-crown,
+.avatar--sm .avatar--frame-golden-star {
+  border-width: 1.5px;
+  outline-width: 1px;
+  outline-offset: 1px;
+}
+
+.avatar--xl .avatar--frame-crown,
+.avatar--xl .avatar--frame-golden-star {
+  border-width: 3.5px;
+  outline-width: 2px;
+  outline-offset: 3px;
+}
+
+/* --- Modular Frame Animations --------------------------------------------- */
+
+/* Breathing Pulse */
+.avatar--anim-pulse {
+  animation: avatarAnimPulse 2.8s ease-in-out infinite alternate;
+}
+
+@keyframes avatarAnimPulse {
+  0% {
+    filter: drop-shadow(0 0 2px var(--avatar-frame-glow, rgba(18, 184, 160, 0.3)));
+    transform: scale(0.97);
+  }
+  100% {
+    filter: drop-shadow(0 0 12px var(--avatar-frame-glow, rgba(18, 184, 160, 0.95)))
+      drop-shadow(0 0 18px var(--avatar-frame-glow-2, rgba(18, 184, 160, 0.6)));
+    transform: scale(1.03);
+  }
+}
+
+/* Continuous Spin */
+.avatar--anim-spin {
+  animation: avatarAnimSpin 8s linear infinite;
+}
+
+@keyframes avatarAnimSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Shimmer Flash */
+.avatar--anim-shimmer {
+  animation: avatarAnimShimmer 3.2s ease-in-out infinite;
+}
+
+@keyframes avatarAnimShimmer {
+  0%, 100% {
+    filter: brightness(1) drop-shadow(0 0 2px var(--avatar-frame-glow, rgba(255, 255, 255, 0.2)));
+  }
+  50% {
+    filter: brightness(1.35) drop-shadow(0 0 14px var(--avatar-frame-glow, rgba(255, 255, 255, 0.85)));
+  }
+}
+
+/* Rainbow Prism Shift */
+.avatar--anim-rainbow {
+  animation: avatarAnimRainbow 6s linear infinite;
+}
+
+@keyframes avatarAnimRainbow {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}
+
 

@@ -428,6 +428,36 @@
   position: fixed;
   z-index: 1000;
   animation: modal-pop 0.12s cubic-bezier(0.1, 0.9, 0.2, 1);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+}
+
+.member-profile-popout--themed {
+  border: 1.5px solid var(--profile-theme-border, rgba(255, 255, 255, 0.12)) !important;
+  box-shadow: 0 0 32px -4px var(--profile-theme-glow, rgba(0, 0, 0, 0.5)), var(--shadow-overlay, 0 16px 40px rgba(0, 0, 0, 0.55)) !important;
+  background: var(--profile-theme-bg, var(--bg-overlay, #232428)) !important;
+}
+
+.member-profile-popout--themed .profile-card__banner {
+  border-bottom: 2px solid var(--profile-theme-border, transparent);
+}
+
+.member-profile-popout--themed .profile-card__avatar-wrap {
+  box-shadow: 0 0 0 4px var(--bg-overlay, #232428), 0 0 0 7px var(--profile-theme, var(--accent));
+  transition: box-shadow 0.25s ease;
+}
+
+.member-profile-popout--themed .profile-card__inner {
+  border-color: var(--profile-theme-border, rgba(255, 255, 255, 0.05));
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.member-profile-popout--themed .profile-card__label {
+  color: var(--profile-theme, var(--text-dim));
+}
+
+.member-profile-popout--themed .profile-card__dm .btn--primary {
+  background: var(--profile-theme, var(--accent));
+  border-color: var(--profile-theme, var(--accent));
 }
 
 @keyframes modal-pop {

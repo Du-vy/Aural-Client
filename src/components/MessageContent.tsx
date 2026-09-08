@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type { ServerAddress } from "@/lib/address";
 import {
   EMPTY_EMOJI,
@@ -19,6 +19,7 @@ import {
 } from "@/lib/mentions";
 import type { Attachment, Embed, Expression, User } from "@/lib/protocol";
 import { formatFull } from "@/lib/time";
+import { readJumboEmoji, onJumboEmojiChanged } from "@/lib/storage";
 import { MessageAttachments } from "./attachments/MessageAttachments";
 import { MessageEmbeds } from "./embeds/MessageEmbeds";
 import { RichEmbeds } from "./embeds/RichEmbed";
@@ -83,11 +84,17 @@ export function MessageContent({
   onOpenMember,
 }: MessageContentProps) {
   const { t } = useTranslation();
+  const [jumboEnabled, setJumboEnabled] = useState(readJumboEmoji);
+
+  useEffect(() => {
+    return onJumboEmojiChanged(setJumboEnabled);
+  }, []);
+
   const urls = useMemo(() => extractUrls(content), [content]);
   const tokens = useMemo(() => tokenizeMessageText(content), [content]);
   const jumboEmoji = useMemo(
-    () => isEmojiOnly(content) || isCustomEmojiOnly(content, emojis),
-    [content, emojis],
+    () => jumboEnabled && (isEmojiOnly(content) || isCustomEmojiOnly(content, emojis)),
+    [content, emojis, jumboEnabled],
   );
   const files = attachments ?? [];
   const cards = useMemo(() => embeds ?? [], [embeds]);

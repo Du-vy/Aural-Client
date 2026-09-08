@@ -11,6 +11,11 @@ import { Avatar, avatarColor, resolveAvatarUrl } from "../Avatar";
 import { CheckIcon, CloseIcon, CopyIcon, CrownIcon, PlusIcon } from "../Icons";
 import { ProfileBanner } from "../ProfileBanner";
 import { ConfirmDialog } from "./ConfirmDialog";
+import {
+  readProfileCosmetics,
+  onProfileCosmeticsChanged,
+  type ProfileCosmetics,
+} from "@/lib/storage";
 
 interface MemberDialogProps {
   userId: number;
@@ -61,6 +66,11 @@ export function MemberDialog({
   /** The first line of a conversation, written from the card that starts it. */
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [selfCosmetics, setSelfCosmetics] = useState<ProfileCosmetics>(readProfileCosmetics);
+
+  useEffect(() => {
+    return onProfileCosmeticsChanged(setSelfCosmetics);
+  }, []);
 
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -133,6 +143,7 @@ export function MemberDialog({
 
   const bannerSrc = resolveAvatarUrl(user.banner, address);
   const isSelf = user.id === self.id;
+  const themeColor = user.themeColor || (isSelf ? selfCosmetics.themeColor : undefined);
   // Three separate reasons the box may be closed, and they read differently:
   // the server carries none, this member may not send any, or they turned
   // their own off — which stops their writing as well as everybody else's.
@@ -173,12 +184,20 @@ export function MemberDialog({
     >
       <div
         ref={cardRef}
-        className="member-profile-popout"
-        style={
-          coords
+        className={`member-profile-popout ${themeColor ? "member-profile-popout--themed" : ""}`}
+        style={{
+          ...(coords
             ? { top: `${coords.top}px`, left: `${coords.left}px` }
-            : { top: "50%", left: "50%", transform: "translate(-50%, -50%)" }
-        }
+            : { top: "50%", left: "50%", transform: "translate(-50%, -50%)" }),
+          ...(themeColor
+            ? ({
+                "--profile-theme": themeColor,
+                "--profile-theme-border": `${themeColor}66`,
+                "--profile-theme-glow": `${themeColor}38`,
+                "--profile-theme-bg": `linear-gradient(180deg, ${themeColor}24 0%, ${themeColor}0a 160px, var(--bg-overlay, #232428) 260px)`,
+              } as React.CSSProperties)
+            : {}),
+        }}
         role="dialog"
         aria-modal="true"
         aria-label={user.nickname}
@@ -189,7 +208,9 @@ export function MemberDialog({
           className="profile-card__banner"
           src={bannerSrc}
           fallbackStyle={{
-            background: `linear-gradient(135deg, ${avatarColor(user.id)}cc 0%, #18191c 100%)`,
+            background: themeColor
+              ? `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}aa 50%, #18191c 100%)`
+              : `linear-gradient(135deg, ${avatarColor(user.id)}cc 0%, #18191c 100%)`,
           }}
         >
           <button
@@ -205,7 +226,13 @@ export function MemberDialog({
         {/* Avatar & Badges row */}
         <div className="profile-card__avatar-row">
           <div className="profile-card__avatar-wrap">
-            <Avatar user={user} size="xl" status={user.status} showStatus />
+            <Avatar
+              user={user}
+              size="xl"
+              status={user.status}
+              showStatus
+              style={themeColor ? ({ "--user-profile-accent": themeColor } as React.CSSProperties) : undefined}
+            />
           </div>
 
           <div className="profile-card__badges">

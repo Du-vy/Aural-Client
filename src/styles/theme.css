@@ -210,3 +210,41 @@ textarea {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+
+/* --- Corner Curvature (Border Radius) Variants ---------------------------- */
+[data-border-radius="sharp"] {
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 2px;
+  --radius: 2px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
+}
+
+[data-border-radius="compact"] {
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+}
+
+[data-border-radius="modern"] {
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+}
+
+[data-border-radius="round"] {
+  --radius-xs: 10px;
+  --radius-sm: 14px;
+  --radius-md: 16px;
+  --radius: 18px;
+  --radius-lg: 24px;
+  --radius-xl: 30px;
+}
+

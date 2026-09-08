@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type FormEvent } from "react";
-import { useTranslation } from "@/lib/i18n";
+import { useTranslation, type TranslationKey } from "@/lib/i18n";
 import { Perm, has } from "@/lib/permissions";
 import { describeError } from "@/lib/protocol";
 import { useSession } from "@/store/session";
@@ -12,10 +12,66 @@ import {
   CameraIcon,
   CheckIcon,
   ImageIcon,
+  PaletteIcon,
   TrashIcon,
   UploadIcon,
   UserIcon,
 } from "@/components/Icons";
+import {
+  readProfileCosmetics,
+  writeProfileCosmetics,
+  type FrameStyleId,
+  type FrameAnimationId,
+  type FrameColorMode,
+  type CustomAvatarFrame,
+  type ProfileCosmetics,
+} from "@/lib/storage";
+import { ColorPickerInput } from "@/components/ColorPickerInput";
+
+const FRAME_STYLES: { id: FrameStyleId; labelKey: TranslationKey }[] = [
+  { id: "none", labelKey: "profile.frameStyleNone" },
+  { id: "ring", labelKey: "profile.frameStyleRing" },
+  { id: "glow", labelKey: "profile.frameStyleGlow" },
+  { id: "neon", labelKey: "profile.frameStyleNeon" },
+  { id: "cyber", labelKey: "profile.frameStyleCyber" },
+  { id: "double", labelKey: "profile.frameStyleDouble" },
+  { id: "crown", labelKey: "profile.frameStyleCrown" },
+];
+
+const FRAME_ANIMATIONS: { id: FrameAnimationId; labelKey: TranslationKey; icon: string }[] = [
+  { id: "none", labelKey: "profile.frameAnimNone", icon: "⏹" },
+  { id: "pulse", labelKey: "profile.frameAnimPulse", icon: "💓" },
+  { id: "spin", labelKey: "profile.frameAnimSpin", icon: "💫" },
+  { id: "shimmer", labelKey: "profile.frameAnimShimmer", icon: "✨" },
+  { id: "rainbow", labelKey: "profile.frameAnimRainbow", icon: "🌈" },
+];
+
+export const GRADIENT_PRESETS = [
+  { name: "Synthwave", color1: "#06b6d4", color2: "#8b5cf6" },
+  { name: "Sunset", color1: "#f43f5e", color2: "#f59e0b" },
+  { name: "Cyberpunk", color1: "#f59e0b", color2: "#ec4899" },
+  { name: "Emerald", color1: "#10b981", color2: "#06b6d4" },
+  { name: "Cosmos", color1: "#3b82f6", color2: "#ec4899" },
+  { name: "Inferno", color1: "#ef4444", color2: "#f59e0b" },
+  { name: "Sakura", color1: "#f472b6", color2: "#c084fc" },
+  { name: "Royal", color1: "#eab308", color2: "#f97316" },
+] as const;
+
+const FRAME_PRESETS: {
+  name: string;
+  style: FrameStyleId;
+  colorMode: FrameColorMode;
+  color?: string;
+  color2?: string;
+  anim: FrameAnimationId;
+}[] = [
+  { name: "Aura Spin", style: "glow", colorMode: "gradient", color: "#06b6d4", color2: "#8b5cf6", anim: "spin" },
+  { name: "Sunset Blaze", style: "ring", colorMode: "gradient", color: "#f43f5e", color2: "#f59e0b", anim: "spin" },
+  { name: "Cyberpunk", style: "cyber", colorMode: "gradient", color: "#f59e0b", color2: "#ec4899", anim: "shimmer" },
+  { name: "Neon Pulse", style: "neon", colorMode: "custom", color: "#00f2fe", anim: "pulse" },
+  { name: "Golden Crest", style: "crown", colorMode: "custom", color: "#eab308", anim: "shimmer" },
+  { name: "Double Slate", style: "double", colorMode: "gradient", color: "#6366f1", color2: "#06b6d4", anim: "none" },
+];
 
 export function ProfilePage() {
   const { t } = useTranslation();
@@ -40,6 +96,26 @@ export function ProfilePage() {
   const [cropFile, setCropFile] = useState<{ file: File; type: "avatar" | "banner" } | null>(null);
   const [activeMediaTab, setActiveMediaTab] = useState<"avatar" | "banner">("avatar");
 
+  const [cosmetics, setCosmetics] = useState<ProfileCosmetics>(() => {
+    const local = readProfileCosmetics();
+    return {
+      ...local,
+      ...(self?.themeColor !== undefined ? { themeColor: self.themeColor } : {}),
+      ...(self?.customFrame !== undefined ? { customFrame: self.customFrame } : {}),
+    };
+  });
+
+  useEffect(() => {
+    if (!self) return;
+    if (self.themeColor !== undefined || self.customFrame !== undefined) {
+      setCosmetics((prev) => ({
+        ...prev,
+        ...(self.themeColor !== undefined ? { themeColor: self.themeColor } : {}),
+        ...(self.customFrame !== undefined ? { customFrame: self.customFrame } : {}),
+      }));
+    }
+  }, [self?.themeColor, self?.customFrame]);
+
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -56,6 +132,43 @@ export function ProfilePage() {
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
   const allowedNickname = has(permissions, Perm.ChangeNickname);
+
+  const customFrame: CustomAvatarFrame = cosmetics.customFrame || {
+    style: "none",
+    colorMode: "profile",
+    animation: "none",
+  };
+
+  const handleSetThemeColor = (color: string) => {
+    const updated = writeProfileCosmetics({ themeColor: color });
+    setCosmetics(updated);
+    void updateProfile({ themeColor: color }).catch((err) => {
+      console.warn("Failed to sync themeColor to server:", err);
+    });
+  };
+
+  const handleUpdateCustomFrame = (patch: Partial<CustomAvatarFrame>) => {
+    const updatedFrame: CustomAvatarFrame = {
+      ...customFrame,
+      ...patch,
+    };
+    const updated = writeProfileCosmetics({
+      customFrame: updatedFrame,
+    });
+    setCosmetics(updated);
+    void updateProfile({ customFrame: updatedFrame }).catch((err) => {
+      console.warn("Failed to sync customFrame to server:", err);
+    });
+  };
+
+  const handleApplyFramePreset = (preset: (typeof FRAME_PRESETS)[number]) => {
+    handleUpdateCustomFrame({
+      style: preset.style,
+      colorMode: preset.colorMode,
+      customColor: preset.color,
+      animation: preset.anim,
+    });
+  };
 
   const maxAvatarBytes = parseBytes(server?.uploads?.maxAvatarBytes) || 8 * 1024 * 1024;
   const maxBannerBytes = parseBytes(server?.uploads?.maxBannerBytes) || 16 * 1024 * 1024;
@@ -565,6 +678,234 @@ export function ProfilePage() {
               </form>
             </div>
           </div>
+
+          {/* Card 3: Profile Visual Theme & Avatar Frame Builder */}
+          <div className="settings-card">
+            <h3 className="settings-card__title">
+              <PaletteIcon size={16} style={{ marginRight: 6 }} />
+              {t("profile.themeColorTitle")}
+            </h3>
+            <p className="settings-card__subtitle">
+              {t("profile.themeColorDesc")}
+            </p>
+
+            <ColorPickerInput
+              value={cosmetics.themeColor || ""}
+              onChange={handleSetThemeColor}
+              onReset={() => handleSetThemeColor("")}
+            />
+
+            <div className="profile-card-divider" />
+
+            <h3 className="settings-card__title">
+              {t("profile.frameBuilderTitle")}
+            </h3>
+            <p className="settings-card__subtitle">
+              {t("profile.frameBuilderDesc")}
+            </p>
+
+            <div className="frame-builder-section">
+              {/* Quick Presets */}
+              <div className="frame-builder-block">
+                <span className="frame-builder-label">{t("profile.presets")}</span>
+                <div className="frame-presets-row">
+                  {FRAME_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      className="frame-preset-tag"
+                      onClick={() => handleApplyFramePreset(preset)}
+                    >
+                      <span>{preset.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 1. Frame Style Selection */}
+              <div className="frame-builder-block">
+                <span className="frame-builder-label">{t("profile.frameStyle")}</span>
+                <div className="frame-style-grid">
+                  {FRAME_STYLES.map((st) => {
+                    const isSelected = customFrame.style === st.id;
+                    const activeColor = customFrame.colorMode === "custom" || customFrame.colorMode === "gradient"
+                      ? (customFrame.customColor || (customFrame.colorMode === "gradient" ? "#06b6d4" : "#12b8a0"))
+                      : cosmetics.themeColor;
+                    const activeColor2 = customFrame.colorMode === "gradient"
+                      ? (customFrame.customColor2 || "#8b5cf6")
+                      : undefined;
+                    return (
+                      <button
+                        key={st.id}
+                        type="button"
+                        className={`frame-style-card ${isSelected ? "frame-style-card--active" : ""}`}
+                        onClick={() => handleUpdateCustomFrame({ style: st.id })}
+                      >
+                        <div style={{ padding: 4, display: "flex", justifyContent: "center" }}>
+                          <Avatar
+                            user={{ id: 9999, nickname: self?.nickname || "Me", avatar: self?.avatar }}
+                            size="md"
+                            frame={st.id}
+                            frameColor={activeColor}
+                            frameColor2={activeColor2}
+                            frameAnimation={customFrame.animation}
+                          />
+                        </div>
+                        <span className="frame-style-card__name">{t(st.labelKey)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Frame Color Mode */}
+              <div className="frame-builder-block">
+                <span className="frame-builder-label">{t("profile.frameColor")}</span>
+                <div className="frame-color-mode-tabs">
+                  <button
+                    type="button"
+                    className={`frame-color-mode-btn ${customFrame.colorMode === "profile" ? "frame-color-mode-btn--active" : ""}`}
+                    onClick={() => handleUpdateCustomFrame({ colorMode: "profile" })}
+                  >
+                    {t("profile.frameColorInherit")}
+                  </button>
+                  <button
+                    type="button"
+                    className={`frame-color-mode-btn ${customFrame.colorMode === "custom" ? "frame-color-mode-btn--active" : ""}`}
+                    onClick={() => handleUpdateCustomFrame({ colorMode: "custom", customColor: customFrame.customColor || "#12b8a0" })}
+                  >
+                    {t("profile.frameColorCustom")}
+                  </button>
+                  <button
+                    type="button"
+                    className={`frame-color-mode-btn ${customFrame.colorMode === "gradient" ? "frame-color-mode-btn--active" : ""}`}
+                    onClick={() =>
+                      handleUpdateCustomFrame({
+                        colorMode: "gradient",
+                        customColor: customFrame.customColor || "#06b6d4",
+                        customColor2: customFrame.customColor2 || "#8b5cf6",
+                      })
+                    }
+                  >
+                    {t("profile.frameColorGradient")}
+                  </button>
+                </div>
+
+                {customFrame.colorMode === "custom" ? (
+                  <ColorPickerInput
+                    value={customFrame.customColor || "#12b8a0"}
+                    onChange={(col) => handleUpdateCustomFrame({ customColor: col, colorMode: "custom" })}
+                    showPresets={true}
+                  />
+                ) : customFrame.colorMode === "gradient" ? (
+                  <div className="gradient-builder-wrap">
+                    {/* Gradient presets chips */}
+                    <div className="gradient-presets-section">
+                      <span className="gradient-section-subtitle">{t("profile.gradientPresets")}</span>
+                      <div className="gradient-presets-grid">
+                        {GRADIENT_PRESETS.map((gp) => {
+                          const isPresetActive =
+                            (customFrame.customColor || "#06b6d4").toLowerCase() === gp.color1.toLowerCase() &&
+                            (customFrame.customColor2 || "#8b5cf6").toLowerCase() === gp.color2.toLowerCase();
+                          return (
+                            <button
+                              key={gp.name}
+                              type="button"
+                              className={`gradient-preset-chip ${isPresetActive ? "gradient-preset-chip--active" : ""}`}
+                              onClick={() =>
+                                handleUpdateCustomFrame({
+                                  customColor: gp.color1,
+                                  customColor2: gp.color2,
+                                  colorMode: "gradient",
+                                })
+                              }
+                            >
+                              <span
+                                className="gradient-preset-chip__preview"
+                                style={{
+                                  background: `linear-gradient(135deg, ${gp.color1}, ${gp.color2})`,
+                                }}
+                              />
+                              <span className="gradient-preset-chip__name">{gp.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Gradient Live Bar & Swap */}
+                    <div className="gradient-preview-row">
+                      <div
+                        className="gradient-preview-bar"
+                        style={{
+                          background: `linear-gradient(90deg, ${customFrame.customColor || "#06b6d4"}, ${customFrame.customColor2 || "#8b5cf6"})`,
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--xs gradient-swap-btn"
+                        onClick={() =>
+                          handleUpdateCustomFrame({
+                            customColor: customFrame.customColor2 || "#8b5cf6",
+                            customColor2: customFrame.customColor || "#06b6d4",
+                            colorMode: "gradient",
+                          })
+                        }
+                        title={t("profile.gradientSwap")}
+                      >
+                        ⇄ {t("profile.gradientSwap")}
+                      </button>
+                    </div>
+
+                    {/* Dual Pickers */}
+                    <div className="gradient-pickers-grid">
+                      <div className="gradient-picker-item">
+                        <span className="profile-input-label" style={{ marginBottom: 4, display: "block" }}>
+                          {t("profile.gradientColor1")}
+                        </span>
+                        <ColorPickerInput
+                          value={customFrame.customColor || "#06b6d4"}
+                          onChange={(col) => handleUpdateCustomFrame({ customColor: col, colorMode: "gradient" })}
+                          showPresets={false}
+                        />
+                      </div>
+                      <div className="gradient-picker-item">
+                        <span className="profile-input-label" style={{ marginBottom: 4, display: "block" }}>
+                          {t("profile.gradientColor2")}
+                        </span>
+                        <ColorPickerInput
+                          value={customFrame.customColor2 || "#8b5cf6"}
+                          onChange={(col) => handleUpdateCustomFrame({ customColor2: col, colorMode: "gradient" })}
+                          showPresets={false}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* 3. Frame Animation */}
+              <div className="frame-builder-block">
+                <span className="frame-builder-label">{t("profile.frameAnimation")}</span>
+                <div className="frame-animation-grid">
+                  {FRAME_ANIMATIONS.map((anim) => {
+                    const isSelected = (customFrame.animation || "none") === anim.id;
+                    return (
+                      <button
+                        key={anim.id}
+                        type="button"
+                        className={`frame-anim-pill ${isSelected ? "frame-anim-pill--active" : ""}`}
+                        onClick={() => handleUpdateCustomFrame({ animation: anim.id })}
+                      >
+                        <span>{anim.icon}</span>
+                        <span>{t(anim.labelKey)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Right Column: Live Profile Card Preview with Click-to-Edit & Sticky Layout */}
@@ -578,7 +919,19 @@ export function ProfilePage() {
             </span>
           </div>
 
-          <div className="profile-card-preview">
+          <div
+            className={`profile-card-preview ${cosmetics.themeColor ? "profile-card-preview--themed" : ""}`}
+            style={
+              cosmetics.themeColor
+                ? ({
+                    "--profile-theme": cosmetics.themeColor,
+                    "--profile-theme-border": `${cosmetics.themeColor}66`,
+                    "--profile-theme-glow": `${cosmetics.themeColor}38`,
+                    "--profile-theme-bg": `linear-gradient(180deg, ${cosmetics.themeColor}24 0%, ${cosmetics.themeColor}0a 160px, var(--bg-overlay, #232428) 260px)`,
+                  } as React.CSSProperties)
+                : undefined
+            }
+          >
             {/* Clickable Banner */}
             <ProfileBanner
               className="profile-card-preview__banner profile-card-preview__banner--editable"
@@ -595,7 +948,9 @@ export function ProfilePage() {
                 }
               }}
               fallbackStyle={{
-                background: `linear-gradient(135deg, var(--accent, #5865F2) 0%, #0b5c51 100%)`,
+                background: cosmetics.themeColor
+                  ? `linear-gradient(135deg, ${cosmetics.themeColor} 0%, ${cosmetics.themeColor}aa 50%, #18191c 100%)`
+                  : `linear-gradient(135deg, var(--accent, #5865F2) 0%, #0b5c51 100%)`,
               }}
             >
               <div className="profile-card-preview__banner-overlay">
@@ -648,6 +1003,19 @@ export function ProfilePage() {
                     size="xl"
                     status={selectedStatus}
                     showStatus
+                    frame={customFrame.style}
+                    frameAnimation={customFrame.animation}
+                    frameColor={
+                      customFrame.colorMode === "custom" || customFrame.colorMode === "gradient"
+                        ? (customFrame.customColor || (customFrame.colorMode === "gradient" ? "#06b6d4" : "#12b8a0"))
+                        : cosmetics.themeColor
+                    }
+                    frameColor2={
+                      customFrame.colorMode === "gradient"
+                        ? (customFrame.customColor2 || "#8b5cf6")
+                        : undefined
+                    }
+                    style={cosmetics.themeColor ? ({ "--user-profile-accent": cosmetics.themeColor } as React.CSSProperties) : undefined}
                   />
                 ) : null}
 

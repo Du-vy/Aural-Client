@@ -1,6 +1,15 @@
 import { useState, useEffect } from "react";
-import type { User, UserStatus } from "@/lib/protocol";
+import type { User, UserStatus, CustomAvatarFrame } from "@/lib/protocol";
 import { useSession } from "@/store/session";
+import {
+  readProfileCosmetics,
+  onProfileCosmeticsChanged,
+  resolveAvatarFrameConfig,
+  type AvatarFrameId,
+  type FrameStyleId,
+  type FrameAnimationId,
+  type ProfileCosmetics,
+} from "@/lib/storage";
 import { AnimatedImage } from "./AnimatedImage";
 
 const PALETTE = [
@@ -49,13 +58,24 @@ export function resolveAvatarUrl(
 }
 
 interface AvatarProps {
-  user: Pick<User, "id" | "nickname"> & { avatar?: string | null; status?: UserStatus | string };
+  user: Pick<User, "id" | "nickname"> & {
+    avatar?: string | null;
+    status?: UserStatus | string;
+    themeColor?: string;
+    customFrame?: CustomAvatarFrame;
+  };
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   /** Explicit online boolean or status */
   online?: boolean;
   status?: UserStatus | string;
   showStatus?: boolean;
   className?: string;
+  /** Explicit frame or fallback to user's saved cosmetics */
+  frame?: AvatarFrameId | FrameStyleId;
+  frameAnimation?: FrameAnimationId;
+  frameColor?: string;
+  frameColor2?: string;
+  style?: React.CSSProperties;
 }
 
 export function Avatar({
@@ -65,10 +85,24 @@ export function Avatar({
   status,
   showStatus,
   className = "",
+  frame,
+  frameAnimation,
+  frameColor,
+  frameColor2,
+  style,
 }: AvatarProps) {
   const [imgError, setImgError] = useState(false);
   const address = useSession((state) => state.address);
+  const self = useSession((state) => state.self);
   const color = avatarColor(user.id);
+  const isSelf = Boolean(self && user.id === self.id);
+
+  const [selfCosmetics, setSelfCosmetics] = useState<ProfileCosmetics>(readProfileCosmetics);
+
+  useEffect(() => {
+    if (!isSelf) return;
+    return onProfileCosmeticsChanged(setSelfCosmetics);
+  }, [isSelf]);
 
   useEffect(() => {
     setImgError(false);
@@ -87,12 +121,74 @@ export function Avatar({
 
   const shouldShowBadge = showStatus || (online !== undefined && online) || status !== undefined || (effectiveStatus && effectiveStatus !== "offline");
 
+  const userThemeColor = user.themeColor || (isSelf ? selfCosmetics.themeColor : undefined);
+  const userCustomFrame = user.customFrame || (isSelf ? selfCosmetics.customFrame : undefined);
+
+  const effectiveCosmetics: ProfileCosmetics = {
+    themeColor: userThemeColor,
+    customFrame: userCustomFrame,
+  };
+  const resolvedFrame = resolveAvatarFrameConfig(effectiveCosmetics);
+
+  const effectiveStyle: FrameStyleId | AvatarFrameId = frame !== undefined
+    ? frame
+    : (resolvedFrame ? resolvedFrame.style : "none");
+
+  const effectiveAnim: FrameAnimationId = frameAnimation !== undefined
+    ? frameAnimation
+    : (resolvedFrame ? resolvedFrame.animation : "none");
+
+  const hasFrame = effectiveStyle !== "none";
+
+  const targetAccent = (style && ("--user-profile-accent" in style))
+    ? ((style as Record<string, unknown>)["--user-profile-accent"] as string)
+    : userThemeColor;
+
+  const effectiveFrameColor = frameColor
+    || (resolvedFrame ? resolvedFrame.color : undefined)
+    || targetAccent
+    || "#12b8a0";
+
+  const isSpinning = effectiveAnim === "spin";
+  const defaultColor2 = isSpinning
+    ? `${effectiveFrameColor}2e`
+    : effectiveFrameColor;
+
+  const effectiveFrameColor2 = frameColor2
+    || (resolvedFrame ? resolvedFrame.color2 : undefined)
+    || defaultColor2;
+
+  const combinedStyle: React.CSSProperties = {
+    ...(!avatarSrc ? { background: `${color}2e`, color } : {}),
+    ...(targetAccent
+      ? ({
+          "--user-profile-accent": targetAccent,
+          "--user-profile-accent-glow": `${targetAccent}66`,
+        } as React.CSSProperties)
+      : {}),
+    ...(hasFrame && effectiveFrameColor
+      ? ({
+          "--avatar-frame-color": effectiveFrameColor,
+          "--avatar-frame-color-2": effectiveFrameColor2,
+          "--avatar-frame-glow": `${effectiveFrameColor}66`,
+          "--avatar-frame-glow-2": `${effectiveFrameColor2}66`,
+        } as React.CSSProperties)
+      : {}),
+    ...style,
+  };
+
   return (
     <span
-      className={`avatar avatar--${size} ${className}`}
-      style={!avatarSrc ? { background: `${color}2e`, color } : undefined}
+      className={`avatar avatar--${size} ${hasFrame ? "avatar--has-frame" : ""} ${className}`}
+      style={combinedStyle}
       aria-hidden="true"
     >
+      {hasFrame && (
+        <span
+          className={`avatar__frame-layer avatar--frame-${effectiveStyle} ${effectiveAnim !== "none" ? `avatar--anim-${effectiveAnim}` : ""}`}
+          aria-hidden="true"
+        />
+      )}
       {avatarSrc ? (
         <AnimatedImage
           src={avatarSrc}

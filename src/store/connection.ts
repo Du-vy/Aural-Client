@@ -88,6 +88,8 @@ import {
   type Sound,
   type SoundPlayedEvent,
   type User,
+  type UserUpdateRequest,
+  type CustomAvatarFrame,
   type UserDisconnectedEvent,
   type UserEvent,
   type UserMovedEvent,
@@ -535,6 +537,8 @@ export interface ConnectionState {
     banner?: string | null;
     dmPrivacy?: DMPrivacy;
     userId?: number;
+    themeColor?: string;
+    customFrame?: CustomAvatarFrame;
   }): Promise<void>;
   /** Sets who may write to you privately. Your own setting, never anybody's else. */
   setDMPrivacy(privacy: DMPrivacy): Promise<void>;
@@ -2678,7 +2682,7 @@ export function createConnection({
         // A picture is removed by sending an empty string, never null: the server
         // decodes a JSON null into the same absent field as a missing key, so a
         // null would silently leave the picture exactly where it was.
-        const request = {
+        const request: UserUpdateRequest = {
           ...patch,
           ...(patch.avatar === null ? { avatar: "" } : {}),
           ...(patch.banner === null ? { banner: "" } : {}),

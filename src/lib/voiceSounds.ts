@@ -7,7 +7,7 @@
  */
 
 import { getAudioContext } from "./audioContext";
-import { readAccessibility } from "./storage";
+import { readAccessibility, readSoundPack, type SoundPackId } from "./storage";
 import { readPreferences } from "./voice/settings";
 
 export type VoiceSoundType = "join" | "leave" | "user-join" | "user-leave";
@@ -117,11 +117,168 @@ function playProceduralFallback(type: VoiceSoundType, ctx: AudioContext, volume:
   }
 }
 
+/** 8-bit arcade style chimes */
+function playRetroSound(type: VoiceSoundType, ctx: AudioContext, volume: number): void {
+  try {
+    const now = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(Math.min(1, Math.max(0, volume)), now);
+    masterGain.connect(ctx.destination);
+
+    const playBit = (freq: number, delay: number, duration: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(freq, now + delay);
+
+      gain.gain.setValueAtTime(0.35, now + delay);
+      gain.gain.setValueAtTime(0.0001, now + delay + duration);
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+
+      osc.start(now + delay);
+      osc.stop(now + delay + duration + 0.01);
+    };
+
+    switch (type) {
+      case "join":
+        playBit(523.25, 0.0, 0.05); // C5
+        playBit(659.25, 0.05, 0.05); // E5
+        playBit(783.99, 0.1, 0.05); // G5
+        playBit(1046.5, 0.15, 0.12); // C6
+        break;
+      case "leave":
+        playBit(1046.5, 0.0, 0.05); // C6
+        playBit(783.99, 0.05, 0.05); // G5
+        playBit(659.25, 0.1, 0.05); // E5
+        playBit(523.25, 0.15, 0.1); // C5
+        break;
+      case "user-join":
+        playBit(880.0, 0.0, 0.04);
+        playBit(1318.5, 0.045, 0.08);
+        break;
+      case "user-leave":
+        playBit(1318.5, 0.0, 0.04);
+        playBit(880.0, 0.045, 0.08);
+        break;
+    }
+  } catch {}
+}
+
+/** Sci-fi futuristic frequency-swept synthesizers */
+function playScifiSound(type: VoiceSoundType, ctx: AudioContext, volume: number): void {
+  try {
+    const now = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(Math.min(1, Math.max(0, volume)), now);
+    masterGain.connect(ctx.destination);
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sawtooth";
+
+    switch (type) {
+      case "join":
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(1100, now + 0.22);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+        osc.start(now);
+        osc.stop(now + 0.3);
+        break;
+      case "leave":
+        osc.frequency.setValueAtTime(1050, now);
+        osc.frequency.exponentialRampToValueAtTime(260, now + 0.24);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+        osc.start(now);
+        osc.stop(now + 0.3);
+        break;
+      case "user-join":
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(1600, now + 0.12);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.4, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+        osc.start(now);
+        osc.stop(now + 0.18);
+        break;
+      case "user-leave":
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(1400, now);
+        osc.frequency.exponentialRampToValueAtTime(650, now + 0.12);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.4, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+        osc.start(now);
+        osc.stop(now + 0.18);
+        break;
+    }
+
+    osc.connect(gain);
+    gain.connect(masterGain);
+  } catch {}
+}
+
+/** Soft acoustic mellow sine chimes */
+function playSoftSound(type: VoiceSoundType, ctx: AudioContext, volume: number): void {
+  try {
+    const now = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(Math.min(1, Math.max(0, volume)), now);
+    masterGain.connect(ctx.destination);
+
+    const playSoft = (freq: number, delay: number, duration: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + delay);
+
+      gain.gain.setValueAtTime(0.001, now + delay);
+      gain.gain.linearRampToValueAtTime(0.4, now + delay + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + duration);
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+
+      osc.start(now + delay);
+      osc.stop(now + delay + duration + 0.02);
+    };
+
+    switch (type) {
+      case "join":
+        playSoft(440.0, 0.0, 0.35); // A4
+        playSoft(554.37, 0.07, 0.35); // C#5
+        playSoft(659.25, 0.14, 0.45); // E5
+        break;
+      case "leave":
+        playSoft(659.25, 0.0, 0.3); // E5
+        playSoft(554.37, 0.07, 0.3); // C#5
+        playSoft(440.0, 0.14, 0.4); // A4
+        break;
+      case "user-join":
+        playSoft(740.0, 0.0, 0.18);
+        playSoft(880.0, 0.08, 0.25);
+        break;
+      case "user-leave":
+        playSoft(880.0, 0.0, 0.18);
+        playSoft(740.0, 0.08, 0.25);
+        break;
+    }
+  } catch {}
+}
+
 export interface PlayVoiceSoundOptions {
   /** Override preference checks (used by test buttons in settings). */
   force?: boolean;
   /** Volume between 0 and 1. Defaults to the listener's cue volume. */
   volume?: number;
+  /** Specific sound pack override. Defaults to saved user setting. */
+  soundPack?: SoundPackId;
 }
 
 /**
@@ -134,7 +291,7 @@ export async function playVoiceSound(
   type: VoiceSoundType,
   options: PlayVoiceSoundOptions = {},
 ): Promise<void> {
-  const { force = false, volume = readPreferences().cueVolume / 100 } = options;
+  const { force = false, volume = readPreferences().cueVolume / 100, soundPack } = options;
   if (volume <= 0) return;
 
   if (!force) {
@@ -154,6 +311,22 @@ export async function playVoiceSound(
   const ctx = getAudioContext();
   if (!ctx) return;
 
+  const pack = soundPack || readSoundPack();
+
+  if (pack === "retro") {
+    playRetroSound(type, ctx, volume);
+    return;
+  }
+  if (pack === "scifi") {
+    playScifiSound(type, ctx, volume);
+    return;
+  }
+  if (pack === "soft") {
+    playSoftSound(type, ctx, volume);
+    return;
+  }
+
+  // Default: load pre-rendered audio asset with procedural fallback
   const buffer = await loadBuffer(type);
   if (buffer) {
     try {
@@ -165,11 +338,10 @@ export async function playVoiceSound(
       gain.connect(ctx.destination);
       source.start();
     } catch {
-      // Buffer playback failed, attempt fallback
       playProceduralFallback(type, ctx, volume);
     }
   } else {
-    // Fallback to real-time synthesis
     playProceduralFallback(type, ctx, volume);
   }
 }
+

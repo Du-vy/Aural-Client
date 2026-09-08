@@ -636,6 +636,22 @@ export interface User {
    * announcing somebody who chose not to be seen.
    */
   activity?: Activity | null;
+  /** Custom theme/accent color for profile cards and borders (e.g. hex code). */
+  themeColor?: string;
+  /** Custom constructed avatar frame decorations (glow, ring, neon, cyber, etc). */
+  customFrame?: CustomAvatarFrame;
+}
+
+export type FrameStyleId = "none" | "ring" | "glow" | "neon" | "cyber" | "double" | "crown";
+export type FrameAnimationId = "none" | "pulse" | "spin" | "shimmer" | "rainbow";
+export type FrameColorMode = "profile" | "custom" | "gradient";
+
+export interface CustomAvatarFrame {
+  style: FrameStyleId;
+  colorMode: FrameColorMode;
+  customColor?: string;
+  customColor2?: string;
+  animation: FrameAnimationId;
 }
 
 /** Who may open a private conversation with somebody. */
@@ -1247,6 +1263,10 @@ export interface UserUpdateRequest {
   banner?: string | null;
   /** Your own setting, and never anybody else's whatever you hold. */
   dmPrivacy?: DMPrivacy;
+  /** Custom theme color (hex format, e.g. #3b82f6 or empty string to reset). */
+  themeColor?: string;
+  /** Custom avatar frame configuration. */
+  customFrame?: CustomAvatarFrame;
 }
 
 /**

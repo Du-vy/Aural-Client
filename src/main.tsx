@@ -3,15 +3,23 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
 import { initTheme } from "./lib/theme";
-import { initDensity, initAnimations, initAccessibility } from "./lib/storage";
+import {
+  initDensity,
+  initAnimations,
+  initAccessibility,
+  initBorderRadius,
+  initUIScale,
+} from "./lib/storage";
 import "./styles/theme.css";
 import "./styles/app.css";
 
-// Initialize client theme, message density, animations and accessibility immediately before rendering
+// Initialize client theme, message density, animations, accessibility, border radius and UI scale
 initTheme();
 initDensity();
 initAnimations();
 initAccessibility();
+initBorderRadius();
+initUIScale();
 
 // Suppress the default browser context menu across the app except on text inputs
 window.addEventListener("contextmenu", (event) => {

@@ -15,7 +15,21 @@ import {
   writeAnimations,
   readAccessibility,
   writeAccessibility,
+  readBorderRadius,
+  writeBorderRadius,
+  readUIScale,
+  writeUIScale,
+  readTimeFormat,
+  writeTimeFormat,
+  readJumboEmoji,
+  writeJumboEmoji,
+  readSoundPack,
+  writeSoundPack,
   type MessageDensity,
+  type BorderRadiusStyle,
+  type UIScale,
+  type TimeFormat,
+  type SoundPackId,
 } from "@/lib/storage";
 import {
   CopyIcon,
@@ -28,7 +42,10 @@ import {
   SlidersIcon,
   TrashIcon,
   UploadIcon,
+  VolumeIcon,
 } from "@/components/Icons";
+import { playVoiceSound } from "@/lib/voiceSounds";
+import { formatTime } from "@/lib/time";
 
 export function AppearancePage() {
   const { t } = useTranslation();
@@ -52,6 +69,11 @@ export function AppearancePage() {
   const [density, setDensityState] = useState<MessageDensity>(readDensity);
   const [animations, setAnimationsState] = useState<boolean>(readAnimations);
   const [pauseAnimated, setPauseAnimatedState] = useState<boolean>(() => readAccessibility().pauseAnimatedImagesOnBlur);
+  const [borderRadius, setBorderRadiusState] = useState<BorderRadiusStyle>(readBorderRadius);
+  const [uiScale, setUIScaleState] = useState<UIScale>(readUIScale);
+  const [timeFormat, setTimeFormatState] = useState<TimeFormat>(readTimeFormat);
+  const [jumboEmoji, setJumboEmojiState] = useState<boolean>(readJumboEmoji);
+  const [soundPack, setSoundPackState] = useState<SoundPackId>(readSoundPack);
   const [feedback, setFeedback] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const setDensity = (d: MessageDensity) => {
@@ -67,6 +89,32 @@ export function AppearancePage() {
   const setPauseAnimated = (enabled: boolean) => {
     setPauseAnimatedState(enabled);
     writeAccessibility({ pauseAnimatedImagesOnBlur: enabled });
+  };
+
+  const setBorderRadius = (style: BorderRadiusStyle) => {
+    setBorderRadiusState(style);
+    writeBorderRadius(style);
+  };
+
+  const setUIScale = (scale: UIScale) => {
+    setUIScaleState(scale);
+    writeUIScale(scale);
+  };
+
+  const setTimeFormat = (format: TimeFormat) => {
+    setTimeFormatState(format);
+    writeTimeFormat(format);
+  };
+
+  const setJumboEmoji = (enabled: boolean) => {
+    setJumboEmojiState(enabled);
+    writeJumboEmoji(enabled);
+  };
+
+  const setSoundPack = (pack: SoundPackId) => {
+    setSoundPackState(pack);
+    writeSoundPack(pack);
+    void playVoiceSound("join", { force: true, soundPack: pack });
   };
 
   // Modals / prompts state
@@ -590,6 +638,62 @@ export function AppearancePage() {
         </div>
       </div>
 
+      {/* Corner Rounding (Border Radius) */}
+      <div className="settings-card" style={{ marginTop: 16 }}>
+        <h3 className="settings-card__title">{t("dialogs.userSettings.appearance.borderRadiusTitle")}</h3>
+        <p className="settings-card__subtitle">{t("dialogs.userSettings.appearance.borderRadiusDesc")}</p>
+        <div className="settings-radio-group" style={{ marginTop: 12 }}>
+          {(
+            [
+              { id: "sharp", title: "dialogs.userSettings.appearance.borderRadiusSharp", desc: "dialogs.userSettings.appearance.borderRadiusSharpDesc", radius: 0 },
+              { id: "compact", title: "dialogs.userSettings.appearance.borderRadiusCompact", desc: "dialogs.userSettings.appearance.borderRadiusCompactDesc", radius: 6 },
+              { id: "modern", title: "dialogs.userSettings.appearance.borderRadiusModern", desc: "dialogs.userSettings.appearance.borderRadiusModernDesc", radius: 12 },
+              { id: "round", title: "dialogs.userSettings.appearance.borderRadiusRound", desc: "dialogs.userSettings.appearance.borderRadiusRoundDesc", radius: 18 },
+            ] as const
+          ).map((item) => (
+            <label
+              key={item.id}
+              className={`settings-radio-card ${borderRadius === item.id ? "settings-radio-card--active" : ""}`}
+            >
+              <input
+                type="radio"
+                name="border-radius"
+                checked={borderRadius === item.id}
+                onChange={() => setBorderRadius(item.id)}
+              />
+              <span className="settings-radio-card__body">
+                <span className="settings-radio-card__title" style={{ display: "flex", alignItems: "center" }}>
+                  <span
+                    className="radius-preview-badge"
+                    style={{ borderRadius: `${item.radius}px` }}
+                  />
+                  {t(item.title)}
+                </span>
+                <span className="settings-card__subtitle">{t(item.desc)}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* UI Scale / Zoom */}
+      <div className="settings-card" style={{ marginTop: 16 }}>
+        <h3 className="settings-card__title">{t("dialogs.userSettings.appearance.uiScaleTitle")}</h3>
+        <p className="settings-card__subtitle">{t("dialogs.userSettings.appearance.uiScaleDesc")}</p>
+        <div className="settings-scale-grid">
+          {([80, 90, 100, 110, 125] as const).map((scale) => (
+            <button
+              key={scale}
+              type="button"
+              className={`settings-scale-btn ${uiScale === scale ? "settings-scale-btn--active" : ""}`}
+              onClick={() => setUIScale(scale)}
+            >
+              {scale}%
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Message Density */}
       <div className="settings-card" style={{ marginTop: 16 }}>
         <h3 className="settings-card__title">{t("dialogs.userSettings.appearance.densityTitle")}</h3>
@@ -621,6 +725,117 @@ export function AppearancePage() {
               </span>
             </span>
           </label>
+        </div>
+      </div>
+
+      {/* Chat & Messages Settings */}
+      <div className="settings-card" style={{ marginTop: 16 }}>
+        <h3 className="settings-card__title">{t("dialogs.userSettings.appearance.chatSettingsTitle")}</h3>
+        <p className="settings-card__subtitle">{t("dialogs.userSettings.appearance.chatSettingsDesc")}</p>
+
+        {/* Time Format */}
+        <div style={{ marginTop: 14 }}>
+          <span className="field__label">{t("dialogs.userSettings.appearance.timeFormatTitle")}</span>
+          <div className="settings-radio-group" style={{ marginTop: 8 }}>
+            {(
+              [
+                { id: "auto", title: "dialogs.userSettings.appearance.timeFormatAuto" },
+                { id: "12h", title: "dialogs.userSettings.appearance.timeFormat12" },
+                { id: "24h", title: "dialogs.userSettings.appearance.timeFormat24" },
+              ] as const
+            ).map((item) => (
+              <label
+                key={item.id}
+                className={`settings-radio-card ${timeFormat === item.id ? "settings-radio-card--active" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name="time-format"
+                  checked={timeFormat === item.id}
+                  onChange={() => setTimeFormat(item.id)}
+                />
+                <span className="settings-radio-card__body">
+                  <span className="settings-radio-card__title">{t(item.title)}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Jumbo Emoji Toggle */}
+        <div className="settings-row" style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+          <div className="settings-row__info">
+            <h4 className="settings-card__title" style={{ fontSize: 14 }}>
+              {t("dialogs.userSettings.appearance.jumboEmojiTitle")}
+            </h4>
+            <p className="settings-card__subtitle">
+              {t("dialogs.userSettings.appearance.jumboEmojiDesc")}
+            </p>
+          </div>
+          <label className="settings-switch">
+            <input
+              type="checkbox"
+              checked={jumboEmoji}
+              onChange={(e) => setJumboEmoji(e.target.checked)}
+            />
+            <span className="settings-switch__slider" />
+          </label>
+        </div>
+      </div>
+
+      {/* Sound Pack Selection */}
+      <div className="settings-card" style={{ marginTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+          <div>
+            <h3 className="settings-card__title">{t("dialogs.userSettings.appearance.soundPackTitle")}</h3>
+            <p className="settings-card__subtitle">{t("dialogs.userSettings.appearance.soundPackDesc")}</p>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              style={{ padding: "4px 10px", fontSize: 12 }}
+              onClick={() => void playVoiceSound("join", { force: true, soundPack })}
+            >
+              <VolumeIcon size={13} />
+              {t("dialogs.userSettings.appearance.testJoin")}
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              style={{ padding: "4px 10px", fontSize: 12 }}
+              onClick={() => void playVoiceSound("leave", { force: true, soundPack })}
+            >
+              <VolumeIcon size={13} />
+              {t("dialogs.userSettings.appearance.testLeave")}
+            </button>
+          </div>
+        </div>
+
+        <div className="settings-radio-group" style={{ marginTop: 12 }}>
+          {(
+            [
+              { id: "default", title: "dialogs.userSettings.appearance.soundPackDefault" },
+              { id: "retro", title: "dialogs.userSettings.appearance.soundPackRetro" },
+              { id: "scifi", title: "dialogs.userSettings.appearance.soundPackScifi" },
+              { id: "soft", title: "dialogs.userSettings.appearance.soundPackSoft" },
+            ] as const
+          ).map((pack) => (
+            <label
+              key={pack.id}
+              className={`settings-radio-card ${soundPack === pack.id ? "settings-radio-card--active" : ""}`}
+            >
+              <input
+                type="radio"
+                name="sound-pack"
+                checked={soundPack === pack.id}
+                onChange={() => setSoundPack(pack.id)}
+              />
+              <span className="settings-radio-card__body">
+                <span className="settings-radio-card__title">{t(pack.title)}</span>
+              </span>
+            </label>
+          ))}
         </div>
       </div>
 
@@ -683,10 +898,23 @@ export function AppearancePage() {
             <div className="chat-preview-content">
               <div className="chat-preview-header">
                 <span className="chat-preview-author" style={{ color: "var(--accent)" }}>Aural Bot</span>
-                <span className="chat-preview-time">Today at 12:00 PM</span>
+                <span className="chat-preview-time">{formatTime(Math.floor(Date.now() / 1000))}</span>
               </div>
               <div className="chat-preview-msg">
                 ¡Bienvenido a Aural! Este es un ejemplo de cómo se verá el chat con el tema <strong>{activeTheme.name}</strong> y tu tipografía seleccionada.
+              </div>
+            </div>
+          </div>
+
+          <div className="chat-preview-item" style={{ marginTop: 10 }}>
+            <div className="chat-preview-avatar" style={{ background: "var(--accent)", color: "#000" }}>P</div>
+            <div className="chat-preview-content">
+              <div className="chat-preview-header">
+                <span className="chat-preview-author" style={{ color: "var(--text)" }}>User</span>
+                <span className="chat-preview-time">{formatTime(Math.floor(Date.now() / 1000))}</span>
+              </div>
+              <div className={jumboEmoji ? "chat-preview-msg msg__content--jumbo" : "chat-preview-msg"}>
+                🚀✨🎉
               </div>
             </div>
           </div>
