@@ -51,6 +51,9 @@ export type ScreenPriority = "detail" | "motion";
  */
 export type ScreenCodec = "auto" | "vp9" | "h264" | "vp8" | "av1";
 
+/** What kind of surface the picker should open on first. */
+export type ScreenSurface = "monitor" | "window";
+
 export interface ScreenPreferences {
   height: number;
   framerate: number;
@@ -60,6 +63,7 @@ export interface ScreenPreferences {
   audio: boolean;
   priority: ScreenPriority;
   codec: ScreenCodec;
+  surface: ScreenSurface;
 }
 
 export const DEFAULT_SCREEN_PREFERENCES: ScreenPreferences = {
@@ -69,6 +73,7 @@ export const DEFAULT_SCREEN_PREFERENCES: ScreenPreferences = {
   audio: true,
   priority: "detail",
   codec: "auto",
+  surface: "monitor",
 };
 
 /**
@@ -184,6 +189,7 @@ export class ScreenError extends Error {
 export async function captureScreen(
   quality: VideoQuality,
   wantAudio: boolean,
+  preferredSurface: ScreenSurface = "monitor",
 ): Promise<ScreenCapture> {
   if (!navigator.mediaDevices?.getDisplayMedia) {
     throw new ScreenError("unsupported", "This platform cannot capture a screen.");
@@ -195,6 +201,7 @@ export async function captureScreen(
       video: {
         frameRate: { ideal: quality.framerate, max: quality.framerate },
         height: { ideal: quality.height },
+        displaySurface: preferredSurface,
       },
       // Sound is asked for and never insisted on. Windows gives it for a whole
       // desktop and usually not for one window; Linux and macOS mostly give
@@ -372,6 +379,9 @@ export function readScreenPreferences(): ScreenPreferences {
     stored.codec === "av1"
   ) {
     prefs.codec = stored.codec;
+  }
+  if (stored.surface === "monitor" || stored.surface === "window") {
+    prefs.surface = stored.surface;
   }
   return prefs;
 }

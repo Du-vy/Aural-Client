@@ -431,6 +431,16 @@ export const MonitorIcon = icon(
   </>,
 );
 
+/** A single application window with a title bar. */
+export const WindowIcon = icon(
+  <>
+    <rect x="2" y="3" width="20" height="18" rx="2" ry="2" />
+    <line x1="2" y1="8" x2="22" y2="8" />
+    <circle cx="6" cy="5.5" r=".75" fill="currentColor" />
+    <circle cx="9" cy="5.5" r=".75" fill="currentColor" />
+  </>,
+);
+
 /** A screen with an arrow leaving it: sharing what is on this machine. */
 export const ScreenShareIcon = icon(
   <>

@@ -131,22 +131,26 @@ pub const fn hardware_acceleration_supported() -> bool {
 /// start and changing them afterwards changes nothing, which is also why the
 /// settings page asks for a restart after this one is touched.
 pub fn apply_renderer_flags(hardware_acceleration: bool) {
-    if hardware_acceleration {
-        return;
-    }
-
     #[cfg(windows)]
     {
         // Appended rather than assigned: somebody debugging the client may
         // have put their own switches in this variable, and dropping them
         // would be a surprising thing for a settings toggle to do.
         const KEY: &str = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS";
-        const FLAGS: &str = "--disable-gpu --disable-gpu-compositing";
+        let mut flags = Vec::new();
+        if !hardware_acceleration {
+            flags.push("--disable-gpu");
+            flags.push("--disable-gpu-compositing");
+        }
+        // Ensure WebView2 system dialogs (like media pickers and prompts)
+        // follow the dark theme rather than blinding with a light palette.
+        flags.push("--force-dark-mode");
+        let flags_str = flags.join(" ");
         let existing = std::env::var(KEY).unwrap_or_default();
         let combined = if existing.trim().is_empty() {
-            FLAGS.to_string()
+            flags_str
         } else {
-            format!("{existing} {FLAGS}")
+            format!("{existing} {flags_str}")
         };
         std::env::set_var(KEY, combined);
     }
@@ -158,7 +162,7 @@ pub fn apply_renderer_flags(hardware_acceleration: bool) {
         target_os = "netbsd",
         target_os = "openbsd"
     ))]
-    {
+    if !hardware_acceleration {
         std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
     }
 }

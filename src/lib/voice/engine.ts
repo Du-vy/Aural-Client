@@ -785,7 +785,7 @@ export class VoiceEngine {
     this.releaseCapture();
 
     const generation = this.generation;
-    const capture = await captureScreen(quality, wantAudio);
+    const capture = await captureScreen(quality, wantAudio, this.screenPrefs.surface);
     if (this.disposed || generation !== this.generation || this.channelId === null) {
       for (const track of capture.stream.getTracks()) track.stop();
       return null;

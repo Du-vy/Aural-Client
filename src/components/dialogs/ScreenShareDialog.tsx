@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { MonitorIcon, WindowIcon } from "@/components/Icons";
 import { Modal } from "@/components/Modal";
 import { useTranslation } from "@/lib/i18n";
 import {
@@ -11,6 +12,7 @@ import {
   type ScreenCodec,
   type ScreenPreferences,
   type ScreenPriority,
+  type ScreenSurface,
 } from "@/lib/voice/screen";
 import { useVoice } from "@/store/voice";
 
@@ -61,12 +63,18 @@ export function ScreenShareDialog({ live, onClose }: ScreenShareDialogProps) {
   const submit = async () => {
     setBusy(true);
     setScreenPreferences(draft);
-    try {
-      if (live) await applyScreenQuality();
-      else await startScreen();
-    } finally {
-      setBusy(false);
+    if (live) {
+      try {
+        await applyScreenQuality();
+      } finally {
+        setBusy(false);
+        onClose();
+      }
+    } else {
+      // Dismiss the modal first to prevent the double-modal stacking visual clash,
+      // then invoke startScreen directly in the same user gesture.
       onClose();
+      void startScreen();
     }
   };
 
@@ -91,8 +99,52 @@ export function ScreenShareDialog({ live, onClose }: ScreenShareDialogProps) {
       }
     >
       <div className="screenshare">
+        {!live && (
+          <div className="field">
+            <span className="field__label">{t("voice.screen.sourceType")}</span>
+            <div className="settings-radio-group">
+              {(
+                [
+                  ["monitor", "sourceMonitor", "sourceMonitorDesc"],
+                  ["window", "sourceWindow", "sourceWindowDesc"],
+                ] as const
+              ).map(([value, title, description]) => (
+                <label
+                  key={value}
+                  className={`settings-radio-card ${
+                    draft.surface === value ? "settings-radio-card--active" : ""
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="screen-surface"
+                    checked={draft.surface === value}
+                    onChange={() => patch({ surface: value as ScreenSurface })}
+                  />
+                  <span className="settings-radio-card__body">
+                    <span
+                      className="settings-radio-card__title"
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      {value === "monitor" ? <MonitorIcon size={16} /> : <WindowIcon size={16} />}
+                      {t(`voice.screen.${title}`)}
+                    </span>
+                    <span className="settings-card__subtitle">
+                      {t(`voice.screen.${description}`)}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
         <p className="field__hint">
-          {live ? t("voice.screen.liveHint") : t("voice.screen.sourceHint")}
+          {live
+            ? t("voice.screen.liveHint")
+            : draft.surface === "monitor"
+              ? t("voice.screen.sourceHintMonitor")
+              : t("voice.screen.sourceHintWindow")}
         </p>
 
         <div className="settings-grid-2">
