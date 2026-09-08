@@ -21,15 +21,27 @@ import {
   Op,
   describeError,
   type ICEServer,
+  type VideoQuality,
   type VoiceConfig,
   type VoiceHostEvent,
   type VoicePeerEvent,
   type VoiceResetEvent,
   type VoiceSignalEvent,
   type VoiceState,
+  type VoiceStreamEvent,
+  type VoiceWatchEvent,
 } from "@/lib/protocol";
 import { listDevices, type AudioDevices, type MicrophoneFailure } from "@/lib/voice/audio";
 import { VoiceEngine, type EngineSettings, type VoiceStatus } from "@/lib/voice/engine";
+import {
+  ScreenError,
+  clampQuality,
+  readScreenPreferences,
+  requestedQuality,
+  writeScreenPreferences,
+  type ScreenFailure,
+  type ScreenPreferences,
+} from "@/lib/voice/screen";
 import {
   DEFAULT_PREFERENCES,
   readPreferences,
@@ -97,6 +109,29 @@ interface VoiceStoreState {
   /** Whose audio is actually arriving here. */
   audible: Set<number>;
 
+  /**
+   * Every screen share running in the channel, by whose it is.
+   *
+   * It is the whole of what the interface needs to draw a live badge and a
+   * label saying what somebody is sharing, and it is deliberately separate
+   * from `screens`: knowing a stream exists and having been sent it are two
+   * different things, and only the second costs anybody bandwidth.
+   */
+  streams: Map<number, VoiceStreamEvent>;
+  /** The pictures actually arriving here, by whose they are. */
+  screens: Map<number, MediaStream>;
+  /** Whose screens this client has asked for. */
+  watching: Set<number>;
+  /** Who is watching whose, so a stream can say how many people are looking. */
+  viewers: Map<number, Set<number>>;
+  /** This client's own capture, for the preview, or null when not sharing. */
+  ownScreen: MediaStream | null;
+  /** The quality the server allowed for this client's share. */
+  ownQuality: VideoQuality | null;
+  /** Why a capture did not happen, or null. `cancelled` is not worth showing. */
+  screenError: ScreenFailure | null;
+  screenPrefs: ScreenPreferences;
+
   /** The local microphone level, only while something is watching it. */
   level: number;
   meterActive: boolean;
@@ -135,6 +170,20 @@ interface VoiceStoreState {
 
   /** Actions the interface calls. */
   setPreferences(patch: Partial<VoicePreferences>): void;
+  setScreenPreferences(patch: Partial<ScreenPreferences>): void;
+  /**
+   * Starts sharing a screen. The platform's own picker decides which one, so
+   * this resolves only once somebody has chosen — or immediately, having done
+   * nothing at all, when they close it.
+   */
+  startScreen(): Promise<void>;
+  stopScreen(): Promise<void>;
+  /** Changes the quality of a share that is already running. */
+  applyScreenQuality(): Promise<void>;
+  /** Asks for, or gives up, one participant's screen. */
+  watchScreen(userId: number, watching: boolean): Promise<void>;
+  /** How many people are watching one participant's screen. */
+  viewerCount(userId: number): number;
   setUserVolume(userId: number, percent: number, serverId?: string | null): void;
   volumeFor(userId: number, serverId?: string | null): number;
   toggleMute(): Promise<void>;
@@ -166,7 +215,15 @@ function sameVoiceConfig(a: VoiceConfig, b: VoiceConfig): boolean {
     a.fec === b.fec &&
     a.dtx === b.dtx &&
     a.stereo === b.stereo &&
-    a.maxParticipants === b.maxParticipants
+    a.maxParticipants === b.maxParticipants &&
+    a.screen.enabled === b.screen.enabled &&
+    a.screen.audio === b.screen.audio &&
+    a.screen.enforced === b.screen.enforced &&
+    a.screen.maxHeight === b.screen.maxHeight &&
+    a.screen.maxFramerate === b.screen.maxFramerate &&
+    a.screen.maxBitrate === b.screen.maxBitrate &&
+    a.screen.maxStreams === b.screen.maxStreams &&
+    a.screen.maxViewers === b.screen.maxViewers
   );
 }
 
@@ -199,6 +256,14 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
     };
   }
 
+  /** Holds one arriving picture, or lets go of it. */
+  function setScreen(userId: number, stream: MediaStream | null): void {
+    const screens = new Map(get().screens);
+    if (stream) screens.set(userId, stream);
+    else if (!screens.delete(userId)) return;
+    set({ screens });
+  }
+
   function markAudible(userId: number, present: boolean): void {
     const current = get().audible;
     if (current.has(userId) === present) return;
@@ -225,6 +290,8 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
           signal: (request) => link!.request(Op.VoiceSignal, request),
           leave: () => link!.request(Op.VoiceLeave, {}),
           speaking: (speaking) => link!.request(Op.VoiceSpeaking, { speaking }),
+          stream: (request) => link!.request(Op.VoiceStream, request),
+          watch: (request) => link!.request(Op.VoiceWatch, request),
         },
       handlers: {
           onStatus: (status, error) => set({ status, notice: error }),
@@ -234,6 +301,14 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
           onSpeaking: (speaking) => link?.onSelfSpeaking(speaking),
           onHost: (hostUserId) => set({ hostUserId }),
           onAudio: (userId, present) => markAudible(userId, present),
+          onScreen: (userId, stream) => setScreen(userId, stream),
+          onOwnScreen: (ownScreen) => set({ ownScreen }),
+          onScreenEnded: () => set({ ownScreen: null, ownQuality: null }),
+          onStreams: (streams) => {
+            const map = new Map<number, VoiceStreamEvent>();
+            for (const entry of streams) map.set(entry.userId, entry);
+            set({ streams: map });
+          },
           onMicrophone: (micError) => set({ micError }),
           onDenoising: (denoising) => set({ denoising }),
           onLatency: (latencyMs) => {
@@ -242,6 +317,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
         },
       },
       settings(prefs, config),
+      get().screenPrefs,
     );
     // Volumes set on a previous session apply to this one: they are a
     // preference about a person, not about a call.
@@ -320,6 +396,14 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
     latencyMs: null,
     own: null,
     audible: new Set(),
+    streams: new Map(),
+    screens: new Map(),
+    watching: new Set(),
+    viewers: new Map(),
+    ownScreen: null,
+    ownQuality: null,
+    screenError: null,
+    screenPrefs: readScreenPreferences(),
     level: 0,
     meterActive: false,
     prefs: readPreferences(),
@@ -349,7 +433,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
         return;
       }
 
-      set({ audible: new Set() });
+      set({ audible: new Set(), streams: new Map(), screens: new Map(), watching: new Set(), viewers: new Map() });
       engine = buildEngine();
       watchKeyboard();
 
@@ -393,6 +477,13 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
         latencyMs: null,
         own: null,
         audible: new Set(),
+        streams: new Map(),
+        screens: new Map(),
+        watching: new Set(),
+        viewers: new Map(),
+        ownScreen: null,
+        ownQuality: null,
+        screenError: null,
         level: 0,
         config: null,
       });
@@ -432,7 +523,19 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
     },
 
     exit() {
-      set({ channelId: null, hostUserId: null, latencyMs: null, level: 0 });
+      set({
+        channelId: null,
+        hostUserId: null,
+        latencyMs: null,
+        level: 0,
+        streams: new Map(),
+        screens: new Map(),
+        watching: new Set(),
+        viewers: new Map(),
+        ownScreen: null,
+        ownQuality: null,
+        screenError: null,
+      });
       void engine?.leave();
     },
 
@@ -467,6 +570,63 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
           const event = payload as VoiceResetEvent;
           if (get().channelId !== event.channelId) return;
           engine?.handleReset();
+          // Everything about who was sharing and who was watching went with
+          // the room. The session that replaces it is handed the truth again,
+          // in the reply to voice.connect, a moment from now.
+          set({ streams: new Map(), screens: new Map(), watching: new Set(), viewers: new Map() });
+          return;
+        }
+
+        case Ev.VoiceStream: {
+          const event = payload as VoiceStreamEvent;
+          if (get().channelId !== event.channelId) return;
+          engine?.handleStream(event);
+
+          const streams = new Map(get().streams);
+          const screens = new Map(get().screens);
+          const watching = new Set(get().watching);
+          const viewers = new Map(get().viewers);
+          if (event.active) {
+            streams.set(event.userId, event);
+          } else {
+            streams.delete(event.userId);
+            screens.delete(event.userId);
+            watching.delete(event.userId);
+            viewers.delete(event.userId);
+          }
+          set({ streams, screens, watching, viewers });
+          // A share of this client's own that the server has ended — because
+          // the session was rebuilt, or an administrator turned sharing off —
+          // has to be let go of here too, or the button would still say stop.
+          if (event.userId === link?.selfId && !event.active) {
+            set({ ownScreen: null, ownQuality: null });
+          }
+          return;
+        }
+
+        case Ev.VoiceWatch: {
+          const event = payload as VoiceWatchEvent;
+          if (get().channelId !== event.channelId) return;
+          engine?.handleWatch(event);
+
+          const viewers = new Map(get().viewers);
+          const audience = new Set(viewers.get(event.publisherId) ?? []);
+          if (event.watching) audience.add(event.viewerId);
+          else audience.delete(event.viewerId);
+          viewers.set(event.publisherId, audience);
+
+          const patch: Partial<VoiceStoreState> = { viewers };
+          if (event.viewerId === link?.selfId) {
+            const watching = new Set(get().watching);
+            if (event.watching) watching.add(event.publisherId);
+            else watching.delete(event.publisherId);
+            patch.watching = watching;
+            if (!event.watching) {
+              const screens = new Map(get().screens);
+              if (screens.delete(event.publisherId)) patch.screens = screens;
+            }
+          }
+          set(patch);
           return;
         }
 
@@ -481,6 +641,62 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
       writePreferences(prefs);
       void engine?.apply(settings(prefs, get().config));
       if (patch.mode !== undefined || patch.pttKey !== undefined) watchKeyboard();
+    },
+
+    setScreenPreferences(patch) {
+      const screenPrefs = { ...get().screenPrefs, ...patch };
+      set({ screenPrefs });
+      writeScreenPreferences(screenPrefs);
+      engine?.applyScreenPreferences(screenPrefs);
+    },
+
+    async startScreen() {
+      if (!engine) return;
+      set({ screenError: null });
+      const quality = clampQuality(requestedQuality(get().screenPrefs), get().config?.screen);
+      try {
+        const result = await engine.startScreen(quality, get().screenPrefs.audio);
+        if (result) set({ ownQuality: result.quality });
+      } catch (error) {
+        // Closing the picker without choosing is not a failure and is not
+        // reported: the person who closed it knows they did, and a message
+        // saying so would be the only sign anything had happened at all.
+        const reason = error instanceof ScreenError ? error.reason : "unknown";
+        if (reason !== "cancelled") set({ screenError: reason });
+        set({ ownScreen: null, ownQuality: null });
+      }
+    },
+
+    async stopScreen() {
+      set({ ownScreen: null, ownQuality: null, screenError: null });
+      await engine?.stopScreen();
+    },
+
+    async applyScreenQuality() {
+      if (!engine?.sharing) return;
+      const quality = clampQuality(requestedQuality(get().screenPrefs), get().config?.screen);
+      try {
+        const result = await engine.changeScreenQuality(quality);
+        if (result) set({ ownQuality: result.quality });
+      } catch {
+        // The share carries on at whatever it was; the only thing lost is the
+        // change, and the picker is still open to try again.
+      }
+    },
+
+    async watchScreen(userId, watching) {
+      if (!engine) return;
+      await engine.watchScreen(userId, watching);
+      const next = new Set(get().watching);
+      if (watching) next.add(userId);
+      else next.delete(userId);
+      const screens = new Map(get().screens);
+      if (!watching) screens.delete(userId);
+      set({ watching: next, screens });
+    },
+
+    viewerCount(userId) {
+      return get().viewers.get(userId)?.size ?? 0;
     },
 
     setUserVolume(userId, percent, serverId) {

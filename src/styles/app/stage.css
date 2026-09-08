@@ -1,0 +1,252 @@
+/*
+ * The screen-sharing surface: the stage a voice channel opens into, the tiles
+ * on it, and the dialog that decides what a share costs.
+ *
+ * The stage is the one place in this client that is mostly not text, so it is
+ * deliberately darker than everything around it. A picture judged against a
+ * pale panel looks washed out and a video sitting in a bright frame is tiring
+ * to watch for the hour a shared screen is usually watched for.
+ */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-main);
+}
+
+.stage__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.stage__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stage__spacer {
+  flex: 1;
+}
+
+.stage__head .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.stage__notice {
+  margin: 0;
+  padding: 9px 16px;
+  font-size: 13px;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+
+.stage__empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/*
+ * One column at a time up to two streams and two from there on. A screen is
+ * only useful at a size somebody can read, so the grid stops subdividing
+ * rather than carrying on into thumbnails nobody can use.
+ */
+.stage__grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-content: start;
+  gap: 12px;
+  padding: 12px 16px 16px;
+}
+
+/* One tile expanded takes the stage and the rest fall in beneath it. */
+.stage__grid--focused {
+  grid-template-columns: 1fr;
+}
+
+.streamtile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #101013;
+}
+
+.streamtile--expanded {
+  grid-column: 1 / -1;
+}
+
+.streamtile__video {
+  display: block;
+  width: 100%;
+  /* A shared screen is whatever shape the screen was. Letterboxing it is the
+     only honest answer: cropping would hide the edge of a window, which on a
+     spreadsheet is exactly the column somebody is pointing at. */
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #000;
+  cursor: zoom-in;
+}
+
+.streamtile--expanded .streamtile__video {
+  aspect-ratio: auto;
+  max-height: min(72vh, 900px);
+  height: 72vh;
+  cursor: zoom-out;
+}
+
+.streamtile__idle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  aspect-ratio: 16 / 9;
+  padding: 16px;
+  color: var(--text-muted);
+  background: linear-gradient(180deg, var(--bg-raised), #101013);
+}
+
+.streamtile__idle-name {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.streamtile__idle .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.streamtile__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  background: var(--bg-raised);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  min-width: 0;
+}
+
+.streamtile__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.streamtile__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.streamtile__spacer {
+  flex: 1;
+}
+
+/*
+ * The live marker. It is the same shape everywhere it appears — here, and
+ * beside a name in the channel list — because it means one thing and somebody
+ * should not have to learn it twice.
+ */
+.streamtile__live,
+.occupant__flag--live {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+}
+
+.occupant--streaming .occupant__name {
+  color: var(--text);
+}
+
+/* --- the quality dialog --------------------------------------------------- */
+
+.screenshare {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.screenshare__advanced > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  list-style: none;
+}
+
+.screenshare__advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.screenshare__advanced > summary::before {
+  content: "▸ ";
+  color: var(--text-dim);
+}
+
+.screenshare__advanced[open] > summary::before {
+  content: "▾ ";
+}
+
+.screenshare__advanced > summary:hover {
+  color: var(--text);
+}
+
+/*
+ * A button that reads as a link, for the one place a sentence has to contain
+ * an action: putting the bitrate back where the size and frame rate suggest.
+ */
+.linkbtn {
+  color: var(--accent);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  font: inherit;
+}
+
+.linkbtn:hover {
+  color: var(--accent-hover, var(--accent));
+}

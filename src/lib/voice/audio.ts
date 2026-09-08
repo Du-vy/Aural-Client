@@ -523,8 +523,19 @@ export class ActivityGate {
  * browser's own jitter handling for nothing, and a graph would give the same
  * result with more that can go wrong.
  */
+/**
+ * What a stream of arriving sound is.
+ *
+ * A participant can be the source of two of them at once — their voice, and
+ * the sound of a screen they are sharing — so playback is keyed by both. They
+ * share one volume, because the person turning somebody down means the person
+ * and not one of their two microphones, and they are stopped together by
+ * deafening for the same reason.
+ */
+export type PlaybackKind = "voice" | "screen";
+
 export class Playback {
-  private elements = new Map<number, HTMLAudioElement>();
+  private elements = new Map<string, HTMLAudioElement>();
   private volumes = new Map<number, number>();
   private container: HTMLElement | null = null;
   private master = 1;
@@ -532,16 +543,18 @@ export class Playback {
   private sinkId = "";
 
   /** Starts playing one participant's stream. */
-  attach(userId: number, stream: MediaStream): void {
-    let element = this.elements.get(userId);
+  attach(userId: number, stream: MediaStream, kind: PlaybackKind = "voice"): void {
+    const key = playbackKey(userId, kind);
+    let element = this.elements.get(key);
     if (!element) {
       element = document.createElement("audio");
       element.autoplay = true;
       // Nothing about these is meant to be seen or controlled directly; the
       // interface in front of them is the member list.
       element.setAttribute("data-aural-voice", String(userId));
+      element.setAttribute("data-aural-kind", kind);
       this.mount().appendChild(element);
-      this.elements.set(userId, element);
+      this.elements.set(key, element);
       void applySink(element, this.sinkId);
     }
     if (element.srcObject !== stream) {
@@ -554,18 +567,19 @@ export class Playback {
     void element.play().catch(() => {});
   }
 
-  detach(userId: number): void {
-    const element = this.elements.get(userId);
+  detach(userId: number, kind: PlaybackKind = "voice"): void {
+    const key = playbackKey(userId, kind);
+    const element = this.elements.get(key);
     if (!element) return;
-    this.elements.delete(userId);
+    this.elements.delete(key);
     element.pause();
     element.srcObject = null;
     element.remove();
   }
 
-  /** True when this participant's audio is playing here. */
-  has(userId: number): boolean {
-    return this.elements.has(userId);
+  /** True when this participant's audio of that kind is playing here. */
+  has(userId: number, kind: PlaybackKind = "voice"): boolean {
+    return this.elements.has(playbackKey(userId, kind));
   }
 
   setMasterVolume(percent: number): void {
@@ -575,8 +589,10 @@ export class Playback {
 
   setUserVolume(userId: number, percent: number): void {
     this.volumes.set(userId, Math.max(0, percent) / 100);
-    const element = this.elements.get(userId);
-    if (element) this.apply(userId, element);
+    for (const kind of ["voice", "screen"] as const) {
+      const element = this.elements.get(playbackKey(userId, kind));
+      if (element) this.apply(userId, element);
+    }
   }
 
   setDeafened(deafened: boolean): void {
@@ -591,7 +607,12 @@ export class Playback {
   }
 
   close(): void {
-    for (const userId of [...this.elements.keys()]) this.detach(userId);
+    for (const element of this.elements.values()) {
+      element.pause();
+      element.srcObject = null;
+      element.remove();
+    }
+    this.elements.clear();
     this.container?.remove();
     this.container = null;
   }
@@ -606,7 +627,7 @@ export class Playback {
   }
 
   private applyAll(): void {
-    for (const [userId, element] of this.elements) this.apply(userId, element);
+    for (const [key, element] of this.elements) this.apply(ownerOf(key), element);
   }
 
   private mount(): HTMLElement {
@@ -618,6 +639,14 @@ export class Playback {
     }
     return this.container;
   }
+}
+
+function playbackKey(userId: number, kind: PlaybackKind): string {
+  return `${userId}:${kind}`;
+}
+
+function ownerOf(key: string): number {
+  return Number(key.slice(0, key.indexOf(":")));
 }
 
 /**

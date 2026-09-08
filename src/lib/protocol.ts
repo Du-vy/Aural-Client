@@ -84,6 +84,7 @@ export type ErrorCode =
   | "post_locked"
   | "voice_disabled"
   | "voice_failed"
+  | "stream_disabled"
   | "banned"
   | "automod_blocked"
   | "expression_limit";
@@ -184,6 +185,8 @@ export const Op = {
   VoiceState: "voice.state",
   VoiceModerate: "voice.moderate",
   VoiceSpeaking: "voice.speaking",
+  VoiceStream: "voice.stream",
+  VoiceWatch: "voice.watch",
 } as const;
 
 /** What `ping` answers with. The round trip is the measurement; this is spare. */
@@ -304,6 +307,8 @@ export const Ev = {
   VoicePeer: "voice.peer",
   VoiceHost: "voice.host",
   VoiceReset: "voice.reset",
+  VoiceStream: "voice.stream",
+  VoiceWatch: "voice.watch",
 } as const;
 
 export type ChannelType =
@@ -431,6 +436,34 @@ export interface VoiceConfig {
   stereo: boolean;
   /** 0 leaves the ceiling to the channel's own user limit. */
   maxParticipants: number;
+  /** What this server will carry as a shared screen. */
+  screen: ScreenConfig;
+}
+
+/**
+ * What a server will carry as a shared screen, told to the client before it
+ * starts one so the picker offers qualities that will actually be accepted.
+ *
+ * `enforced` is the whole of the difference between the two hosting modes.
+ * In `server_host` every stream is uploaded to the server and sent out again
+ * once per viewer, so the ceilings are a promise about the operator's line and
+ * they bind. In `client_host` nothing crosses the server, so they are the
+ * operator's configuration shown to an administrator and applied to nobody:
+ * the bandwidth being spent belongs to the two people spending it.
+ */
+export interface ScreenConfig {
+  enabled: boolean;
+  /** Whether a shared screen may carry the machine's own sound. */
+  audio: boolean;
+  /** Whether the three ceilings below bound what this client may send. */
+  enforced: boolean;
+  maxHeight: number;
+  maxFramerate: number;
+  /** Bits per second. */
+  maxBitrate: number;
+  /** 0 means uncapped. */
+  maxStreams: number;
+  maxViewers: number;
 }
 
 /** One STUN or TURN server, in the shape `RTCConfiguration` expects. */
@@ -458,6 +491,16 @@ export type SignalKind = "offer" | "answer" | "candidate" | "end";
 export const SERVER_PEER = 0;
 
 /**
+ * What one media section of a session carries.
+ *
+ * A session carries up to three things and two of them are audio, so the kind
+ * of a track cannot tell them apart. Whoever offers says which section is
+ * which, in the `purposes` map that travels with the offer, and the answerer
+ * reads it rather than guessing.
+ */
+export type TrackPurpose = "mic" | "screen" | "screen_audio";
+
+/**
  * One participant's audio state.
  *
  * Sitting in a voice channel and holding a live audio session are different
@@ -478,6 +521,14 @@ export interface VoiceState {
   deaf: boolean;
   /** Set on the participant relaying a `client_host` channel. */
   host: boolean;
+  /**
+   * Whether this participant is sharing a screen right now.
+   *
+   * It lives on the state rather than only on the `voice.stream` event so that
+   * the badge beside a name is right for somebody who arrived after the share
+   * started, which is most people.
+   */
+  streaming: boolean;
 }
 
 /** Whether any reason to stop this participant transmitting applies. */
@@ -1168,6 +1219,23 @@ export interface VoiceSettings {
   dtx: boolean;
   stereo: boolean;
   maxParticipants: number;
+  screen: ScreenSettings;
+}
+
+/**
+ * The video plane an administrator may change at runtime. It is the
+ * configuration rather than what is in force: the ceilings are shown here
+ * whatever the hosting mode, and whether they bind anybody is
+ * `VoiceConfig.screen.enforced`.
+ */
+export interface ScreenSettings {
+  enabled: boolean;
+  audio: boolean;
+  maxHeight: number;
+  maxFramerate: number;
+  maxBitrate: number;
+  maxStreams: number;
+  maxViewers: number;
 }
 
 export interface UserUpdateRequest {
@@ -1626,6 +1694,12 @@ export interface VoiceConnectResult {
   voice: VoiceConfig;
   /** The voice state of everybody already in the channel. */
   participants: VoiceState[];
+  /**
+   * Every screen share running in the channel right now. Without it a stream
+   * that started before this client arrived would be invisible until the next
+   * time it changed.
+   */
+  streams?: VoiceStreamEvent[];
 }
 
 export interface VoiceSignalRequest {
@@ -1644,6 +1718,13 @@ export interface VoiceSignalRequest {
    * it — so the host says which media id is whose.
    */
   tracks?: Record<string, number>;
+  /**
+   * Maps the same media ids to what each section carries. It travels beside
+   * `tracks` because a receiver has to know both whose media a section holds
+   * and which of that person's media it is — a voice and a shared screen's
+   * sound are both audio, and nothing else distinguishes them.
+   */
+  purposes?: Record<string, TrackPurpose>;
 }
 
 export interface VoiceStateRequest {
@@ -1680,6 +1761,8 @@ export interface VoiceSignalEvent {
   candidate?: ICECandidateInitLike;
   /** The media-id map described on `VoiceSignalRequest`, relayed unread. */
   tracks?: Record<string, number>;
+  /** The other half of it, relayed just as unread. */
+  purposes?: Record<string, TrackPurpose>;
 }
 
 export interface VoicePeerEvent {
@@ -1701,6 +1784,75 @@ export type VoiceResetReason = "host_changed" | "config_changed" | "failed" | "d
 export interface VoiceResetEvent {
   channelId: number;
   reason: VoiceResetReason;
+}
+
+/**
+ * One screen share as its sender means to encode it.
+ *
+ * A height rather than a width and a height, because a shared screen keeps the
+ * aspect ratio of what is being shared and only one number is a choice: 1080
+ * means "scale the long way to 1080 lines", which is what every quality picker
+ * anywhere means by 1080p.
+ */
+export interface VideoQuality {
+  height: number;
+  framerate: number;
+  /** Bits per second. */
+  bitrate: number;
+}
+
+/** Where a shared picture comes from. It is shown, never acted on. */
+export type ScreenSource = "screen" | "window";
+
+/**
+ * Starts, changes or stops this client's screen share.
+ *
+ * It carries no SDP: the media section a screen travels on is opened by
+ * whoever relays the channel and answered by this client, so this is the
+ * decision that a screen is being shared at all and the quality it may be
+ * shared at. Sending it again with a different quality changes a share
+ * without stopping it.
+ */
+export interface VoiceStreamRequest {
+  active: boolean;
+  quality?: VideoQuality;
+  audio: boolean;
+  source?: ScreenSource;
+}
+
+/** The quality actually permitted, which is what the encoder is given. */
+export interface VoiceStreamResult {
+  active: boolean;
+  quality: VideoQuality;
+  audio: boolean;
+}
+
+export interface VoiceStreamEvent {
+  channelId: number;
+  userId: number;
+  active: boolean;
+  quality: VideoQuality;
+  audio: boolean;
+  source?: ScreenSource;
+}
+
+/**
+ * Starts or stops receiving one participant's screen.
+ *
+ * Watching is asked for rather than assumed: everybody in a call hears
+ * everybody, but a picture is two orders of magnitude more expensive and
+ * nobody wants four of them arriving unasked.
+ */
+export interface VoiceWatchRequest {
+  userId: number;
+  watching: boolean;
+}
+
+export interface VoiceWatchEvent {
+  channelId: number;
+  viewerId: number;
+  publisherId: number;
+  watching: boolean;
 }
 
 /** An error reply, thrown by the gateway so callers can catch it by code. */
@@ -1989,6 +2141,8 @@ export function describeError(error: unknown): string {
       return t("errors.voice_disabled");
     case "voice_failed":
       return t("errors.voice_failed");
+    case "stream_disabled":
+      return t("errors.stream_disabled");
     case "banned":
       // The server's own message names the reason and the date it lifts on,
       // which is the whole of what somebody refused needs to read.

@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useTranslation } from "@/lib/i18n";
+import { Perm, has } from "@/lib/permissions";
+import { useMyPermissions } from "@/store/selectors";
 import { canOpenPrivacySettings, openPrivacySettings } from "@/lib/open";
 import { readAccessibility } from "@/lib/storage";
 import { playMuteCue } from "@/lib/audioCues";
 import { ConfirmDialog } from "./dialogs/ConfirmDialog";
+import { ScreenShareDialog } from "./dialogs/ScreenShareDialog";
 import { LatencyBadge } from "./LatencyBadge";
 import { SoundboardPanel } from "./SoundboardPanel";
 import { useCall, useServerRegistry, useServers } from "@/store/servers";
@@ -16,6 +19,8 @@ import {
   HeadphonesOffIcon,
   MicIcon,
   MicOffIcon,
+  ScreenShareIcon,
+  ScreenShareOffIcon,
   SoundboardIcon,
   VoiceIcon,
 } from "./Icons";
@@ -40,6 +45,8 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
   const { t } = useTranslation();
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [soundboardOpen, setSoundboardOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const permissions = useMyPermissions();
   const self = useCall((state) => state.self);
   const channels = useCall((state) => state.channels);
   const users = useCall((state) => state.users);
@@ -61,6 +68,9 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
   const toggleMute = useVoice((state) => state.toggleMute);
   const toggleDeafen = useVoice((state) => state.toggleDeafen);
   const retryMicrophone = useVoice((state) => state.retryMicrophone);
+  const screenConfig = useVoice((state) => state.config?.screen);
+  const ownScreen = useVoice((state) => state.ownScreen);
+  const stopScreen = useVoice((state) => state.stopScreen);
 
   // The channel comes from presence rather than from the voice store, so this
   // strip appears the moment somebody is in a voice channel — including on a
@@ -70,6 +80,11 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
   if (!self || !channel || channel.type !== "voice") return null;
 
   const elsewhere = callServerId !== "" && callServerId !== foregroundId;
+  const sharing = ownScreen !== null;
+  // The button is only offered where it would work. A server that carries no
+  // screens, or a role without the permission, gets no button rather than one
+  // that explains itself after being pressed.
+  const canShare = (screenConfig?.enabled ?? false) && has(permissions, Perm.Stream);
   const own = voiceStates.get(self.id);
   const muted = own ? own.selfMute || own.mute : false;
   const deafened = own ? own.selfDeaf || own.deaf : false;
@@ -226,6 +241,20 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
               <HeadphonesIcon size={17} />
             )}
           </button>
+          {canShare ? (
+            <button
+              className={sharing ? "iconbtn iconbtn--danger" : "iconbtn"}
+              onClick={() => {
+                if (sharing) void stopScreen();
+                else setShareOpen(true);
+              }}
+              title={sharing ? t("voice.screen.stop") : t("voice.screen.share")}
+              aria-label={sharing ? t("voice.screen.stop") : t("voice.screen.share")}
+              aria-pressed={sharing}
+            >
+              {sharing ? <ScreenShareOffIcon size={17} /> : <ScreenShareIcon size={17} />}
+            </button>
+          ) : null}
           {/* A server with no clips has nothing to open, and a button that
               opens an empty panel is worse than no button. */}
           {sounds.size > 0 ? (
@@ -251,6 +280,10 @@ export function VoicePanel({ onOpenVoiceSettings }: VoicePanelProps) {
       ) : null}
 
       {soundboardOpen ? <SoundboardPanel onClose={() => setSoundboardOpen(false)} /> : null}
+
+      {shareOpen ? (
+        <ScreenShareDialog live={sharing} onClose={() => setShareOpen(false)} />
+      ) : null}
 
       {confirmLeave ? (
         <ConfirmDialog

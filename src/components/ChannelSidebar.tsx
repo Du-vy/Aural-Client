@@ -1015,6 +1015,7 @@ function Occupant({ user, self, roles, onOpenMember, onContextMenuMember }: Occu
   const { t } = useTranslation();
   const state = useSession((session) => session.voiceStates.get(user.id));
   const speaking = useSession((session) => session.speaking.has(user.id));
+  const streaming = state?.streaming ?? false;
 
   const muted = state ? state.selfMute || state.mute : false;
   const deafened = state ? state.selfDeaf || state.deaf : false;
@@ -1022,6 +1023,7 @@ function Occupant({ user, self, roles, onOpenMember, onContextMenuMember }: Occu
   const classes = ["occupant"];
   if (user.id === self?.id) classes.push("occupant--self");
   if (speaking) classes.push("occupant--speaking");
+  if (streaming) classes.push("occupant--streaming");
   if (muted) classes.push("occupant--muted");
 
   return (
@@ -1041,6 +1043,11 @@ function Occupant({ user, self, roles, onOpenMember, onContextMenuMember }: Occu
         {user.nickname}
       </span>
       <span className="occupant__flags">
+        {streaming ? (
+          <span className="occupant__flag occupant__flag--live" title={t("voice.screen.liveBadge")}>
+            {t("voice.screen.live")}
+          </span>
+        ) : null}
         {state?.host ? (
           <span className="occupant__flag" title={t("voice.hostBadge")}>
             <BroadcastIcon size={12} />

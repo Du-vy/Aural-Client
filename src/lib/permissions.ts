@@ -69,6 +69,14 @@ export const Perm = {
   ViewAuditLog: 1n << 21n,
   /** The custom emoji, stickers and soundboard sounds a server carries. */
   ManageExpressions: 1n << 22n,
+  /**
+   * Share a screen or a window into the voice channel you are sitting in.
+   * Separate from Speak because the two are different acts with very different
+   * costs: a voice is a few tens of kilobits, a screen is a few megabits, and
+   * a channel that wants everybody talking very often wants only a few people
+   * transmitting a picture.
+   */
+  Stream: 1n << 23n,
 
   /** Bypasses every other check. */
   Administrator: 1n << 31n,
@@ -90,6 +98,7 @@ export const PERMISSION_ORDER: PermissionName[] = [
   "SendDirectMessages",
   "CreatePosts",
   "UseSoundboard",
+  "Stream",
   "ManageChannels",
   "ManageRoles",
   "ManageServer",
@@ -120,6 +129,7 @@ export const PERMISSION_HELP: Record<PermissionName, string> = {
   SendDirectMessages: "Write to another member privately",
   CreatePosts: "Start an entry in an announcement, forum, media or calendar channel",
   UseSoundboard: "Play a soundboard clip in a voice channel",
+  Stream: "Share a screen or a window in a voice channel",
   ManageChannels: "Create, edit and delete channels",
   ManageRoles: "Manage roles and channel permissions",
   ManageServer: "Rename the server",

@@ -239,6 +239,46 @@ browser's suppressor is asked for instead and the settings page says so. Being
 quietly given something other than what you picked is the failure worth
 avoiding here.
 
+### Screen sharing
+
+A shared screen is a second and a third track on the connection that is already
+carrying the call — a picture, and optionally the sound of the machine it came
+from. There is no separate channel type and the voice is never interrupted,
+because the microphone is a different track on the same connection and nothing
+here touches it. Whoever relays the audio relays the picture, so it follows the
+server's hosting mode without a mode of its own.
+
+**This client never offers a screen.** Exactly one side of any link offers —
+the server's relay, or the elected host — and that invariant is what keeps
+starting a share in the middle of a call from disturbing the call. So the
+relaying side opens a media section and offers *to receive*, and this client
+answers by sending. The offer says which section is which in two maps travelling
+beside it: whose media each carries, and which of that person's media it is. A
+section naming this client is the slot it has just been given.
+
+**Nothing arrives unasked.** Everybody in a call hears everybody, but a screen
+is two orders of magnitude larger than a voice, so a channel with three screens
+being shared in it costs somebody who is watching none of them nothing at all.
+Watching is a button, and pressing it is what starts the picture arriving.
+
+**The picker is the platform's, deliberately.** `getDisplayMedia` opens the
+chooser the operating system already has — the Chromium one inside WebView2 on
+Windows, the desktop portal on Linux, the system sheet on macOS. Each lists
+every monitor separately and every window by name, each is the dialog somebody
+already recognises as the one that appears whenever anything captures their
+screen, and none can be talked into handing over a surface the system was not
+willing to give. A picker of our own would be a worse list in a window with no
+business being trusted with that decision.
+
+What is left is the part only this client knows, and it is what the quality
+dialog asks: how much of the connection a picture may have, and which half of it
+to protect when it cannot have all of it. That second question is the one that
+matters most and has no general answer — `contentHint` and the sender's
+degradation preference are set from it, and they are the difference between
+shared text staying readable and a game staying smooth. A server that relays the
+stream caps all of this and says so; a server that relays nothing between two
+members does not, because the bandwidth being spent is not the server's.
+
 **Playback is one `<audio>` element per person**, not one mixed graph. An
 element gives per-person volume, output device selection and the browser's own
 buffering for nothing; a graph would give the same result with more that can go
@@ -376,9 +416,11 @@ src/lib/uploads.ts       sending files, addressing them, and sizing them
 src/lib/voice/audio.ts   the microphone, the gate, the meter, and playback
 src/lib/voice/denoise.ts  RNNoise, fetched only if somebody turns it on
 src/lib/voice/engine.ts  peer connections, both hosting modes, and recovery
+src/lib/voice/screen.ts  capturing a screen, and how it is encoded
 src/lib/voice/sdp.ts     the one place this client edits SDP
 src/lib/voice/settings.ts  voice preferences, kept on this machine
 src/store/voice.ts       one media session and what the interface draws of it
+src/components/StreamStage.tsx  who is sharing a screen, and the ones being watched
 src/lib/markdown.ts      a Markdown subset, parsed to nodes and never to markup
 src/lib/storage.ts       saved servers and their session tokens
 src/store/connection.ts  one connection and everything known about it

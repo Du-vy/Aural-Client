@@ -431,6 +431,46 @@ export const MonitorIcon = icon(
   </>,
 );
 
+/** A screen with an arrow leaving it: sharing what is on this machine. */
+export const ScreenShareIcon = icon(
+  <>
+    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+    <line x1="8" y1="21" x2="16" y2="21" />
+    <line x1="12" y1="17" x2="12" y2="21" />
+    <path d="M12 12.5V7" />
+    <path d="M9.5 9.5 12 7l2.5 2.5" />
+  </>,
+);
+
+/** The same screen, struck through: stop sharing. */
+export const ScreenShareOffIcon = icon(
+  <>
+    <path d="M13 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h13" />
+    <path d="M22 15V5a2 2 0 0 0-2-2h-3" />
+    <line x1="8" y1="21" x2="16" y2="21" />
+    <line x1="12" y1="17" x2="12" y2="21" />
+    <line x1="2" y1="2" x2="22" y2="22" />
+  </>,
+);
+
+export const MaximizeIcon = icon(
+  <>
+    <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+    <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+    <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+    <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+  </>,
+);
+
+export const MinimizeIcon = icon(
+  <>
+    <path d="M3 8h3a2 2 0 0 0 2-2V3" />
+    <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+    <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+    <path d="M21 16h-3a2 2 0 0 0-2 2v3" />
+  </>,
+);
+
 export const PaletteIcon = icon(
   <>
     <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />

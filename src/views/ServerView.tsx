@@ -53,6 +53,7 @@ import { KickUserDialog } from "@/components/dialogs/KickUserDialog";
 import { NicknameDialog } from "@/components/dialogs/NicknameDialog";
 import { ServerSettingsDialog } from "@/components/dialogs/ServerSettingsDialog";
 import { PostChannelPanel } from "@/components/posts/PostChannelPanel";
+import { StreamStage } from "@/components/StreamStage";
 import {
   DEFAULT_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
@@ -1089,6 +1090,8 @@ export function ServerView({ onAddServer }: ServerViewProps) {
                 channel={selected}
                 onOpenMember={(userId, anchorRect) => setDialog({ kind: "member", userId, anchorRect })}
               />
+            ) : selected?.type === "voice" ? (
+              <StreamStage key={selected.id} channel={selected} />
             ) : (
               <div className="content">
                 <div className="placeholder">

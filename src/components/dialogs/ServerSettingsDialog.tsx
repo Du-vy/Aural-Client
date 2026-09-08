@@ -854,6 +854,7 @@ function RoleEditor({ role, myPermissions, myRank, onDelete }: RoleEditorProps) 
       permissions: [
         "Connect",
         "Speak",
+        "Stream",
         "UseSoundboard",
         "MoveUsers",
         "MuteUsers",
@@ -1758,6 +1759,10 @@ function ServerInvitesPage() {
 /** The sample rates Opus encodes at. 44.1 kHz is deliberately not among them. */
 const SAMPLE_RATES = [8000, 12000, 16000, 24000, 48000];
 
+/** The ceilings an operator may set on a shared screen. */
+const SCREEN_HEIGHT_CHOICES = [480, 720, 1080, 1440, 2160];
+const SCREEN_FRAMERATE_CHOICES = [15, 30, 60];
+
 function ServerVoicePage() {
   const { t } = useTranslation();
   const server = useSession((state) => state.server);
@@ -1787,6 +1792,15 @@ function ServerVoicePage() {
       dtx: live.dtx,
       stereo: live.stereo,
       maxParticipants: live.maxParticipants,
+      screen: {
+        enabled: live.screen.enabled,
+        audio: live.screen.audio,
+        maxHeight: live.screen.maxHeight,
+        maxFramerate: live.screen.maxFramerate,
+        maxBitrate: live.screen.maxBitrate,
+        maxStreams: live.screen.maxStreams,
+        maxViewers: live.screen.maxViewers,
+      },
     });
   }, [live]);
 
@@ -1795,6 +1809,11 @@ function ServerVoicePage() {
   const patch = (changes: Partial<VoiceSettings>) => {
     setSaved(false);
     setDraft({ ...draft, ...changes });
+  };
+
+  const patchScreen = (changes: Partial<VoiceSettings["screen"]>) => {
+    setSaved(false);
+    setDraft({ ...draft, screen: { ...draft.screen, ...changes } });
   };
 
   const kb = (value: number) => `${Math.round(value / 1000)} kb/s`;
@@ -2018,6 +2037,182 @@ function ServerVoicePage() {
                 </label>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Group 3: Screen sharing */}
+        <div className="settings-group">
+          <div className="settings-group__header">
+            <div>
+              <h3 className="settings-card__title" style={{ margin: 0 }}>
+                {t("dialogs.serverSettings.voice.screenTitle")}
+              </h3>
+              <p className="settings-card__subtitle" style={{ margin: "2px 0 0" }}>
+                {t("dialogs.serverSettings.voice.screenDesc")}
+              </p>
+            </div>
+          </div>
+
+          <div className="settings-group__item">
+            <div className="settings-row">
+              <div className="settings-row__info">
+                <h4 className="settings-card__title" style={{ margin: 0 }}>
+                  {t("dialogs.serverSettings.voice.screenEnabled")}
+                </h4>
+                <p className="settings-card__subtitle" style={{ marginTop: 2 }}>
+                  {t("dialogs.serverSettings.voice.screenEnabledDesc")}
+                </p>
+              </div>
+              <label className="settings-switch">
+                <input
+                  type="checkbox"
+                  checked={draft.screen.enabled}
+                  onChange={(e) => patchScreen({ enabled: e.target.checked })}
+                />
+                <span className="settings-switch__slider" />
+              </label>
+            </div>
+
+            <div
+              className="settings-row"
+              style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}
+            >
+              <div className="settings-row__info">
+                <h4 className="settings-card__title" style={{ margin: 0 }}>
+                  {t("dialogs.serverSettings.voice.screenAudio")}
+                </h4>
+                <p className="settings-card__subtitle" style={{ marginTop: 2 }}>
+                  {t("dialogs.serverSettings.voice.screenAudioDesc")}
+                </p>
+              </div>
+              <label className="settings-switch">
+                <input
+                  type="checkbox"
+                  checked={draft.screen.audio}
+                  disabled={!draft.screen.enabled}
+                  onChange={(e) => patchScreen({ audio: e.target.checked })}
+                />
+                <span className="settings-switch__slider" />
+              </label>
+            </div>
+          </div>
+
+          <div className="settings-group__item">
+            {/* The ceilings are the operator's promise about their own line,
+                and they are only a promise they can keep when the line in
+                question is theirs. */}
+            <p className="field__hint" style={{ marginTop: 0 }}>
+              {draft.mode === "server_host"
+                ? t("dialogs.serverSettings.voice.screenCeilings")
+                : t("dialogs.serverSettings.voice.screenNotEnforced")}
+            </p>
+
+            <div className="settings-grid-2" style={{ marginTop: 14 }}>
+              <div className="field">
+                <label className="field__label" htmlFor="screen-max-height">
+                  {t("dialogs.serverSettings.voice.screenMaxHeight")}
+                </label>
+                <select
+                  id="screen-max-height"
+                  className="select"
+                  value={draft.screen.maxHeight}
+                  disabled={!draft.screen.enabled}
+                  onChange={(e) => patchScreen({ maxHeight: Number(e.target.value) })}
+                >
+                  {SCREEN_HEIGHT_CHOICES.map((height) => (
+                    <option key={height} value={height}>
+                      {height}p
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="field">
+                <label className="field__label" htmlFor="screen-max-framerate">
+                  {t("dialogs.serverSettings.voice.screenMaxFramerate")}
+                </label>
+                <select
+                  id="screen-max-framerate"
+                  className="select"
+                  value={draft.screen.maxFramerate}
+                  disabled={!draft.screen.enabled}
+                  onChange={(e) => patchScreen({ maxFramerate: Number(e.target.value) })}
+                >
+                  {SCREEN_FRAMERATE_CHOICES.map((rate) => (
+                    <option key={rate} value={rate}>
+                      {rate} fps
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="field" style={{ marginTop: 14 }}>
+              <label className="field__label" htmlFor="screen-max-bitrate">
+                {t("dialogs.serverSettings.voice.screenMaxBitrate")}
+              </label>
+              <input
+                id="screen-max-bitrate"
+                type="range"
+                className="slider"
+                min={500_000}
+                max={20_000_000}
+                step={100_000}
+                value={draft.screen.maxBitrate}
+                disabled={!draft.screen.enabled}
+                onChange={(e) => patchScreen({ maxBitrate: Number(e.target.value) })}
+              />
+              <p className="field__hint">
+                {t("dialogs.serverSettings.voice.screenMaxBitrateDesc", {
+                  value: `${(draft.screen.maxBitrate / 1_000_000).toFixed(1)} Mb/s`,
+                  total: `${((draft.screen.maxBitrate * 4) / 1_000_000).toFixed(0)} Mb/s`,
+                })}
+              </p>
+            </div>
+
+            <div className="settings-grid-2" style={{ marginTop: 14 }}>
+              <div className="field">
+                <label className="field__label" htmlFor="screen-max-streams">
+                  {t("dialogs.serverSettings.voice.screenMaxStreams")}
+                </label>
+                <input
+                  id="screen-max-streams"
+                  className="input"
+                  type="number"
+                  min={0}
+                  max={64}
+                  value={draft.screen.maxStreams}
+                  disabled={!draft.screen.enabled}
+                  onChange={(e) => patchScreen({ maxStreams: Number(e.target.value) })}
+                />
+                <p className="field__hint">
+                  {draft.screen.maxStreams === 0
+                    ? t("dialogs.serverSettings.voice.unlimited")
+                    : t("dialogs.serverSettings.voice.screenMaxStreamsDesc")}
+                </p>
+              </div>
+
+              <div className="field">
+                <label className="field__label" htmlFor="screen-max-viewers">
+                  {t("dialogs.serverSettings.voice.screenMaxViewers")}
+                </label>
+                <input
+                  id="screen-max-viewers"
+                  className="input"
+                  type="number"
+                  min={0}
+                  max={256}
+                  value={draft.screen.maxViewers}
+                  disabled={!draft.screen.enabled}
+                  onChange={(e) => patchScreen({ maxViewers: Number(e.target.value) })}
+                />
+                <p className="field__hint">
+                  {draft.screen.maxViewers === 0
+                    ? t("dialogs.serverSettings.voice.unlimited")
+                    : t("dialogs.serverSettings.voice.screenMaxViewersDesc")}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
