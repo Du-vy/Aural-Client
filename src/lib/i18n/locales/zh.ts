@@ -1188,6 +1188,7 @@ export const zh: DeepPartial<TranslationSchema> = {
       live: "直播中",
       liveBadge: "正在共享屏幕",
       watch: "观看",
+      watchStream: "观看直播",
       stopWatching: "停止观看",
       viewersTitle: "正在观看的人",
       withAudio: "含声音",

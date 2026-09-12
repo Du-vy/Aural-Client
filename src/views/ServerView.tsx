@@ -12,6 +12,7 @@ import {
   ChevronIcon,
   CloseIcon,
   CopyIcon,
+  EyeIcon,
   FolderIcon,
   ForumIcon,
   GavelIcon,
@@ -335,6 +336,26 @@ export function ServerView({ onAddServer }: ServerViewProps) {
     void joinChannel(channel.id);
   }
 
+  function handleWatchStream(targetUserId: number, channelId: number) {
+    const targetChannel = channels.get(channelId);
+    if (!targetChannel) return;
+
+    setSelectedChannelId(channelId);
+    setActiveConversation(null);
+    setDrawerOpen(false);
+
+    const call = callLocation();
+    const currentVoiceChannelId = useVoice.getState().channelId;
+    const inThisChannel = call?.serverId === serverId && currentVoiceChannelId === channelId;
+
+    if (inThisChannel) {
+      void useVoice.getState().watchScreen(targetUserId, true);
+    } else {
+      useVoice.getState().setPendingWatch(targetUserId);
+      joinVoice(targetChannel);
+    }
+  }
+
   function startResize(e: React.PointerEvent<HTMLDivElement>) {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -563,6 +584,18 @@ export function ServerView({ onAddServer }: ServerViewProps) {
             }),
         },
       ];
+
+      const targetVoiceState = voiceStates.get(u.id);
+      if (!isSelf && targetVoiceState?.streaming && targetVoiceState.channelId) {
+        entries.push({
+          id: "watch-stream",
+          label: t("voice.screen.watchStream"),
+          icon: <EyeIcon size={16} />,
+          onClick: () => {
+            handleWatchStream(u.id, targetVoiceState.channelId);
+          },
+        });
+      }
 
       if (!isSelf && (server?.directMessages ?? false)) {
         entries.push({
@@ -876,6 +909,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
                 onContextMenuServer={(e) => {
                   setContextMenu({ kind: "server", x: e.clientX, y: e.clientY });
                 }}
+                onWatchStream={handleWatchStream}
               />
             </>
           )}
@@ -1178,6 +1212,7 @@ export function ServerView({ onAddServer }: ServerViewProps) {
             setActiveConversation(userId);
             setDrawerOpen(false);
           }}
+          onWatchStream={handleWatchStream}
         />
       ) : null}
       {dialog.kind === "nickname" ? (

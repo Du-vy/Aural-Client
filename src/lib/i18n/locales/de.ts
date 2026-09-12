@@ -1188,6 +1188,7 @@ export const de: DeepPartial<TranslationSchema> = {
       live: "LIVE",
       liveBadge: "Teilt einen Bildschirm",
       watch: "Ansehen",
+      watchStream: "Stream ansehen",
       stopWatching: "Nicht mehr ansehen",
       viewersTitle: "Zuschauer",
       withAudio: "Mit Ton",

@@ -8,7 +8,7 @@ import { assignableRoles, isOnline, outranks, useMyPermissions } from "@/store/s
 import { useVoice } from "@/store/voice";
 import { ActivityCard } from "../ActivityCard";
 import { Avatar, avatarColor, resolveAvatarUrl } from "../Avatar";
-import { CheckIcon, CloseIcon, CopyIcon, CrownIcon, PlusIcon } from "../Icons";
+import { CheckIcon, CloseIcon, CopyIcon, CrownIcon, EyeIcon, PlusIcon, VoiceIcon } from "../Icons";
 import { ProfileBanner } from "../ProfileBanner";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
@@ -27,6 +27,7 @@ interface MemberDialogProps {
    * reply will arrive.
    */
   onOpenConversation?(userId: number): void;
+  onWatchStream?(userId: number, channelId: number): void;
 }
 
 /** A Discord-style member profile card popout. */
@@ -35,6 +36,7 @@ export function MemberDialog({
   anchorRect,
   onClose,
   onOpenConversation,
+  onWatchStream,
 }: MemberDialogProps) {
   const { t } = useTranslation();
   const user = useSession(
@@ -138,6 +140,8 @@ export function MemberDialog({
         .sort((a, b) => a.position - b.position),
     [channels],
   );
+
+  const streamChannel = voiceState ? channels.get(voiceState.channelId) : undefined;
 
   if (!user || !self) return null;
 
@@ -289,6 +293,33 @@ export function MemberDialog({
         {/* Dark Inner Section */}
         <div className="profile-card__inner">
           {error ? <div className="alert alert--danger">{error}</div> : null}
+
+          {/* Live stream banner if the user is sharing a screen */}
+          {voiceState?.streaming && !isSelf && streamChannel ? (
+            <div className="profile-card__stream">
+              <div className="profile-card__stream-info">
+                <span className="profile-card__stream-badge">
+                  <span className="profile-card__stream-dot" />
+                  {t("voice.screen.live")}
+                </span>
+                <span className="profile-card__stream-channel" title={streamChannel.name}>
+                  <VoiceIcon size={14} />
+                  {streamChannel.name}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn btn--primary btn--sm profile-card__stream-btn"
+                onClick={() => {
+                  onWatchStream?.(user.id, voiceState.channelId);
+                  onClose();
+                }}
+              >
+                <EyeIcon size={14} />
+                {t("voice.screen.watchStream")}
+              </button>
+            </div>
+          ) : null}
 
           {/* What they are doing outside Aural. First because it is the only
               thing on this card that is true right now rather than in general,

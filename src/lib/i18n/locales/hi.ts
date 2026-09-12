@@ -1188,6 +1188,7 @@ export const hi: DeepPartial<TranslationSchema> = {
       live: "लाइव",
       liveBadge: "स्क्रीन साझा कर रहे हैं",
       watch: "देखें",
+      watchStream: "स्ट्रीम देखें",
       stopWatching: "देखना बंद करें",
       viewersTitle: "देख रहे लोग",
       withAudio: "ध्वनि के साथ",

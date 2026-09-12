@@ -641,6 +641,78 @@
   max-height: calc(90vh - 260px);
 }
 
+/* Live Stream Card in Profile */
+.profile-card__stream {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(237, 66, 69, 0.08);
+  border: 1px solid rgba(237, 66, 69, 0.25);
+  border-radius: 8px;
+  animation: modal-pop 0.15s ease;
+}
+
+.profile-card__stream-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.profile-card__stream-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--danger, #ed4245);
+  text-transform: uppercase;
+}
+
+.profile-card__stream-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger, #ed4245);
+  box-shadow: 0 0 6px var(--danger, #ed4245);
+  animation: live-pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes live-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+}
+
+.profile-card__stream-channel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-card__stream-btn {
+  flex-shrink: 0;
+  gap: 6px;
+  white-space: nowrap;
+  height: 28px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .profile-card__section {
   display: flex;
   flex-direction: column;

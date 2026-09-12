@@ -51,6 +51,7 @@ interface ChannelSidebarProps {
   onContextMenuChannel?(event: React.MouseEvent, channel: Channel): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
   onContextMenuServer?(event: React.MouseEvent): void;
+  onWatchStream?(userId: number, channelId: number): void;
 }
 
 interface DragItem {
@@ -90,6 +91,7 @@ export function ChannelSidebar({
   onContextMenuChannel,
   onContextMenuMember,
   onContextMenuServer,
+  onWatchStream,
 }: ChannelSidebarProps) {
   const { t } = useTranslation();
   const channels = useSession((state) => state.channels);
@@ -563,6 +565,7 @@ export function ChannelSidebar({
                   onOpenMember={onOpenMember}
                   onContextMenuChannel={onContextMenuChannel}
                   onContextMenuMember={onContextMenuMember}
+                  onWatchStream={onWatchStream}
                   isDragging={dragItem?.id === channel.id}
                   dropIndicator={
                     dropTarget?.targetId === channel.id && dropTarget.targetType === "channel"
@@ -597,6 +600,7 @@ export function ChannelSidebar({
               onOpenMember={onOpenMember}
               onContextMenuChannel={onContextMenuChannel}
               onContextMenuMember={onContextMenuMember}
+              onWatchStream={onWatchStream}
               isDragging={dragItem?.id === node.channel.id}
               dropIndicator={
                 dropTarget?.targetId === node.channel.id && dropTarget.targetType === "channel"
@@ -787,6 +791,7 @@ interface ChannelRowProps {
   onOpenMember(userId: number, anchorRect?: DOMRect): void;
   onContextMenuChannel?(event: React.MouseEvent, channel: Channel): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
+  onWatchStream?(userId: number, channelId: number): void;
   isDragging?: boolean;
   dropIndicator?: "before" | "after" | null;
   onDragStart?(event: React.DragEvent): void;
@@ -829,6 +834,7 @@ function ChannelRow({
   onOpenMember,
   onContextMenuChannel,
   onContextMenuMember,
+  onWatchStream,
   isDragging,
   dropIndicator,
   onDragStart,
@@ -983,10 +989,12 @@ function ChannelRow({
             <Occupant
               key={user.id}
               user={user}
+              channelId={channel.id}
               self={self}
               roles={roles}
               onOpenMember={onOpenMember}
               onContextMenuMember={onContextMenuMember}
+              onWatchStream={onWatchStream}
             />
           ))}
         </div>
@@ -997,10 +1005,12 @@ function ChannelRow({
 
 interface OccupantProps {
   user: User;
+  channelId: number;
   self: User | null;
   roles: ReadonlyMap<number, Role>;
   onOpenMember(userId: number, anchorRect?: DOMRect): void;
   onContextMenuMember?(event: React.MouseEvent, user: User): void;
+  onWatchStream?(userId: number, channelId: number): void;
 }
 
 /**
@@ -1011,7 +1021,7 @@ interface OccupantProps {
  * the one relaying the channel. Everything else about them is in the member
  * list, which is where somebody looks when they want to know more.
  */
-function Occupant({ user, self, roles, onOpenMember, onContextMenuMember }: OccupantProps) {
+function Occupant({ user, channelId, self, roles, onOpenMember, onContextMenuMember, onWatchStream }: OccupantProps) {
   const { t } = useTranslation();
   const state = useSession((session) => session.voiceStates.get(user.id));
   const speaking = useSession((session) => session.speaking.has(user.id));
@@ -1044,7 +1054,17 @@ function Occupant({ user, self, roles, onOpenMember, onContextMenuMember }: Occu
       </span>
       <span className="occupant__flags">
         {streaming ? (
-          <span className="occupant__flag occupant__flag--live" title={t("voice.screen.liveBadge")}>
+          <span
+            className="occupant__flag occupant__flag--live"
+            title={user.id !== self?.id ? t("voice.screen.watchStream") : t("voice.screen.liveBadge")}
+            onClick={(e) => {
+              if (onWatchStream && user.id !== self?.id) {
+                e.preventDefault();
+                e.stopPropagation();
+                onWatchStream(user.id, channelId);
+              }
+            }}
+          >
             {t("voice.screen.live")}
           </span>
         ) : null}

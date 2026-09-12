@@ -199,6 +199,16 @@
   line-height: 1.5;
 }
 
+.occupant__flag--live {
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.occupant__flag--live:hover {
+  opacity: 0.88;
+  transform: scale(1.05);
+}
+
 .occupant--streaming .occupant__name {
   color: var(--text);
 }

@@ -122,6 +122,8 @@ interface VoiceStoreState {
   screens: Map<number, MediaStream>;
   /** Whose screens this client has asked for. */
   watching: Set<number>;
+  /** A user whose screen should be watched as soon as the stream/session is ready. */
+  pendingWatch: number | null;
   /** Who is watching whose, so a stream can say how many people are looking. */
   viewers: Map<number, Set<number>>;
   /** This client's own capture, for the preview, or null when not sharing. */
@@ -182,6 +184,8 @@ interface VoiceStoreState {
   applyScreenQuality(): Promise<void>;
   /** Asks for, or gives up, one participant's screen. */
   watchScreen(userId: number, watching: boolean): Promise<void>;
+  /** Sets a pending stream to watch as soon as the session/stream becomes available. */
+  setPendingWatch(userId: number | null): void;
   /** How many people are watching one participant's screen. */
   viewerCount(userId: number): number;
   setUserVolume(userId: number, percent: number, serverId?: string | null): void;
@@ -308,6 +312,11 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
             const map = new Map<number, VoiceStreamEvent>();
             for (const entry of streams) map.set(entry.userId, entry);
             set({ streams: map });
+            const pending = get().pendingWatch;
+            if (pending !== null && map.has(pending)) {
+              set({ pendingWatch: null });
+              void get().watchScreen(pending, true);
+            }
           },
           onMicrophone: (micError) => set({ micError }),
           onDenoising: (denoising) => set({ denoising }),
@@ -399,6 +408,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
     streams: new Map(),
     screens: new Map(),
     watching: new Set(),
+    pendingWatch: null,
     viewers: new Map(),
     ownScreen: null,
     ownQuality: null,
@@ -480,6 +490,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
         streams: new Map(),
         screens: new Map(),
         watching: new Set(),
+        pendingWatch: null,
         viewers: new Map(),
         ownScreen: null,
         ownQuality: null,
@@ -516,9 +527,18 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
         });
       }
 
-      void engine.join(channelId, config, iceServers).catch((error: unknown) => {
-        set({ status: "failed", notice: describeError(error) });
-      });
+      void engine
+        .join(channelId, config, iceServers)
+        .then(() => {
+          const pending = get().pendingWatch;
+          if (pending !== null && get().streams.has(pending)) {
+            set({ pendingWatch: null });
+            void get().watchScreen(pending, true);
+          }
+        })
+        .catch((error: unknown) => {
+          set({ status: "failed", notice: describeError(error), pendingWatch: null });
+        });
       syncOwnState();
     },
 
@@ -535,6 +555,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
         ownScreen: null,
         ownQuality: null,
         screenError: null,
+        pendingWatch: null,
       });
       void engine?.leave();
     },
@@ -693,6 +714,14 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
       const screens = new Map(get().screens);
       if (!watching) screens.delete(userId);
       set({ watching: next, screens });
+    },
+
+    setPendingWatch(pendingWatch) {
+      set({ pendingWatch });
+      if (pendingWatch !== null && get().streams.has(pendingWatch)) {
+        set({ pendingWatch: null });
+        void get().watchScreen(pendingWatch, true);
+      }
     },
 
     viewerCount(userId) {

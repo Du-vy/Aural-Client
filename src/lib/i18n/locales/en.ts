@@ -1529,6 +1529,7 @@ export const en = {
       live: "LIVE",
       liveBadge: "Sharing a screen",
       watch: "Watch",
+      watchStream: "Watch Stream",
       stopWatching: "Stop watching",
       viewersTitle: "People watching",
       withAudio: "With sound",

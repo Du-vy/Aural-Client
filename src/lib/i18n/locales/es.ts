@@ -1523,6 +1523,7 @@ export const es: TranslationSchema = {
       live: "EN VIVO",
       liveBadge: "Está compartiendo pantalla",
       watch: "Ver",
+      watchStream: "Ver transmisión",
       stopWatching: "Dejar de ver",
       viewersTitle: "Personas viendo",
       withAudio: "Con sonido",
