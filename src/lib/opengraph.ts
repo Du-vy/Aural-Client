@@ -32,8 +32,7 @@ export interface OgData {
 
 const memoryCache = new Map<string, Promise<OgData | null>>();
 
-const TWEET_URL_REGEX =
-  /^(?:https?:\/\/)?(?:www\.|m\.)?(?:twitter\.com|x\.com|fxtwitter\.com|vxtwitter\.com|fixupx\.com|twittpr\.com|fixvx\.com)\/([a-zA-Z0-9_]{1,50})\/status\/(\d+)/i;
+import { TWEET_URL_REGEX } from "./embeds";
 
 /**
  * Formats metric counts like 1200 -> 1.2K, 1500000 -> 1.5M.

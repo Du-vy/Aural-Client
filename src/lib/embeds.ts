@@ -10,7 +10,86 @@
 import { classifyUrl } from "./links";
 import type { Embed, EmbedMedia } from "./protocol";
 
-const VIDEO_FILE = /\.(mp4|webm|mov)(?:[?#].*)?$/i;
+export const TWEET_URL_REGEX =
+  /^(?:https?:\/\/)?(?:www\.|m\.)?(?:twitter\.com|x\.com|fxtwitter\.com|vxtwitter\.com|fixupx\.com|twittpr\.com|fixvx\.com)\/([a-zA-Z0-9_]{1,50})\/status\/(\d+)/i;
+
+export const YOUTUBE_REGEX =
+  /^(?:https?:\/\/)?(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
+
+const VIDEO_FILE = /\.(mp4|webm|mov|m4v|ogg|ogv)(?:[?#].*)?$/i;
+
+/**
+ * Returns a canonical key identifying the target resource of a URL.
+ * Normalizes domain aliases, content subpaths (e.g. /photo/1), and tracking query params.
+ */
+export function canonicalUrlKey(raw: string): string {
+  if (!raw) return "";
+  const trimmed = raw.trim();
+
+  // Check Tweet / X
+  const tweetMatch = trimmed.match(TWEET_URL_REGEX);
+  if (tweetMatch && tweetMatch[2]) {
+    return `tweet:${tweetMatch[2]}`;
+  }
+
+  // Check YouTube
+  const ytMatch = trimmed.match(YOUTUBE_REGEX);
+  if (ytMatch && ytMatch[1]) {
+    return `youtube:${ytMatch[1]}`;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    let path = parsed.pathname;
+    if (path.length > 1 && path.endsWith("/")) {
+      path = path.slice(0, -1);
+    }
+    const searchParams = new URLSearchParams(parsed.search);
+    const trackingKeys = [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_term",
+      "utm_content",
+      "ref",
+      "fbclid",
+      "gclid",
+    ];
+    for (const key of trackingKeys) {
+      searchParams.delete(key);
+    }
+    const search = searchParams.toString();
+    return `${parsed.protocol}//${host}${path}${search ? `?${search}` : ""}`;
+  } catch {
+    return trimmed.toLowerCase();
+  }
+}
+
+export function isTweetUrl(url?: string): boolean {
+  if (!url) return false;
+  return TWEET_URL_REGEX.test(url.trim());
+}
+
+export function tweetStatusId(url?: string): string | undefined {
+  if (!url) return undefined;
+  const match = url.trim().match(TWEET_URL_REGEX);
+  return match ? match[2] : undefined;
+}
+
+export function isEmbedForTweet(embed: Embed, statusId?: string): boolean {
+  for (const candidate of [
+    embed.url,
+    embed.video?.url,
+    embed.image?.url,
+    embed.thumbnail?.url,
+    embed.author?.url,
+  ]) {
+    const id = tweetStatusId(candidate);
+    if (id && (!statusId || id === statusId)) return true;
+  }
+  return false;
+}
 
 /**
  * The comparable form of a URL.
@@ -34,8 +113,17 @@ export function normaliseUrl(raw: string): string {
 /** Every address one card speaks for: the page it unfurled and its media. */
 function urlsOf(embed: Embed): string[] {
   const out: string[] = [];
-  for (const url of [embed.url, embed.video?.url, embed.image?.url, embed.thumbnail?.url]) {
-    if (url) out.push(normaliseUrl(url));
+  for (const url of [
+    embed.url,
+    embed.video?.url,
+    embed.image?.url,
+    embed.thumbnail?.url,
+    embed.author?.url,
+  ]) {
+    if (url) {
+      out.push(canonicalUrlKey(url));
+      out.push(normaliseUrl(url));
+    }
   }
   return out;
 }
@@ -128,7 +216,7 @@ export function playbackOf(embed: Embed): EmbedPlayback | undefined {
   }
 
   const file = embed.video?.url;
-  if (file && VIDEO_FILE.test(file)) {
+  if (file && (VIDEO_FILE.test(file) || embed.type === "video")) {
     // A gifv is a silent loop wearing a video's clothes, and is played as the
     // animation it stands in for rather than as a clip somebody starts.
     return { kind: "file", src: file, loop: embed.type === "gifv" };

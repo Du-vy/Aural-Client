@@ -7,7 +7,15 @@ import {
   splitCustomEmoji,
   type EmojiDirectory,
 } from "@/lib/customEmoji";
-import { bareMediaUrls, coveredUrls, normaliseUrl } from "@/lib/embeds";
+import {
+  bareMediaUrls,
+  canonicalUrlKey,
+  coveredUrls,
+  isEmbedForTweet,
+  isTweetUrl,
+  normaliseUrl,
+  tweetStatusId,
+} from "@/lib/embeds";
 import { isEmojiOnly } from "@/lib/emoji";
 import { useTranslation } from "@/lib/i18n";
 import { extractUrls, isOnlyMediaUrls, isOnlyUrls, tokenizeMessageText } from "@/lib/links";
@@ -97,15 +105,41 @@ export function MessageContent({
     [content, emojis, jumboEnabled],
   );
   const files = attachments ?? [];
-  const cards = useMemo(() => embeds ?? [], [embeds]);
+  const allCards = useMemo(() => embeds ?? [], [embeds]);
+
+  // If the message contains tweet/X links, Aural's native OpenGraphEmbed (via
+  // api.fxtwitter.com) provides full video playback, lightbox images, and live metrics,
+  // whereas Discord's relayed cards lack video playback and metrics.
+  // We identify tweet status IDs in the message URLs so we can:
+  // 1) Ensure the tweet URLs are ALWAYS previewed by Aural's MessageEmbeds.
+  // 2) Exclude any matching tweet cards from RichEmbeds to prevent duplicates.
+  const tweetStatusIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const url of urls) {
+      const id = tweetStatusId(url);
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [urls]);
+
+  const cards = useMemo(() => {
+    if (allCards.length === 0 || tweetStatusIds.size === 0) return allCards;
+    return allCards.filter(
+      (card) => !Array.from(tweetStatusIds).some((id) => isEmbedForTweet(card, id)),
+    );
+  }, [allCards, tweetStatusIds]);
 
   // A message relayed from Discord carries both the link and Discord's own
   // card for it. Unfurling the link again here would say the same thing twice,
   // so only the links no card speaks for are previewed.
+  // Tweets are always previewed through OpenGraphEmbed so that videos and metrics work.
   const previewUrls = useMemo(() => {
     if (cards.length === 0) return urls;
     const covered = coveredUrls(cards);
-    return urls.filter((url) => !covered.has(normaliseUrl(url)));
+    return urls.filter((url) => {
+      if (isTweetUrl(url)) return true;
+      return !covered.has(canonicalUrlKey(url)) && !covered.has(normaliseUrl(url));
+    });
   }, [urls, cards]);
 
   // The text of a link is left out when the link was only ever a picture. An
@@ -116,7 +150,7 @@ export function MessageContent({
     if (isOnlyMediaUrls(content)) return true;
     if (urls.length === 0 || cards.length === 0 || !isOnlyUrls(content)) return false;
     const media = bareMediaUrls(cards);
-    return urls.every((url) => media.has(normaliseUrl(url)));
+    return urls.every((url) => media.has(canonicalUrlKey(url)) || media.has(normaliseUrl(url)));
   }, [content, urls, cards]);
 
   // Links are found first and never looked inside, so a `@` in a URL stays

@@ -39,6 +39,7 @@ const { EmojiPicker } = await import("@/components/EmojiPicker");
 const { MentionPicker } = await import("@/components/MentionPicker");
 const { MessageList } = await import("@/components/MessageList");
 const { RichEmbeds, colorOf } = await import("@/components/embeds/RichEmbed");
+const { canonicalUrlKey, isTweetUrl, tweetStatusId, isEmbedForTweet } = await import("@/lib/embeds");
 const { SearchResults } = await import("@/components/SearchResults");
 const { PostCommentsThread } = await import("@/components/posts/PostCommentsThread");
 const { insertAtCaret } = await import("@/components/MessageComposer");
@@ -2589,6 +2590,75 @@ console.log("\nwebhooks");
   checkThat("a colour becomes a hex string", colorOf(0xe5534b) === "#e5534b");
   checkThat("a colour keeps its leading zeroes", colorOf(0x0000ff) === "#0000ff");
   checkThat("no colour is no colour", colorOf(undefined) === undefined);
+
+  // Tweet link deduplication and video preview routing
+  const diabloTweet = "https://x.com/Diablo/status/2098838740349137324/photo/1";
+  const fxTwitterVideo = "https://fxtwitter.com/Mar_Spartan117/status/2098597858307948545/video/1";
+  const diabloDiscordCard = {
+    type: "rich",
+    url: "https://twitter.com/Diablo/status/2098838740349137324",
+    title: "Diablo (@Diablo)",
+    description: "Disciplined. Deadly. Legendary.",
+    footer: { text: "X" },
+  };
+  const fxTwitterDiscordCard = {
+    type: "rich",
+    url: fxTwitterVideo,
+    description: "Ja ja ja para eso si la quiero",
+    thumbnail: { url: "https://pbs.twimg.com/amplify_video_thumb/123/img/thumb.jpg" },
+    footer: { text: "FxTwitter" },
+  };
+
+  checkThat(
+    "isTweetUrl and tweetStatusId identify tweets",
+    isTweetUrl(diabloTweet) && tweetStatusId(diabloTweet) === "2098838740349137324",
+  );
+  checkThat(
+    "canonicalUrlKey unifies twitter.com and x.com with subpaths",
+    canonicalUrlKey(diabloTweet) === canonicalUrlKey(diabloDiscordCard.url),
+  );
+  checkThat(
+    "canonicalUrlKey unifies fxtwitter video and canonical status",
+    canonicalUrlKey(fxTwitterVideo) === canonicalUrlKey("https://x.com/Mar_Spartan117/status/2098597858307948545"),
+  );
+  checkThat(
+    "isEmbedForTweet matches card with tweet id",
+    isEmbedForTweet(diabloDiscordCard, "2098838740349137324"),
+  );
+
+  const renderedDiablo = htmlOf(
+    <MessageContent
+      content={diabloTweet}
+      editedAt={null}
+      embeds={[diabloDiscordCard]}
+      onOpenLink={noop}
+    />,
+  );
+  checkThat(
+    "relayed tweet card is not drawn in RichEmbeds to prevent duplicates",
+    !renderedDiablo.includes("rich-embed"),
+  );
+  checkThat(
+    "tweet link renders MessageEmbeds container for OpenGraphEmbed",
+    renderedDiablo.includes("msg-embeds"),
+  );
+
+  const renderedFx = htmlOf(
+    <MessageContent
+      content={fxTwitterVideo}
+      editedAt={null}
+      embeds={[fxTwitterDiscordCard]}
+      onOpenLink={noop}
+    />,
+  );
+  checkThat(
+    "relayed fxtwitter card with thumbnail is excluded so OpenGraphEmbed plays video",
+    !renderedFx.includes("rich-embed__thumbnail"),
+  );
+  checkThat(
+    "relayed fxtwitter link renders MessageEmbeds container for native player",
+    renderedFx.includes("msg-embeds"),
+  );
 
   // Who may mint a webhook is asked per channel, because the permission is held
   // per channel.
