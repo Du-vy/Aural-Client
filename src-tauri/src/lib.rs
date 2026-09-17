@@ -13,6 +13,7 @@
 #[cfg(desktop)]
 mod activity;
 mod device;
+#[cfg(desktop)]
 mod media;
 // Desktop only, and every line of it: a tray icon, a window that can be hidden
 // and an application that launches with the session are three things a phone
@@ -50,6 +51,7 @@ fn open_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 async fn save_file(
     default_name: String,
@@ -74,6 +76,17 @@ async fn save_file(
     } else {
         Ok(false)
     }
+}
+
+#[cfg(not(desktop))]
+#[tauri::command]
+async fn save_file(
+    _default_name: String,
+    _content: String,
+    _filter_name: Option<String>,
+    _filter_extensions: Option<Vec<String>>,
+) -> Result<bool, String> {
+    Err("native file dialog is not supported on mobile".into())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -191,6 +204,15 @@ pub fn run() {
                     }
                 }
             }
+
+            #[cfg(not(desktop))]
+            {
+                use tauri::Manager as _;
+                if let Some(window) = _app.get_webview_window("main") {
+                    let _ = window.show();
+                }
+            }
+
             Ok(())
         })
         .run(context)

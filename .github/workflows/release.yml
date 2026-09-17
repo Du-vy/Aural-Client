@@ -151,6 +151,7 @@ jobs:
                 "| Windows | `.exe` installer, or `.msi` |",
                 "| macOS (Intel and Apple Silicon) | `.dmg` |",
                 "| Linux | `.AppImage`, `.deb`, or `.rpm` |",
+                "| Android (aarch64 & x86_64) | `.apk` |",
                 "",
                 "These builds are not code signed, so Windows SmartScreen and macOS",
                 "Gatekeeper both warn on first launch. On macOS, open it once from the",
@@ -310,12 +311,147 @@ jobs:
             src-tauri/target/*/release/bundle/**/*.AppImage
 
   # ---------------------------------------------------------------------------
-  # Only reached when all three platforms built. A release goes public with a
+  # Android build for aarch64 (ARM64 devices) and x86_64 (emulators and Chromebooks)
+  # ---------------------------------------------------------------------------
+  build-android:
+    name: Build Android (.apk)
+    needs: [checks, prepare]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26d
+          link-to-sdk: true
+
+      - name: Setup Rust & Android targets (aarch64 & x86_64)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: android
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install project dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Init Android target & Apply overrides
+        env:
+          NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          pnpm tauri android init --ci
+          mkdir -p src-tauri/gen/android/app/src/main/res
+          cp -r src-tauri/icons/android/* src-tauri/gen/android/app/src/main/res/
+
+          # Apply Activity, styles, and WebRTC permissions
+          mkdir -p src-tauri/gen/android/app/src/main/java/chat/aural/client
+          cp android-overrides/MainActivity.kt src-tauri/gen/android/app/src/main/java/chat/aural/client/MainActivity.kt
+          mkdir -p src-tauri/gen/android/app/src/main/res/values
+          if [ -f "src-tauri/gen/android/app/src/main/res/values/themes.xml" ]; then
+            cp android-overrides/styles.xml src-tauri/gen/android/app/src/main/res/values/themes.xml
+          fi
+          cp android-overrides/styles.xml src-tauri/gen/android/app/src/main/res/values/styles.xml
+          node scripts/patch-android-manifest.mjs
+
+      - name: Build Android APK (aarch64 & x86_64)
+        env:
+          NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: pnpm tauri android build --apk --ci --target aarch64 x86_64
+
+      - name: Sign Android APK (Scheme v2/v3)
+        run: |
+          keytool -genkey -v -keystore release.keystore -alias aural -keyalg RSA -keysize 2048 -validity 10000 -storepass auralpass -keypass auralpass -dname "CN=Aural, O=Aural Client, C=US"
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -n 1)
+          echo "Using apksigner: $APKSIGNER"
+
+          find src-tauri/gen/android/app/build/outputs/apk/ -type f -name "*.apk" | while read -r apk; do
+            echo "Signing $apk..."
+            $APKSIGNER sign --ks release.keystore --ks-key-alias aural --ks-pass pass:auralpass --key-pass pass:auralpass --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true "$apk"
+            $APKSIGNER verify --verbose "$apk"
+            if [[ "$apk" == *"unsigned.apk" ]]; then
+              signed_apk="${apk//-unsigned.apk/.apk}"
+              mv "$apk" "$signed_apk"
+              echo "Renamed to $signed_apk"
+            fi
+          done
+
+      - name: Attach Android APKs to this run
+        if: ${{ inputs.dry_run }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: aural-${{ needs.checks.outputs.version }}-android-apk
+          if-no-files-found: error
+          retention-days: 14
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+
+      - name: Upload Android APKs to Draft Release
+        if: ${{ !inputs.dry_run }}
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { RELEASE_ID } = process.env;
+
+            function findApks(dir) {
+              let results = [];
+              if (!fs.existsSync(dir)) return results;
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                  results = results.concat(findApks(fullPath));
+                } else if (entry.isFile() && entry.name.endsWith('.apk') && !entry.name.includes('-unaligned')) {
+                  results.push(fullPath);
+                }
+              }
+              return results;
+            }
+
+            const apks = findApks('src-tauri/gen/android/app/build/outputs/apk');
+            console.log(`Found ${apks.length} APKs to upload.`);
+            for (const apkPath of apks) {
+              const fileName = path.basename(apkPath);
+              console.log(`Uploading ${fileName} to release ${RELEASE_ID}...`);
+              await github.rest.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: Number(RELEASE_ID),
+                name: fileName,
+                data: fs.readFileSync(apkPath),
+              });
+            }
+
+  # ---------------------------------------------------------------------------
+  # Only reached when all platforms built. A release goes public with a
   # full set of installers or it does not go public at all.
   # ---------------------------------------------------------------------------
   finalise:
     name: Finalise release
-    needs: [checks, prepare, build]
+    needs: [checks, prepare, build, build-android]
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-22.04
     steps:
@@ -414,8 +550,8 @@ jobs:
   # ---------------------------------------------------------------------------
   cleanup:
     name: Discard the failed release
-    needs: [prepare, build]
-    if: ${{ always() && !inputs.dry_run && needs.prepare.result == 'success' && needs.build.result != 'success' }}
+    needs: [prepare, build, build-android]
+    if: ${{ always() && !inputs.dry_run && needs.prepare.result == 'success' && (needs.build.result != 'success' || needs.build-android.result != 'success') }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/github-script@v7
