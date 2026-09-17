@@ -179,7 +179,6 @@ jobs:
       # Let the other platforms finish: a Windows-only failure should not cost
       # the macOS and Linux builds too.
       fail-fast: false
-      max-parallel: 1
       matrix:
         include:
           - name: Windows (x64)
@@ -316,7 +315,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build-android:
     name: Build Android (.apk)
-    needs: [checks, prepare, build]
+    needs: [checks, prepare]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
