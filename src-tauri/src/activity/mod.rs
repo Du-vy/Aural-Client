@@ -82,6 +82,7 @@ fn is_zero(value: &i64) -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Source {
+    #[cfg_attr(not(windows), allow(dead_code))]
     Media,
     Games,
 }
@@ -171,6 +172,7 @@ impl State {
         }
     }
 
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn media_wanted(&self) -> bool {
         self.media.load(Ordering::Relaxed)
     }
@@ -182,6 +184,7 @@ impl State {
     /// Whether to spend a decode on the cover. Held here rather than left to
     /// the page because the cost is on this side: a page that filtered the
     /// picture out afterwards would have paid for it anyway.
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn artwork_wanted(&self) -> bool {
         self.artwork.load(Ordering::Relaxed)
     }

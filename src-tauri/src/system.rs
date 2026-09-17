@@ -131,6 +131,9 @@ pub const fn hardware_acceleration_supported() -> bool {
 /// start and changing them afterwards changes nothing, which is also why the
 /// settings page asks for a restart after this one is touched.
 pub fn apply_renderer_flags(hardware_acceleration: bool) {
+    #[cfg(target_os = "macos")]
+    let _ = hardware_acceleration;
+
     #[cfg(windows)]
     {
         // Appended rather than assigned: somebody debugging the client may

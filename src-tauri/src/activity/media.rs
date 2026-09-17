@@ -18,9 +18,12 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Runtime};
 
-use super::{Activity, Source, State};
+#[cfg(windows)]
+use super::{Activity, Source};
+use super::State;
 
 /// How often the session is read. See the note above: this is not a race.
+#[cfg(windows)]
 const POLL: Duration = Duration::from_secs(2);
 
 /// The longest edge of the artwork that is sent on.
@@ -29,11 +32,13 @@ const POLL: Duration = Duration::from_secs(2);
 /// changes, so it is re-encoded down to something a member list actually draws
 /// rather than passed on at whatever size the player happened to hand over —
 /// which for Spotify is 300 pixels square and for a browser can be far more.
+#[cfg(windows)]
 const ART_EDGE: u32 = 128;
 
 /// The ceiling the server enforces on `image`, minus room for the rest of the
 /// payload. Artwork that somehow lands above it is dropped rather than sent to
 /// be refused.
+#[cfg(windows)]
 const ART_MAX_CHARS: usize = 23_000;
 
 /// Whether this platform can read a media session, and why not when it cannot.
