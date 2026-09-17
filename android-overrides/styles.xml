@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.app" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <style name="Theme.aural_client" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:fitsSystemWindows">true</item>
         <item name="android:statusBarColor">#0f151a</item>
         <item name="android:navigationBarColor">#0f151a</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
+    <style name="Theme.app" parent="Theme.aural_client" />
 </resources>
