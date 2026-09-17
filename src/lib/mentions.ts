@@ -223,6 +223,9 @@ export function buildMentions(
     if (target.kind === "user" || target.kind === "role") {
       byId.set(idKey(target.kind, target.id), target);
     }
+    if (target.kind === "discord" && target.relay?.id) {
+      byId.set(target.relay.id, target);
+    }
     for (const spelling of [target.name, target.alias]) {
       if (!spelling) continue;
       const key = spelling.toLowerCase();
@@ -281,13 +284,17 @@ function matchId(
 ): { target: MentionTarget; length: number } | null {
   if (text[from + 1] !== "@") return null;
   let at = from + 2;
-  if (text[at] === "&") at += 1;
+  const isRole = text[at] === "&";
+  const isNickname = text[at] === "!";
+  if (isRole || isNickname) at += 1;
   const digits = at;
   while (at < text.length && at - digits < MAX_MENTION_ID_DIGITS && text[at]! >= "0" && text[at]! <= "9") {
     at += 1;
   }
   if (at === digits || text[at] !== ">") return null;
-  const target = directory.byId.get(text.slice(from + 2, at));
+  const idStr = text.slice(digits, at);
+  const key = isRole ? `&${idStr}` : idStr;
+  const target = directory.byId.get(key);
   return target ? { target, length: at + 1 - from } : null;
 }
 
@@ -378,6 +385,18 @@ function namesAny(text: string, spellings: readonly string[]): boolean {
   return false;
 }
 
+/** Whether a mention reaches the reader: by name, by role, or by keyword. */
+export function namesReader(target: MentionTarget, self: User | null | undefined): boolean {
+  if (!self) return false;
+  if (target.kind === "keyword") return true;
+  if (target.kind === "role") return self.roles.includes(target.id);
+  // Somebody on the other side of a bridge is never the reader — they are not
+  // on this server — and their id is zero, which is why this is checked rather
+  // than left to the comparison below.
+  if (target.kind === "discord") return false;
+  return target.id === self.id;
+}
+
 /** Whether any of `ids` appears. The brackets are the boundary. */
 function holdsAny(text: string, ids: readonly string[]): boolean {
   for (const id of ids) {
@@ -408,7 +427,12 @@ export function mentionReach(
   if (!self) return "none";
   const text = content.toLowerCase();
 
-  if (namesAny(text, directSpellings(self)) || text.includes(`<@${self.id}>`)) return "direct";
+  if (
+    namesAny(text, directSpellings(self)) ||
+    text.includes(`<@${self.id}>`) ||
+    text.includes(`<@!${self.id}>`)
+  )
+    return "direct";
 
   const roleIds: string[] = [];
   if (roles) {

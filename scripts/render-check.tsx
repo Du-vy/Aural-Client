@@ -38,7 +38,7 @@ const { ContextMenu } = await import("@/components/ContextMenu");
 const { EmojiPicker } = await import("@/components/EmojiPicker");
 const { MentionPicker } = await import("@/components/MentionPicker");
 const { MessageList } = await import("@/components/MessageList");
-const { RichEmbeds, colorOf } = await import("@/components/embeds/RichEmbed");
+const { RichEmbeds, colorOf, fieldSpans } = await import("@/components/embeds/RichEmbed");
 const { canonicalUrlKey, isTweetUrl, tweetStatusId, isEmbedForTweet } = await import("@/lib/embeds");
 const { SearchResults } = await import("@/components/SearchResults");
 const { PostCommentsThread } = await import("@/components/posts/PostCommentsThread");
@@ -3857,8 +3857,184 @@ console.log("\nwhere the reader was left off");
   forgetReadingPositions(one);
 }
 
+console.log("\nmentions in rich embeds");
+{
+  const testUser: User = {
+    id: 1,
+    username: "roscafloja",
+    nickname: "El Roscafloja",
+    avatar: "",
+    status: "online",
+    roles: [2],
+    channelId: null,
+    registered: true,
+    online: true,
+  };
+  const otherUser: User = {
+    id: 2,
+    username: "other",
+    nickname: "Other User",
+    avatar: "",
+    status: "online",
+    roles: [],
+    channelId: null,
+    registered: true,
+    online: true,
+  };
+
+  const mentionsDir = buildMentions(
+    new Map([
+      [testUser.id, testUser],
+      [otherUser.id, otherUser],
+    ]),
+    new Map<number, Role>([
+      [2, { id: 2, name: "VIP", color: "#3ba55d", permissions: "0", position: 1, hoist: false, managed: "registered" }],
+    ]),
+  );
+
+  let openedMemberId: number | null = null;
+  const handleOpenMember = (id: number) => {
+    openedMemberId = id;
+  };
+
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  act(() => {
+    root.render(
+      <RichEmbeds
+        embeds={[
+          {
+            title: "Giveaway Won",
+            description: "Winner is <@1>! Role is <@&2>.",
+            fields: [
+              { name: "Tagged User", value: "<@1>", inline: true },
+              { name: "Tagged User Nick", value: "<@!2>", inline: true },
+              { name: "Field with <@1>", value: "Normal value", inline: false },
+            ],
+          },
+        ]}
+        mentions={mentionsDir}
+        self={testUser}
+        onOpenLink={() => {}}
+        onOpenMember={handleOpenMember}
+      />,
+    );
+  });
+
+  const mentionEls = container.querySelectorAll(".mention");
+  checkThat("embed renders all 5 mentions", mentionEls.length === 5);
+
+  const descMention = container.querySelector(".rich-embed__description button.mention") as HTMLButtonElement;
+  checkThat("description mention has resolved name", descMention?.textContent === "@El Roscafloja");
+  checkThat("description mention has self class", descMention?.classList.contains("mention--self") ?? false);
+
+  const descRoleMention = container.querySelector(".rich-embed__description span.mention") as HTMLSpanElement;
+  checkThat("description role mention resolves to @VIP", descRoleMention?.textContent === "@VIP");
+  checkThat("description role mention has role color style", descRoleMention?.style.color === "rgb(59, 165, 93)" || descRoleMention?.style.color === "#3ba55d");
+
+  const fieldValMentions = container.querySelectorAll(".rich-embed__field-value .mention");
+  checkThat("first field value mention is self", fieldValMentions[0]?.textContent === "@El Roscafloja");
+  checkThat("first field value has self class", fieldValMentions[0]?.classList.contains("mention--self") ?? false);
+
+  checkThat("nickname mention <@!2> resolves to @Other User", fieldValMentions[1]?.textContent === "@Other User");
+  checkThat("other user mention is not self", !(fieldValMentions[1]?.classList.contains("mention--self") ?? false));
+
+  const fieldNameMention = container.querySelector(".rich-embed__field-name .mention");
+  checkThat("field name mention resolves to @El Roscafloja", fieldNameMention?.textContent === "@El Roscafloja");
+
+  act(() => {
+    descMention.click();
+  });
+  checkThat("clicking mention in embed opens member", openedMemberId === 1);
+
+  const msgContainer = document.createElement("div");
+  document.body.appendChild(msgContainer);
+  const msgRoot = createRoot(msgContainer);
+
+  act(() => {
+    msgRoot.render(
+      <MessageContent
+        content="@El Roscafloja"
+        editedAt={null}
+        embeds={[
+          {
+            title: "Giveaway Won",
+            fields: [{ name: "Tagged User", value: "<@1>" }],
+          },
+        ]}
+        mentions={mentionsDir}
+        self={testUser}
+        onOpenLink={() => {}}
+        onOpenMember={handleOpenMember}
+      />,
+    );
+  });
+
+  const msgEmbedMentions = msgContainer.querySelectorAll(".rich-embed__field-value .mention");
+  checkThat("MessageContent renders embed field mention as pill", msgEmbedMentions.length === 1 && msgEmbedMentions[0]?.textContent === "@El Roscafloja");
+
+  act(() => {
+    root.unmount();
+    msgRoot.unmount();
+  });
+  container.remove();
+  msgContainer.remove();
+}
+
+{
+  // Rich embed inline field spans layout (matching Discord's row wrapping):
+  // 4 inline fields + 1 non-inline (e.g. Boruto/Clevatess case: 3 in row 1, 1 full-width in row 2, 1 non-inline)
+  const borutoFields = [
+    { inline: true },
+    { inline: true },
+    { inline: true },
+    { inline: true },
+    { inline: false },
+  ];
+  const borutoSpans = fieldSpans(borutoFields);
+  checkThat(
+    "fieldSpans expands single wrapped inline field to full width 12 (Boruto case)",
+    JSON.stringify(borutoSpans) === JSON.stringify([4, 4, 4, 12, 12]),
+  );
+
+  // 1 inline field
+  checkThat(
+    "single inline field takes full width 12",
+    JSON.stringify(fieldSpans([{ inline: true }])) === JSON.stringify([12]),
+  );
+
+  // 2 inline fields take 6 each (half)
+  checkThat(
+    "two inline fields take 6 each",
+    JSON.stringify(fieldSpans([{ inline: true }, { inline: true }])) === JSON.stringify([6, 6]),
+  );
+
+  // 3 inline fields take 4 each (third)
+  checkThat(
+    "three inline fields take 4 each",
+    JSON.stringify(fieldSpans([{ inline: true }, { inline: true }, { inline: true }])) === JSON.stringify([4, 4, 4]),
+  );
+
+  // 5 inline fields: 3 in first row (4 each), 2 in second row (6 each)
+  checkThat(
+    "five inline fields split into row of 3 and row of 2",
+    JSON.stringify(
+      fieldSpans([
+        { inline: true },
+        { inline: true },
+        { inline: true },
+        { inline: true },
+        { inline: true },
+      ]),
+    ) === JSON.stringify([4, 4, 4, 6, 6]),
+  );
+}
+
 console.log(`\n${checks} checks${failed ? ", with failures" : ""}.\n`);
 
 await GlobalRegistrator.unregister();
 process.exit(failed ? 1 : 0);
+
 

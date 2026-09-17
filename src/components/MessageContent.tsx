@@ -21,6 +21,7 @@ import { useTranslation } from "@/lib/i18n";
 import { extractUrls, isOnlyMediaUrls, isOnlyUrls, tokenizeMessageText } from "@/lib/links";
 import {
   EMPTY_MENTIONS,
+  namesReader,
   splitMentions,
   type MentionDirectory,
   type MentionTarget,
@@ -65,18 +66,6 @@ interface MessageContentProps {
   self?: User | null;
   onOpenLink(url: string): void;
   onOpenMember?(userId: number, anchorRect?: DOMRect): void;
-}
-
-/** Whether a mention reaches the reader: by name, by role, or by keyword. */
-function namesReader(target: MentionTarget, self: User | null | undefined): boolean {
-  if (!self) return false;
-  if (target.kind === "keyword") return true;
-  if (target.kind === "role") return self.roles.includes(target.id);
-  // Somebody on the other side of a bridge is never the reader — they are not
-  // on this server — and their id is zero, which is why this is checked rather
-  // than left to the comparison below.
-  if (target.kind === "discord") return false;
-  return target.id === self.id;
 }
 
 export function MessageContent({
@@ -188,7 +177,13 @@ export function MessageContent({
   if (content.trim() === "" && (files.length > 0 || cards.length > 0)) {
     return (
       <div className="msg__content-wrap">
-        <RichEmbeds embeds={cards} onOpenLink={onOpenLink} />
+        <RichEmbeds
+          embeds={cards}
+          mentions={mentions}
+          self={self}
+          onOpenLink={onOpenLink}
+          onOpenMember={onOpenMember}
+        />
         {files.length > 0 ? (
           <MessageAttachments attachments={files} onOpenLink={onOpenLink} />
         ) : null}
@@ -208,7 +203,13 @@ export function MessageContent({
         {previewUrls.length > 0 ? (
           <MessageEmbeds urls={previewUrls} onOpenLink={onOpenLink} />
         ) : null}
-        <RichEmbeds embeds={cards} onOpenLink={onOpenLink} />
+        <RichEmbeds
+          embeds={cards}
+          mentions={mentions}
+          self={self}
+          onOpenLink={onOpenLink}
+          onOpenMember={onOpenMember}
+        />
         {files.length > 0 ? (
           <MessageAttachments attachments={files} onOpenLink={onOpenLink} />
         ) : null}
@@ -305,7 +306,13 @@ export function MessageContent({
 
       {previewUrls.length > 0 && <MessageEmbeds urls={previewUrls} onOpenLink={onOpenLink} />}
 
-      <RichEmbeds embeds={cards} onOpenLink={onOpenLink} />
+      <RichEmbeds
+        embeds={cards}
+        mentions={mentions}
+        self={self}
+        onOpenLink={onOpenLink}
+        onOpenMember={onOpenMember}
+      />
 
       {files.length > 0 ? (
         <MessageAttachments attachments={files} onOpenLink={onOpenLink} />

@@ -1,7 +1,8 @@
 import { Fragment, useMemo } from "react";
 
 import { parseInline, parseMarkdown, type Block, type Inline } from "@/lib/markdown";
-import { splitMentions, type MentionDirectory } from "@/lib/mentions";
+import { namesReader, splitMentions, type MentionDirectory } from "@/lib/mentions";
+import type { User } from "@/lib/protocol";
 
 interface MarkdownProps {
   source: string;
@@ -12,6 +13,7 @@ interface MarkdownProps {
    */
   embed?: boolean;
   mentions?: MentionDirectory;
+  self?: User | null;
   onOpenLink(url: string): void;
   onOpenMember?(userId: number, anchorRect?: DOMRect): void;
 }
@@ -23,7 +25,7 @@ interface MarkdownProps {
  * child, which React escapes. A `.md` file in a channel was written by whoever
  * uploaded it, so that property is the whole point of rendering it this way.
  */
-export function Markdown({ source, embed, mentions, onOpenLink, onOpenMember }: MarkdownProps) {
+export function Markdown({ source, embed, mentions, self, onOpenLink, onOpenMember }: MarkdownProps) {
   const blocks = useMemo(() => (embed ? [] : parseMarkdown(source)), [source, embed]);
   const inlines = useMemo(
     () =>
@@ -45,6 +47,7 @@ export function Markdown({ source, embed, mentions, onOpenLink, onOpenMember }: 
             <InlineRun
               nodes={nodes}
               mentions={mentions}
+              self={self}
               onOpenLink={onOpenLink}
               onOpenMember={onOpenMember}
             />
@@ -61,6 +64,7 @@ export function Markdown({ source, embed, mentions, onOpenLink, onOpenMember }: 
           key={index}
           block={block}
           mentions={mentions}
+          self={self}
           onOpenLink={onOpenLink}
           onOpenMember={onOpenMember}
         />
@@ -72,11 +76,13 @@ export function Markdown({ source, embed, mentions, onOpenLink, onOpenMember }: 
 function MarkdownBlock({
   block,
   mentions,
+  self,
   onOpenLink,
   onOpenMember,
 }: {
   block: Block;
   mentions?: MentionDirectory;
+  self?: User | null;
   onOpenLink(url: string): void;
   onOpenMember?(userId: number, anchorRect?: DOMRect): void;
 }) {
@@ -90,6 +96,7 @@ function MarkdownBlock({
           <InlineRun
             nodes={block.children}
             mentions={mentions}
+            self={self}
             onOpenLink={onOpenLink}
             onOpenMember={onOpenMember}
           />
@@ -103,6 +110,7 @@ function MarkdownBlock({
           <InlineRun
             nodes={block.children}
             mentions={mentions}
+            self={self}
             onOpenLink={onOpenLink}
             onOpenMember={onOpenMember}
           />
@@ -119,7 +127,13 @@ function MarkdownBlock({
     case "quote":
       return (
         <blockquote className="md__quote">
-          <InlineRun nodes={block.children} onOpenLink={onOpenLink} />
+          <InlineRun
+            nodes={block.children}
+            mentions={mentions}
+            self={self}
+            onOpenLink={onOpenLink}
+            onOpenMember={onOpenMember}
+          />
         </blockquote>
       );
 
@@ -132,7 +146,13 @@ function MarkdownBlock({
         <List className="md__list">
           {block.items.map((item, index) => (
             <li key={index}>
-              <InlineRun nodes={item} onOpenLink={onOpenLink} />
+              <InlineRun
+                nodes={item}
+                mentions={mentions}
+                self={self}
+                onOpenLink={onOpenLink}
+                onOpenMember={onOpenMember}
+              />
             </li>
           ))}
         </List>
@@ -150,6 +170,7 @@ function MarkdownBlock({
                     <InlineRun
                       nodes={cell}
                       mentions={mentions}
+                      self={self}
                       onOpenLink={onOpenLink}
                       onOpenMember={onOpenMember}
                     />
@@ -165,6 +186,7 @@ function MarkdownBlock({
                       <InlineRun
                         nodes={cell}
                         mentions={mentions}
+                        self={self}
                         onOpenLink={onOpenLink}
                         onOpenMember={onOpenMember}
                       />
@@ -185,11 +207,13 @@ function MarkdownBlock({
 function InlineRun({
   nodes,
   mentions,
+  self,
   onOpenLink,
   onOpenMember,
 }: {
   nodes: Inline[];
   mentions?: MentionDirectory;
+  self?: User | null;
   onOpenLink(url: string): void;
   onOpenMember?(userId: number, anchorRect?: DOMRect): void;
 }) {
@@ -204,27 +228,39 @@ function InlineRun({
             const tokens = splitMentions(node.value, mentions);
             return (
               <span key={index}>
-                {tokens.map((token, tIdx) =>
-                  token.type === "mention" ? (
+                {tokens.map((token, tIdx) => {
+                  if (token.type !== "mention") {
+                    return token.value;
+                  }
+                  const target = token.target;
+                  const mine = namesReader(target, self);
+                  const className = mine ? "mention mention--self" : "mention";
+
+                  if (target.kind === "user" && onOpenMember) {
+                    return (
+                      <button
+                        key={tIdx}
+                        type="button"
+                        className={className}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenMember(target.id, e.currentTarget.getBoundingClientRect());
+                        }}
+                      >
+                        {token.value}
+                      </button>
+                    );
+                  }
+                  return (
                     <span
                       key={tIdx}
-                      className="mention"
-                      onClick={(e) => {
-                        if (token.target.kind === "user" && onOpenMember) {
-                          e.stopPropagation();
-                          onOpenMember(token.target.id, e.currentTarget.getBoundingClientRect());
-                        }
-                      }}
-                      role={token.target.kind === "user" ? "button" : undefined}
-                      tabIndex={token.target.kind === "user" ? 0 : undefined}
-                      style={{ cursor: token.target.kind === "user" ? "pointer" : undefined }}
+                      className={className}
+                      style={target.color ? { color: target.color } : undefined}
                     >
                       {token.value}
                     </span>
-                  ) : (
-                    token.value
-                  ),
-                )}
+                  );
+                })}
               </span>
             );
           }
@@ -234,6 +270,7 @@ function InlineRun({
                 <InlineRun
                   nodes={node.children}
                   mentions={mentions}
+                  self={self}
                   onOpenLink={onOpenLink}
                   onOpenMember={onOpenMember}
                 />
@@ -245,6 +282,7 @@ function InlineRun({
                 <InlineRun
                   nodes={node.children}
                   mentions={mentions}
+                  self={self}
                   onOpenLink={onOpenLink}
                   onOpenMember={onOpenMember}
                 />
@@ -256,6 +294,7 @@ function InlineRun({
                 <InlineRun
                   nodes={node.children}
                   mentions={mentions}
+                  self={self}
                   onOpenLink={onOpenLink}
                   onOpenMember={onOpenMember}
                 />
@@ -281,7 +320,13 @@ function InlineRun({
                   onOpenLink(node.href);
                 }}
               >
-                <InlineRun nodes={node.children} onOpenLink={onOpenLink} />
+                <InlineRun
+                  nodes={node.children}
+                  mentions={mentions}
+                  self={self}
+                  onOpenLink={onOpenLink}
+                  onOpenMember={onOpenMember}
+                />
               </a>
             );
           default:

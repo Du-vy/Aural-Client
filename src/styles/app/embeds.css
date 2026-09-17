@@ -5,7 +5,8 @@
 .msg__link {
   color: #38bdf8;
   text-decoration: none;
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  word-break: normal;
   cursor: pointer;
   transition: color var(--speed) ease, text-decoration var(--speed) ease;
 }
@@ -636,6 +637,7 @@
 /* In embed mode the renderer is a <span> with only inline content and <br> for
    newlines, matching Discord's treatment of embed descriptions. */
 .rich-embed__description .md--embed,
+.rich-embed__field-name .md--embed,
 .rich-embed__field-value .md--embed {
   display: inline;
 }
