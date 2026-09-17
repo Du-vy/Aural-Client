@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
+import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -40,6 +41,13 @@ class MainActivity : TauriActivity() {
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
+
+    // Habilitar contenido mixto (ws:// y http:// hacia servidores autohospedados) y storage
+    webView.settings.apply {
+      mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+      domStorageEnabled = true
+      databaseEnabled = true
+    }
 
     // Conceder automaticamente permisos de captura de audio al WebView para llamadas de voz
     webView.webChromeClient = object : WebChromeClient() {
