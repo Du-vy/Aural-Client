@@ -326,7 +326,25 @@ function RelayLinksCard() {
                     </span>
                     <div className="webhook__info">
                       <span className="webhook__name">
-                        {channel ? `#${channel.name}` : t("dialogs.serverSettings.relay.unknownChannel")}
+                        {channel ? (
+                          <>
+                            #{channel.name}
+                            {channel.type === "media" ? (
+                              <span
+                                className="settings-badge"
+                                style={{
+                                  marginLeft: "6px",
+                                  background: "rgba(255, 255, 255, 0.08)",
+                                  color: "var(--text-muted)",
+                                }}
+                              >
+                                {t("dialogs.serverSettings.relay.mediaTag")}
+                              </span>
+                            ) : null}
+                          </>
+                        ) : (
+                          t("dialogs.serverSettings.relay.unknownChannel")
+                        )}
                         <span className="relay-link__arrow">{arrowFor(link.direction)}</span>
                         {link.discordChannelName
                           ? `#${link.discordChannelName}`
@@ -459,7 +477,7 @@ function RelayLinkForm({ onDone }: { onDone(): void }) {
   const relay = useSession((state) => state.relay);
   const createRelayLink = useSession((state) => state.createRelayLink);
 
-  // Only text channels, and only ones nothing is already bridged to: the
+  // Text and media channels, and only ones nothing is already bridged to: the
   // server refuses a second link on a channel, and offering one that will be
   // refused is a worse experience than not offering it.
   const taken = useMemo(
@@ -469,12 +487,16 @@ function RelayLinkForm({ onDone }: { onDone(): void }) {
   const targets = useMemo(
     () =>
       [...channels.values()].filter(
-        (channel) => channel.type === "text" && !taken.has(channel.id),
+        (channel) =>
+          (channel.type === "text" || channel.type === "media") &&
+          !taken.has(channel.id),
       ),
     [channels, taken],
   );
 
   const [channelId, setChannelId] = useState<number | null>(targets[0]?.id ?? null);
+  const selectedChannel = channelId !== null ? channels.get(channelId) : undefined;
+  const isMediaChannel = selectedChannel?.type === "media";
   const [webhookUrl, setWebhookUrl] = useState("");
   const [direction, setDirection] = useState<RelayDirection>("both");
   const [attachments, setAttachments] = useState(true);
@@ -525,9 +547,15 @@ function RelayLinkForm({ onDone }: { onDone(): void }) {
           {targets.map((channel) => (
             <option key={channel.id} value={channel.id}>
               #{channel.name}
+              {channel.type === "media" ? ` (${t("dialogs.serverSettings.relay.mediaTag")})` : ""}
             </option>
           ))}
         </select>
+        {isMediaChannel ? (
+          <span className="field__hint" style={{ color: "var(--warning)", marginTop: "4px" }}>
+            {t("dialogs.serverSettings.relay.mediaChannelNotice")}
+          </span>
+        ) : null}
       </div>
 
       <div className="field">

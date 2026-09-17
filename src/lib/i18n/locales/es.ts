@@ -1240,7 +1240,9 @@ export const es: TranslationSchema = {
         attachmentsLabel: "Llevar archivos",
         editsLabel: "Llevar ediciones y borrados",
         createLink: "Enlazar canal",
-        noChannelsLeft: "Todos los canales de texto de este servidor ya están enlazados.",
+        noChannelsLeft: "Todos los canales de texto o multimedia de este servidor ya están enlazados.",
+        mediaChannelNotice: "Canal multimedia: compatibilidad limitada. Solo se sincronizan las publicaciones con archivos adjuntos; los comentarios del hilo no se transfieren.",
+        mediaTag: "Multimedia",
       
         pauseLink: "Pausar",
         resumeLink: "Reanudar",

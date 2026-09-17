@@ -1244,7 +1244,9 @@ export const en = {
         attachmentsLabel: "Carry files",
         editsLabel: "Carry edits and deletions",
         createLink: "Bridge Channel",
-        noChannelsLeft: "Every text channel on this server is already bridged.",
+        noChannelsLeft: "Every text or media channel on this server is already bridged.",
+        mediaChannelNotice: "Media channel: limited compatibility. Only posts with attached files are relayed; thread comments are not transferred.",
+        mediaTag: "Media",
 
         pauseLink: "Pause",
         resumeLink: "Resume",
