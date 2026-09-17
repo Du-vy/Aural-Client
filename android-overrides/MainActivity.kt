@@ -5,24 +5,32 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    // Ajustar barra de estado y navegacion al tema oscuro de Aural (#0f151a)
-    window.statusBarColor = Color.parseColor("#0f151a")
-    window.navigationBarColor = Color.parseColor("#0f151a")
+    window.statusBarColor = Color.BLACK
+    window.navigationBarColor = Color.BLACK
 
-    // Ajustar contenido debajo de las barras de sistema de manera segura
-    WindowCompat.setDecorFitsSystemWindows(window, true)
+    // En Android 15 (API 35+), edge-to-edge es obligatorio por defecto.
+    // Desactivamos el decorFits para que el sistema despache insets a las vistas.
+    WindowCompat.setDecorFitsSystemWindows(window, false)
+
+    val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+    insetsController.isAppearanceLightStatusBars = false
+    insetsController.isAppearanceLightNavigationBars = false
 
     // Solicitar permisos de grabacion de audio y notificaciones en tiempo de ejecucion
     val permissionsToRequest = mutableListOf<String>()
@@ -41,6 +49,44 @@ class MainActivity : TauriActivity() {
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
+
+    webView.setBackgroundColor(Color.BLACK)
+
+    // Ajustar margenes dinamicamente para que el WebView respete la barra de estado y notch
+    ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->
+      val insets = windowInsets.getInsets(
+        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+      )
+      var topInset = insets.top
+      if (topInset == 0) {
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+          topInset = resources.getDimensionPixelSize(resourceId)
+        }
+      }
+
+      val params = view.layoutParams as? ViewGroup.MarginLayoutParams
+      if (params != null) {
+        if (params.topMargin != topInset || params.bottomMargin != insets.bottom ||
+            params.leftMargin != insets.left || params.rightMargin != insets.right) {
+          params.topMargin = topInset
+          params.bottomMargin = insets.bottom
+          params.leftMargin = insets.left
+          params.rightMargin = insets.right
+          view.layoutParams = params
+        }
+      }
+      windowInsets
+    }
+
+    webView.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+      override fun onViewAttachedToWindow(v: View) {
+        ViewCompat.requestApplyInsets(v)
+      }
+      override fun onViewDetachedFromWindow(v: View) {}
+    })
+
+    ViewCompat.requestApplyInsets(webView)
 
     // Habilitar contenido mixto (ws:// y http:// hacia servidores autohospedados) y storage
     webView.settings.apply {
