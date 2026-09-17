@@ -371,8 +371,13 @@ jobs:
           mkdir -p src-tauri/gen/android/app/src/main/res/values
           if [ -f "src-tauri/gen/android/app/src/main/res/values/themes.xml" ]; then
             cp android-overrides/styles.xml src-tauri/gen/android/app/src/main/res/values/themes.xml
+            rm -f src-tauri/gen/android/app/src/main/res/values/styles.xml
+          else
+            cp android-overrides/styles.xml src-tauri/gen/android/app/src/main/res/values/styles.xml
           fi
-          cp android-overrides/styles.xml src-tauri/gen/android/app/src/main/res/values/styles.xml
+          if [ -f "src-tauri/gen/android/app/src/main/res/values-night/themes.xml" ]; then
+            cp android-overrides/styles.xml src-tauri/gen/android/app/src/main/res/values-night/themes.xml
+          fi
           node scripts/patch-android-manifest.mjs
 
       - name: Build Android APK (aarch64 & x86_64)
