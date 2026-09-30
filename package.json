@@ -22,27 +22,27 @@
     "tauri:android:build": "tauri android build --apk --target aarch64 x86_64"
   },
   "dependencies": {
-    "@sapphi-red/web-noise-suppressor": "0.4.0",
-    "@tauri-apps/api": "^2.11.1",
-    "@tauri-apps/plugin-notification": "^2.4.0",
-    "@tauri-apps/plugin-process": "^2.3.1",
-    "@tauri-apps/plugin-updater": "^2.11.0",
+    "@sapphi-red/web-noise-suppressor": "0.4.1",
+    "@tauri-apps/api": "^2.12.0",
+    "@tauri-apps/plugin-notification": "^2.5.0",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.13.0",
     "gifenc": "^1.0.3",
     "omggif": "^1.0.10",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "@happy-dom/global-registrator": "^20.14.0",
-    "@tauri-apps/cli": "^2.11.4",
-    "@types/node": "^26.4.1",
+    "@happy-dom/global-registrator": "^20.14.5",
+    "@tauri-apps/cli": "^2.12.0",
+    "@types/node": "^26.6.3",
     "@types/omggif": "^1.0.5",
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.7",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.3.1"
   }
 }
