@@ -23,10 +23,10 @@
   },
   "dependencies": {
     "@sapphi-red/web-noise-suppressor": "0.4.1",
-    "@tauri-apps/api": "^2.12.0",
-    "@tauri-apps/plugin-notification": "^2.5.0",
-    "@tauri-apps/plugin-process": "^2.4.0",
-    "@tauri-apps/plugin-updater": "^2.13.0",
+    "@tauri-apps/api": "~2.11.1",
+    "@tauri-apps/plugin-notification": "~2.4.0",
+    "@tauri-apps/plugin-process": "~2.3.1",
+    "@tauri-apps/plugin-updater": "~2.11.0",
     "gifenc": "^1.0.3",
     "omggif": "^1.0.10",
     "react": "^19.3.0",
@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.14.5",
-    "@tauri-apps/cli": "^2.12.0",
+    "@tauri-apps/cli": "~2.11.4",
     "@types/node": "^26.6.3",
     "@types/omggif": "^1.0.5",
     "@types/react": "^19.3.0",
