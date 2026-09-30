@@ -102,3 +102,16 @@ export async function setTrayLabels(open: string, quit: string): Promise<void> {
     // An older shell, or a desktop with no tray to relabel.
   }
 }
+
+/**
+ * Returns the number of milliseconds since the user last provided input anywhere on the operating system.
+ * Returns null if not running in Tauri or on platforms where system-wide idle is unavailable.
+ */
+export async function getSystemIdleMs(): Promise<number | null> {
+  if (!isTauri()) return null;
+  try {
+    return await invoke<number | null>("get_system_idle_ms");
+  } catch {
+    return null;
+  }
+}

@@ -3582,6 +3582,16 @@ console.log("\nshowing away by itself, and coming back from it");
   checkThat("and nothing is asked of a server that is not there", asked.length === 0);
   stopIdle();
 
+  // Manual status selection clears auto-away markers
+  const { clearAutoAway } = await import("@/lib/idle");
+  writeAutoAway([testServerId]);
+  clearAutoAway(testServerId);
+  checkThat("clearAutoAway drops marker for specific server", readAutoAway().length === 0);
+
+  writeAutoAway([testServerId, "other:9871"]);
+  clearAutoAway();
+  checkThat("clearAutoAway with no arguments clears all markers", readAutoAway().length === 0);
+
   writeAutoAway([]);
   seed();
 }

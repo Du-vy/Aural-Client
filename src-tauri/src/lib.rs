@@ -154,6 +154,7 @@ pub fn run() {
                 system::set_system_settings,
                 system::set_tray_labels,
                 system::restart_app,
+                system::get_system_idle_ms,
                 activity::activity_state,
                 activity::activity_configure,
             ])

@@ -480,6 +480,42 @@ pub fn restart_app<R: Runtime>(app: AppHandle<R>) {
     app.restart();
 }
 
+/// Returns the number of milliseconds since the last input event across the desktop.
+///
+/// On Windows, this queries `GetLastInputInfo` which captures mouse and keyboard input
+/// across the entire operating system, enabling idle detection even when Aural is running
+/// in the background, minimized, or when the user is playing games or working in other apps.
+#[tauri::command]
+pub fn get_system_idle_ms() -> Option<u64> {
+    #[cfg(windows)]
+    {
+        #[repr(C)]
+        struct LastInputInfo {
+            cb_size: u32,
+            dw_time: u32,
+        }
+
+        extern "system" {
+            fn GetLastInputInfo(plii: *mut LastInputInfo) -> i32;
+            fn GetTickCount() -> u32;
+        }
+
+        unsafe {
+            let mut info = LastInputInfo {
+                cb_size: std::mem::size_of::<LastInputInfo>() as u32,
+                dw_time: 0,
+            };
+            if GetLastInputInfo(&mut info) != 0 {
+                let now = GetTickCount();
+                let idle = now.wrapping_sub(info.dw_time);
+                return Some(idle as u64);
+            }
+        }
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::Settings;

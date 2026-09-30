@@ -3,10 +3,9 @@
  * client, and putting them back when they come back.
  *
  * What counts as "using the client" is activity in this window — a key, a
- * pointer, a scroll, the window being focused. There is no system-wide idle
- * signal available to a webview, so somebody working in another application
- * with Aural open behind it does go away, which is the same answer every other
- * chat client gives and the one people expect from the marker.
+ * pointer, a scroll, the window being focused — or activity across the operating
+ * system when running on desktop (e.g. via Windows GetLastInputInfo), as well as
+ * voice speaking activity.
  *
  * Only a status of `online` is ever changed. Away is a guess about somebody who
  * has said nothing; do-not-disturb, invisible and a manually chosen idle are
@@ -26,7 +25,10 @@ import {
   writeAutoAway,
   type PresenceSettings,
 } from "./storage";
+import { getSystemIdleMs } from "./systemSettings";
+import { onWindowFocusChange } from "./windowFocus";
 import { useServers } from "@/store/servers";
+import { useVoice } from "@/store/voice";
 
 /** The events that mean somebody is still there. */
 const ACTIVITY_EVENTS = [
@@ -75,6 +77,26 @@ function unmark(serverId: string): void {
   writeAutoAway([...auto]);
 }
 
+/**
+ * Drops the auto-away marker for a server (or all servers), which is what a
+ * manual status selection has to do: picking a status by hand is a deliberate
+ * statement, so the client should not undo it on activity.
+ */
+export function clearAutoAway(serverId?: string): void {
+  if (serverId) {
+    auto.delete(serverId);
+    const stored = readAutoAway();
+    if (stored.includes(serverId)) {
+      writeAutoAway(stored.filter((id) => id !== serverId));
+    } else {
+      writeAutoAway([...auto]);
+    }
+  } else {
+    auto.clear();
+    writeAutoAway([]);
+  }
+}
+
 function setStatusOn(serverId: string, status: "online" | "idle"): void {
   const store = useServers.getState().connections.get(serverId);
   if (!store) return;
@@ -91,12 +113,16 @@ function setStatusOn(serverId: string, status: "online" | "idle"): void {
       // stands: reconnecting is what retries it, and until then the status is
       // whatever the server has.
       writing.delete(serverId);
+      if (!away && auto.has(serverId)) {
+        setTimeout(settle, 1_000);
+      }
     },
   );
 }
 
 function goAway(): void {
   for (const [serverId, store] of useServers.getState().connections) {
+    if (writing.has(serverId)) continue;
     const self = store.getState().self;
     if (!self || (self.status ?? "online") !== "online") continue;
     mark(serverId);
@@ -158,9 +184,9 @@ export function startIdleWatch(): () => void {
 
   function active(): void {
     const now = Date.now();
-    if (!away && now - lastSeen < ACTIVITY_THROTTLE_MS) return;
+    if (!away && auto.size === 0 && now - lastSeen < ACTIVITY_THROTTLE_MS) return;
     lastSeen = now;
-    if (away) {
+    if (away || auto.size > 0) {
       away = false;
       settle();
     }
@@ -217,6 +243,39 @@ export function startIdleWatch(): () => void {
   };
   document.addEventListener("visibilitychange", onVisibility);
 
+  // Window focus (native desktop and web)
+  const offFocus = onWindowFocusChange((focused) => {
+    if (focused) active();
+  });
+
+  // Voice activity: speaking in a voice channel means the user is active
+  const offVoice = useVoice.subscribe((voiceState) => {
+    if (voiceState.status === "connected" && voiceState.speaking) {
+      active();
+    }
+  });
+
+  // System-wide idle polling on desktop platforms (e.g. Windows GetLastInputInfo)
+  const SYSTEM_IDLE_POLL_MS = 2_500;
+  let polling = false;
+  const pollTimer = setInterval(async () => {
+    if (polling) return;
+    polling = true;
+    try {
+      const idleMs = await getSystemIdleMs();
+      if (idleMs !== null) {
+        if (idleMs < SYSTEM_IDLE_POLL_MS + 1_500) {
+          active();
+        } else if (settings.autoAway && idleMs >= settings.autoAwayMinutes * 60_000 && !away) {
+          away = true;
+          goAway();
+        }
+      }
+    } finally {
+      polling = false;
+    }
+  }, SYSTEM_IDLE_POLL_MS);
+
   const offSettings = onPresenceChanged((next) => {
     settings = next;
     if (!next.autoAway && away) {
@@ -232,6 +291,9 @@ export function startIdleWatch(): () => void {
   reconcile();
 
   return () => {
+    clearInterval(pollTimer);
+    offFocus();
+    offVoice();
     for (const event of ACTIVITY_EVENTS) {
       window.removeEventListener(event, active, { capture: true });
     }

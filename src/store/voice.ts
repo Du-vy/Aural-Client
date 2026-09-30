@@ -137,6 +137,8 @@ interface VoiceStoreState {
   /** The local microphone level, only while something is watching it. */
   level: number;
   meterActive: boolean;
+  /** Whether this client's own microphone is currently transmitting. */
+  speaking: boolean;
 
   prefs: VoicePreferences;
   volumes: UserVolumes;
@@ -302,7 +304,10 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
           onLevel: (level) => {
             if (get().meterActive) set({ level });
           },
-          onSpeaking: (speaking) => link?.onSelfSpeaking(speaking),
+          onSpeaking: (speaking) => {
+            set({ speaking });
+            link?.onSelfSpeaking(speaking);
+          },
           onHost: (hostUserId) => set({ hostUserId }),
           onAudio: (userId, present) => markAudible(userId, present),
           onScreen: (userId, stream) => setScreen(userId, stream),
@@ -416,6 +421,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
     screenPrefs: readScreenPreferences(),
     level: 0,
     meterActive: false,
+    speaking: false,
     prefs: readPreferences(),
     volumes: readUserVolumes(),
     devices: { inputs: [], outputs: [] },
@@ -496,6 +502,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
         ownQuality: null,
         screenError: null,
         level: 0,
+        speaking: false,
         config: null,
       });
     },
@@ -548,6 +555,7 @@ export const useVoice = create<VoiceStoreState>((set, get) => {
         hostUserId: null,
         latencyMs: null,
         level: 0,
+        speaking: false,
         streams: new Map(),
         screens: new Map(),
         watching: new Set(),

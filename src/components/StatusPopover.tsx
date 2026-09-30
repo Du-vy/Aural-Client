@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "@/lib/i18n";
+import { clearAutoAway } from "@/lib/idle";
 import { useSession } from "@/store/session";
 import { describeError, type UserStatus } from "@/lib/protocol";
 import { Avatar } from "./Avatar";
@@ -49,6 +50,7 @@ const STATUS_OPTIONS: StatusOption[] = [
 export function StatusPopover({ onClose, onOpenSettings }: StatusPopoverProps) {
   const { t } = useTranslation();
   const self = useSession((state) => state.self);
+  const serverId = useSession((state) => state.serverId);
   const setStatus = useSession((state) => state.setStatus);
   const updateProfile = useSession((state) => state.updateProfile);
 
@@ -87,6 +89,7 @@ export function StatusPopover({ onClose, onOpenSettings }: StatusPopoverProps) {
     setBusy(true);
     setError(null);
     try {
+      clearAutoAway(serverId);
       await setStatus(status);
       onClose();
     } catch (caught) {

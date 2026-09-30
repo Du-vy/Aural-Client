@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, type FormEvent } from "react";
 import { useTranslation, type TranslationKey } from "@/lib/i18n";
 import { Perm, has } from "@/lib/permissions";
 import { describeError } from "@/lib/protocol";
+import { clearAutoAway } from "@/lib/idle";
 import { useSession } from "@/store/session";
 import { useMyPermissions } from "@/store/selectors";
 import { formatBytes, parseBytes } from "@/lib/uploads";
@@ -76,6 +77,7 @@ const FRAME_PRESETS: {
 export function ProfilePage() {
   const { t } = useTranslation();
   const self = useSession((state) => state.self);
+  const serverId = useSession((state) => state.serverId);
   const server = useSession((state) => state.server);
   const roles = useSession((state) => state.roles);
   const address = useSession((state) => state.address);
@@ -203,6 +205,7 @@ export function ProfilePage() {
     setError(null);
     setSaved(false);
     try {
+      clearAutoAway(serverId);
       await setStatus(newStatus);
       setSaved(true);
     } catch (caught) {
