@@ -52,7 +52,7 @@ export function isPotentiallyAnimated(url?: string | null): boolean {
       lower.includes("tenor.com") ||
       lower.includes("giphy.com") ||
       lower.includes("klipy.com") ||
-      (lower.includes("discord") && lower.includes("/a_"))
+      (lower.includes("discord") && (lower.includes("/a_") || lower.includes("a_")))
     );
   } catch {
     return false;

@@ -4,6 +4,7 @@ import { formatFull, formatTime } from "@/lib/time";
 import type { MessageBase, Role, User } from "@/lib/protocol";
 import { colorRoleOf } from "@/store/selectors";
 import { Avatar } from "../Avatar";
+import { AnimatedImage } from "../AnimatedImage";
 import { Modal } from "../Modal";
 
 interface DeleteMessageDialogProps {
@@ -53,6 +54,14 @@ export function DeleteMessageDialog({
           <div className="msg__gutter">
             {author ? (
               <Avatar user={author} size="md" />
+            ) : message.webhook?.avatar ? (
+              <AnimatedImage
+                src={message.webhook.avatar}
+                alt=""
+                className="msg__avatar-webhook"
+                referrerPolicy="no-referrer"
+                aria-hidden="true"
+              />
             ) : (
               <span className="msg__avatar-offline" aria-hidden="true">
                 {message.author.slice(0, 1).toUpperCase()}

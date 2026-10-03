@@ -18,6 +18,7 @@ import type { MessageBase, ReferencedMessage, Role, User } from "@/lib/protocol"
 import type { JumpTarget } from "@/store/session";
 import { colorRoleOf } from "@/store/selectors";
 import { Avatar } from "./Avatar";
+import { AnimatedImage } from "./AnimatedImage";
 import { ContextMenu, type MenuEntry } from "./ContextMenu";
 import { DeleteMessageDialog } from "./dialogs/DeleteMessageDialog";
 import { ExternalLinkDialog } from "./dialogs/ExternalLinkDialog";
@@ -780,7 +781,7 @@ function MessageRow({
               <Avatar user={author} size="md" />
             </button>
           ) : webhookAvatar ? (
-            <img
+            <AnimatedImage
               src={webhookAvatar}
               alt=""
               className="msg__avatar-webhook"

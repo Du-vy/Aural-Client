@@ -3197,6 +3197,10 @@ console.log("\nanimated media background pause and accessibility");
   checkThat("detects server animated webp icon", isPotentiallyAnimated("http://localhost:8080/files/server-icon.webp"));
   checkThat("detects discord animated server icon", isPotentiallyAnimated("https://cdn.discordapp.com/icons/12345/a_67890.gif?size=64"));
   checkThat("detects discord animated server icon without extension", isPotentiallyAnimated("https://cdn.discordapp.com/icons/12345/a_67890"));
+  checkThat("detects discord animated user avatar with extension", isPotentiallyAnimated("https://cdn.discordapp.com/avatars/12345/a_67890.gif?size=128"));
+  checkThat("detects discord animated user avatar without extension", isPotentiallyAnimated("https://cdn.discordapp.com/avatars/12345/a_67890"));
+  checkThat("detects discord animated guild member avatar", isPotentiallyAnimated("https://cdn.discordapp.com/guilds/111/users/222/avatars/a_333.gif?size=128"));
+  checkThat("identifies static discord user avatar as not animated", !isPotentiallyAnimated("https://cdn.discordapp.com/avatars/12345/67890.png?size=128"));
   checkThat("identifies static server icon as not animated", !isPotentiallyAnimated("http://localhost:8080/files/server-icon.png"));
 
   const expectedTitle = t("dialogs.userSettings.accessibility.pauseAnimatedOnBlurTitle");
