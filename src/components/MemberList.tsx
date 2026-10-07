@@ -162,7 +162,9 @@ function RelayGroup({ roster }: { roster: import("@/lib/protocol").RelayRoster }
           <Avatar user={relayAvatar(member)} size="md" status={member.status} showStatus />
           <span className="member__body">
             <span className="member__title">
-              <span className="member__name">{member.name}</span>
+              <span className="member__name" style={{ color: member.color || undefined }}>
+                {member.name}
+              </span>
               {member.bot ? <span className="member__tag">{t("members.bot")}</span> : null}
             </span>
             <span className="member__meta">{member.handle ? `@${member.handle}` : t("members.discord")}</span>

@@ -215,6 +215,8 @@ export interface RelayMember {
   bot?: boolean;
   /** "online", "idle", "dnd" or "offline". Invisible reads as offline. */
   status: string;
+  /** Empty, or a #rrggbb hex colour of their highest ranked role with a colour. */
+  color?: string;
 }
 
 /** The Discord side of one bridged channel. */

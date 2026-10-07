@@ -194,7 +194,7 @@ export function buildMentions(
       id: 0,
       name: handle,
       alias: member.name !== handle ? member.name : null,
-      color: null,
+      color: member.color || null,
       user: null,
       relay: member,
     });
