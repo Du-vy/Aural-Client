@@ -15,7 +15,14 @@ let windowFocused =
 
 const listeners = new Set<(focused: boolean) => void>();
 
+function syncDocumentAttribute(focused: boolean) {
+  if (typeof document !== "undefined") {
+    document.documentElement.setAttribute("data-window-focused", focused ? "true" : "false");
+  }
+}
+
 function setFocused(next: boolean) {
+  syncDocumentAttribute(next);
   if (windowFocused === next) return;
   windowFocused = next;
   for (const listener of listeners) {
@@ -28,6 +35,7 @@ let initialized = false;
 function initWindowFocusTracker() {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
+  syncDocumentAttribute(windowFocused);
 
   const handleFocus = () => setFocused(true);
   const handleBlur = () => setFocused(false);
@@ -85,4 +93,8 @@ export function useWindowFocused(): boolean {
   }, []);
 
   return focused;
+}
+
+if (typeof window !== "undefined") {
+  initWindowFocusTracker();
 }

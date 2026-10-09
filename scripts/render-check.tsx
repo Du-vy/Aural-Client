@@ -3208,7 +3208,15 @@ console.log("\nanimated media background pause and accessibility");
   render("AppearancePage renders with pause animated toggle", <AppearancePage />, [expectedTitle]);
   render("AnimatedImage renders a static image", <AnimatedImage src="https://example.com/photo.jpg" alt="test" />);
   render("AnimatedImage renders an animated gif", <AnimatedImage src="https://example.com/cat.gif" alt="test gif" />);
+  checkThat("window focus tracker sets document attribute data-window-focused", document.documentElement.hasAttribute("data-window-focused"));
   render("AnimatedImage renders server icon with hovered state", <AnimatedImage className="rail__icon" src="http://localhost:8080/files/server.gif" alt="server" hovered={true} />);
+  const gifvEmbed: import("@/lib/protocol").Embed = {
+    type: "gifv",
+    url: "https://tenor.com/view/cat-gif",
+    video: { url: "https://media.tenor.com/cat.mp4", width: 400, height: 300 },
+    thumbnail: { url: "https://media.tenor.com/cat.gif" },
+  };
+  render("RichEmbeds renders gifv loop player with blur pause", <RichEmbeds embeds={[gifvEmbed]} onOpenLink={noop} />, ["rich-embed__player--loop"]);
 }
 
 console.log("\nthe protocol range");

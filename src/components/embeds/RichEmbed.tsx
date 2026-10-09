@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 import { isBareMedia, pictureOf, playbackOf, type EmbedPlayback } from "@/lib/embeds";
 import { useTranslation } from "@/lib/i18n";
 import type { MentionDirectory } from "@/lib/mentions";
 import type { Embed, EmbedMedia, User } from "@/lib/protocol";
 import { formatSmartDateTime } from "@/lib/time";
+import { useWindowFocused } from "@/lib/windowFocus";
+import { usePauseAnimatedOnBlur } from "@/lib/storage";
 import { Markdown } from "../attachments/Markdown";
 import { ImageLightbox, getFilenameFromUrl } from "../attachments/ImageLightbox";
 import { AnimatedImage } from "../AnimatedImage";
@@ -363,6 +365,61 @@ function EmbedPicture({
 }
 
 /**
+ * A looping silent video standing in for a GIF (GIFV from Discord / Tenor / Giphy).
+ * Pauses automatically when the window loses focus to save GPU/CPU video decoding,
+ * and allows temporary unpause on mouse hover matching AnimatedImage behavior.
+ */
+function EmbedLoopVideo({
+  src,
+  poster,
+  className,
+}: {
+  src: string;
+  poster?: string;
+  className: string;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const isWindowFocused = useWindowFocused();
+  const settingPauseOnBlur = usePauseAnimatedOnBlur();
+  const [hovered, setHovered] = useState(false);
+
+  const shouldFreeze = settingPauseOnBlur && !isWindowFocused && !hovered;
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+
+    if (shouldFreeze) {
+      el.pause();
+    } else {
+      el.play().catch(() => {
+        // Autoplay or playback permissions fall back gracefully
+      });
+    }
+  }, [shouldFreeze]);
+
+  return (
+    <video
+      ref={videoRef}
+      className={className}
+      src={src}
+      poster={poster}
+      autoPlay
+      loop
+      muted
+      playsInline
+      onPlay={(e) => {
+        if (shouldFreeze) {
+          e.currentTarget.pause();
+        }
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    />
+  );
+}
+
+/**
  * A card's clip, played where its picture would otherwise sit.
  *
  * Nothing loads until it is asked for: a channel of relayed links would
@@ -387,14 +444,10 @@ function EmbedPlayer({
 
   if (playback.kind === "file" && playback.loop) {
     return (
-      <video
-        className={`${className} rich-embed__player--loop`}
+      <EmbedLoopVideo
         src={playback.src}
         poster={poster}
-        autoPlay
-        loop
-        muted
-        playsInline
+        className={`${className} rich-embed__player--loop`}
       />
     );
   }
@@ -408,7 +461,7 @@ function EmbedPlayer({
         aria-label={t("embeds.playVideo")}
       >
         {poster ? (
-          <img
+          <AnimatedImage
             src={poster}
             alt=""
             className="rich-embed__player-poster"

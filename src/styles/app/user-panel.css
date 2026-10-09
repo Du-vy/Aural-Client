@@ -474,4 +474,15 @@
   }
 }
 
+/* --- Pause animated avatar frames when out of focus ------------------------ */
+html[data-pause-animated-blur="true"][data-window-focused="false"] .avatar__frame-layer {
+  animation-play-state: paused !important;
+}
+
+/* Allow hovering over avatar to preview animation temporarily even when out of focus */
+html[data-pause-animated-blur="true"][data-window-focused="false"] .avatar:hover .avatar__frame-layer,
+html[data-pause-animated-blur="true"][data-window-focused="false"] .avatar__frame-layer:hover {
+  animation-play-state: running !important;
+}
+
 
